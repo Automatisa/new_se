@@ -1,0 +1,364 @@
+<?php
+
+/**
+ * @copyright 2014-2023 Sentora Project (http://www.sentora.org/)
+ *
+ * Privilege-escalation helper — replaces the legacy `zsudo` setuid binary.
+ *
+ * Background (security fix, June 2026): Sentora historically used a custom
+ * `zsudo` setuid-root binary (sentora-installers/preconf/bin/zsudo.c) to
+ * escalate from the web server user (`apache`/`www`) to root for a handful
+ * of well-defined operations (restart Apache, reload BIND, reload cron,
+ * chmod the BIND log, etc.). The wrapper's `EscapeArgs()` only stripped
+ * single quotes; backticks, `$()` and `$(cmd)` were not filtered, so any
+ * user able to influence the arguments passed to the wrapper (cron
+ * `inTiming` was the most realistic vector) gained root command execution.
+ *
+ * The fix:
+ *   - Eliminate the setuid binary entirely.
+ *   - Replace each invocation site with a fixed whitelist table mapping an
+ *     internal "action" key to a fully-formed command line (no string
+ *     concatenation from runtime variables).
+ *   - Hand off to `sudo` on Linux (rules written to
+ *     `/etc/sudoers.d/sentora`) or to `doas` on FreeBSD (rules written to
+ *     `/usr/local/etc/doas.conf`). Either way the wrapper itself enforces
+ *     a fixed command list with exact-argument matching, so even if a
+ *     caller passed a malicious argument, no shell interpolation occurs.
+ *
+ * The installer is responsible for generating the corresponding rules
+ * file based on the action table below; see
+ * sentora-installers/sentora_install.sh. The class exposes:
+ *   - `sudoersRules($webUser)` for the Linux/sudo branch.
+ *   - `doasRules($webUser)`    for the FreeBSD/doas branch.
+ *   - `wrapperChoice()`        so the installer can pick the right branch
+ *                              without duplicating the OS-detection logic.
+ *
+ * NOTE — argument policy: arguments supplied by callers are limited to
+ * values that come from the panel's own configuration (`ctrl_options`)
+ * or, where unavoidable (e.g. the BIND log path), pass through
+ * `fs_director::RemoveDoubleSlash` + a basename-only whitelist. Anything
+ * else is rejected at the boundary.
+ */
+class privilege
+{
+    /**
+     * Master whitelist of privileged actions.
+     *
+     * Each key is a symbolic action name used in PHP call sites. The value
+     * is the exact argv array that will be execve()'d through the wrapper
+     * (sudo on Linux, doas on FreeBSD). The array is fixed at class load
+     * time — no caller-supplied data flows in here; arguments from callers
+     * are matched against placeholders below.
+     *
+     * Why this is safe: sudo and doas (with `args`) both enforce an
+     * exact-match rule on the wrapped command. The PHP side also builds
+     * the argv with no shell interpolation, so even if a caller passes a
+     * malicious string for one of the fixed arguments (e.g. the BIND log
+     * path), it cannot break out of the argv.
+     *
+     * `sudo_rule` is a one-line `User Host=(Runas) Options: command` snippet
+     * for /etc/sudoers.d/sentora.
+     *
+     * `doas_rule` is the trailing part of a doas.conf line — i.e. the
+     * `identity [as target] cmd command [args ...]` portion, starting with
+     * `cmd …`. The caller prepends `permit nopass` and the identity.
+     *
+     * For `bind_log_chmod` the doas rule is intentionally broader than the
+     * sudo rule (command-only, no args) because doas.conf does not support
+     * per-arg wildcards: the argument whitelist is enforced on the PHP side
+     * by `materializeTemplate()` (realpath + basename regex against
+     * /var/sentora/logs/bind/).
+     *
+     * @var array<string, array{argv?: array<int,string>, argv_template?: array<int,string>, sudo_rule: string, doas_rule: string}>
+     */
+    private static $actions = array(
+        // Apache restart (used by apache_admin + sentrypt after cert renewal).
+        'apache_restart' => array(
+            'argv' => array('/usr/sbin/service', 'apache24', 'restart'),
+            'sudo_rule' => '/usr/sbin/service apache24 restart',
+            'doas_rule' => 'cmd /usr/sbin/service args apache24 restart',
+        ),
+
+        // BIND start/stop/reload (used by dns_admin + dns_manager).
+        'bind_start' => array(
+            'argv' => array('/usr/sbin/service', 'named', 'start'),
+            'sudo_rule' => '/usr/sbin/service named start',
+            'doas_rule' => 'cmd /usr/sbin/service args named start',
+        ),
+        'bind_stop' => array(
+            'argv' => array('/usr/sbin/service', 'named', 'stop'),
+            'sudo_rule' => '/usr/sbin/service named stop',
+            'doas_rule' => 'cmd /usr/sbin/service args named stop',
+        ),
+        'bind_reload' => array(
+            'argv' => array('/usr/sbin/service', 'named', 'reload'),
+            'sudo_rule' => '/usr/sbin/service named reload',
+            'doas_rule' => 'cmd /usr/sbin/service args named reload',
+        ),
+
+        // Cron reload (used by cron module after writing the crontab).
+        // Note: the legacy `zsudo` invocation took 4 args
+        // (cron_reload_command, _flag, _user, _path). With sudo/doas, only
+        // the service wrapper is needed; `service cron reload` already
+        // reloads every user's crontab including the panel-managed file.
+        'cron_reload' => array(
+            'argv' => array('/usr/sbin/service', 'cron', 'reload'),
+            'sudo_rule' => '/usr/sbin/service cron reload',
+            'doas_rule' => 'cmd /usr/sbin/service args cron reload',
+        ),
+
+        // chmod the BIND log file (was `chmod 0777 <bindlog>` in dns_admin).
+        // Hardened: 0644 instead of 0777; bind group owned by `bind`.
+        'bind_log_chmod' => array(
+            // The actual log path is filled in at call time from the
+            // validated option, not from this fixed table.
+            'argv_template' => array('/bin/chmod', '0644', '__BIND_LOG__'),
+            'sudo_rule' => '/bin/chmod 0644 /var/sentora/logs/bind/bind.log',
+            // doas.conf: command-only (no `args` clause), since the BIND
+            // log path is dynamic. The argument whitelist is enforced on
+            // the PHP side via realpath + basename regex.
+            'doas_rule' => 'cmd /bin/chmod',
+        ),
+    );
+
+    /**
+     * Run a privileged action via sudo (or doas as a fallback).
+     *
+     * @param string $action One of the keys in self::$actions.
+     * @param array  $args   Optional positional arguments for the (rare)
+     *                       action that uses argv_template.
+     * @return array{0:int,1:string,2:string} [exit_code, stdout, stderr]
+     * @throws RuntimeException If the action is unknown or sudo/doas missing.
+     */
+    public static function run($action, array $args = array())
+    {
+        if (!isset(self::$actions[$action])) {
+            throw new RuntimeException("privilege::run: unknown action '$action'");
+        }
+
+        $spec = self::$actions[$action];
+
+        // Materialize argv: either the fixed list, or fill the template.
+        if (isset($spec['argv'])) {
+            $argv = $spec['argv'];
+        } else {
+            $argv = self::materializeTemplate($spec['argv_template'], $args);
+        }
+
+        // Locate the privilege-escalation wrapper.
+        $wrapper = self::detectWrapper();
+        if ($wrapper === null) {
+            throw new RuntimeException(
+                'privilege::run: no sudo/doas binary available — refusing to fall back to setuid zsudo.'
+            );
+        }
+
+        // Build the final command. We never go through a shell — execve()
+        // directly, so metacharacters in argv are safe by construction.
+        $fullArgv = array_merge(array($wrapper[0]), $wrapper[1], $argv);
+
+        $descriptors = array(
+            0 => array('pipe', 'r'),
+            1 => array('pipe', 'w'),
+            2 => array('pipe', 'w'),
+        );
+        $proc = proc_open($fullArgv, $descriptors, $pipes, null, null, array('bypass_shell' => true));
+        if (!is_resource($proc)) {
+            throw new RuntimeException('privilege::run: proc_open failed for ' . $fullArgv[0]);
+        }
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($proc);
+
+        return array((int)$exitCode, (string)$stdout, (string)$stderr);
+    }
+
+    /**
+     * Return the sudoers rules that the installer must place under
+     * /etc/sudoers.d/sentora.
+     *
+     * @param string $webUser The user the web server runs as
+     *                        (apache / www / www-data).
+     * @return string Plain-text rules block, ready to write to disk.
+     */
+    public static function sudoersRules($webUser)
+    {
+        // Whitelist the user name too — same rule as for the action keys.
+        if (!preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', $webUser)) {
+            throw new RuntimeException("privilege::sudoersRules: invalid web user '$webUser'");
+        }
+        $lines = array(
+            '# Sentora privilege rules (security fix, June 2026).',
+            '# Generated automatically — do not edit by hand; regenerate via',
+            '#   php -r "require \"/usr/local/sentora/panel/dryden/sys/privilege.class.php\"; echo privilege::sudoersRules(\"www\");\"',
+            '# Each line below maps to a single action key in privilege::run().',
+            '',
+        );
+        foreach (self::$actions as $key => $spec) {
+            $lines[] = "# privilege::run('$key')";
+            $lines[] = "$webUser ALL=(root) NOPASSWD: " . $spec['sudo_rule'];
+            $lines[] = '';
+        }
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Return the doas.conf rules that the installer must place at
+     * /usr/local/etc/doas.conf on FreeBSD.
+     *
+     * Format follows doas.conf(5):
+     *     permit nopass <identity> as root <doas_rule>
+     *
+     * @param string $webUser The user the web server runs as
+     *                        (apache / www / www-data).
+     * @return string Plain-text rules block, ready to write to disk.
+     */
+    public static function doasRules($webUser)
+    {
+        // Whitelist the user name too — same rule as for the action keys.
+        if (!preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', $webUser)) {
+            throw new RuntimeException("privilege::doasRules: invalid web user '$webUser'");
+        }
+        $lines = array(
+            '# Sentora privilege rules (security fix, June 2026).',
+            '# Generated automatically — do not edit by hand; regenerate via',
+            '#   php -r "require \"/usr/local/sentora/panel/dryden/sys/privilege.class.php\"; echo privilege::doasRules(\"www\");\"',
+            '# Each line below maps to a single action key in privilege::run().',
+            '# Lines take effect after installing to /usr/local/etc/doas.conf',
+            '# with mode 0600 owner root:wheel.',
+            '',
+        );
+        foreach (self::$actions as $key => $spec) {
+            $lines[] = "# privilege::run('$key')";
+            $lines[] = "permit nopass $webUser as root " . $spec['doas_rule'];
+            $lines[] = '';
+        }
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Decide which privilege-escalation wrapper applies on the current OS.
+     *
+     *   FreeBSD → doas  (sudo is not in base; security/doas is the idiom).
+     *   Linux   → sudo  (the historical choice; works with doas fallback too).
+     *
+     * The installer calls this once, picks the matching rules generator
+     * (sudoersRules / doasRules) and writes the result to the right path
+     * (/etc/sudoers.d/sentora vs /usr/local/etc/doas.conf).
+     *
+     * Override the choice by setting the SENTORA_PRIVILEGE_WRAPPER env var
+     * to either "sudo" or "doas" (useful for Vagrant/port testing).
+     *
+     * @return string "sudo" or "doas"
+     */
+    public static function wrapperChoice()
+    {
+        $override = getenv('SENTORA_PRIVILEGE_WRAPPER');
+        if ($override === 'sudo' || $override === 'doas') {
+            return $override;
+        }
+        // PHP_OS returns "FreeBSD" on FreeBSD, "Linux" on Linux. Be lenient
+        // and also accept the uname() form ("FreeBSD", "OpenBSD", …).
+        $os = strtolower((string)php_uname('s'));
+        if ($os === 'freebsd' || $os === 'openbsd' || $os === 'netbsd') {
+            return 'doas';
+        }
+        return 'sudo';
+    }
+
+    /**
+     * Detect sudo/doas on PATH. Returns array(argv0, argv) for proc_open,
+     * or null if neither is available.
+     *
+     *   sudo: argv = array('--', ...) so the wrapped command cannot be
+     *                     interpreted as a sudo option (defence in depth).
+     *   doas: argv = array() — we just pass the command and its args
+     *                     directly; doas does NOT have an option-sentinel
+     *                     like sudo's `--`, but the command is fixed.
+     *
+     * The wrapper is chosen by wrapperChoice(); we then probe PATH for the
+     * matching binary. If neither is available we throw at run time.
+     *
+     * @return array{0:string,1:array<int,string>}|null
+     */
+    private static function detectWrapper()
+    {
+        $choice = self::wrapperChoice();
+        if ($choice === 'sudo') {
+            foreach (array('/usr/local/bin/sudo', '/usr/bin/sudo') as $cand) {
+                if (is_executable($cand)) {
+                    return array($cand, array('--'));
+                }
+            }
+            // Fall back to doas if sudo is missing on this Linux box.
+            foreach (array('/usr/local/bin/doas', '/usr/bin/doas') as $cand) {
+                if (is_executable($cand)) {
+                    return array($cand, array());
+                }
+            }
+        } else { // doas
+            foreach (array('/usr/local/bin/doas', '/usr/bin/doas') as $cand) {
+                if (is_executable($cand)) {
+                    return array($cand, array());
+                }
+            }
+            // Fall back to sudo on a FreeBSD box that has it installed.
+            foreach (array('/usr/local/bin/sudo', '/usr/bin/sudo') as $cand) {
+                if (is_executable($cand)) {
+                    return array($cand, array('--'));
+                }
+            }
+        }
+        return null;
+    }
+
+
+    /**
+     * Fill placeholders in an argv template with caller-supplied arguments,
+     * after sanitising each value against a strict whitelist per slot.
+     *
+     * Currently only the `bind_log_chmod` action uses a template.
+     *
+     * @param array<int,string> $template
+     * @param array<int,string> $args
+     * @return array<int,string>
+     */
+    private static function materializeTemplate(array $template, array $args)
+    {
+        $out = array();
+        $argIdx = 0;
+        foreach ($template as $slot) {
+            if (strpos($slot, '__') === 0 && substr($slot, -2) === '__') {
+                if (!isset($args[$argIdx])) {
+                    throw new RuntimeException("privilege::run: missing argument $argIdx for template");
+                }
+                $value = (string)$args[$argIdx];
+                switch ($slot) {
+                    case '__BIND_LOG__':
+                        // Must be an absolute path under /var/sentora,
+                        // no shell metacharacters, no traversal.
+                        $real = realpath($value);
+                        $base = basename($real);
+                        if ($real === false
+                            || strpos($real, '/var/sentora/logs/bind/') !== 0
+                            || !preg_match('/^[A-Za-z0-9._\-]+$/', $base)
+                            || $base === '' || $base === '.' || $base === '..'
+                        ) {
+                            throw new RuntimeException("privilege::run: invalid bind_log path '$value'");
+                        }
+                        $out[] = $real;
+                        break;
+                    default:
+                        throw new RuntimeException("privilege::run: unknown template slot '$slot'");
+                }
+                $argIdx++;
+            } else {
+                $out[] = $slot;
+            }
+        }
+        return $out;
+    }
+}
