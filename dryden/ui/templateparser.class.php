@@ -251,7 +251,7 @@ class ui_templateparser
                 if (class_exists('' . $classes . '')) {
                     $moduleTemplate = call_user_func(array($classes, 'Template'));
                     $codeToInsert = ui_templateparser::CompileFunctions($moduleTemplate);
-                    $data = str_replace($match[0][$i], $codeToInsert, $data);
+                    $data = str_replace($match[0][$i], (string)$codeToInsert, $data);
                 }
                 $i++;
             }
