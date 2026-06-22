@@ -228,6 +228,7 @@ $myPicture->myData->savePalette(array(
 $myPicture->setFontProperties(array("FontName" => "pChart/fonts/" . $Font . ".ttf", "FontSize" => $FontSize, "R" => $FontR, "G" => $FontG, "B" => $FontB));
 
 /* Create the pPie object */ 
+$MyData = isset($MyData) ? $MyData : $myPicture->myData;
 $PieChart = new pPie($myPicture, $MyData);
 
 /* Enable shadow computing */ 
