@@ -39,6 +39,10 @@
  * `fs_director::RemoveDoubleSlash` + a basename-only whitelist. Anything
  * else is rejected at the boundary.
  */
+if (!class_exists('privilege')) {
+    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+}
+
 class privilege
 {
     /**
