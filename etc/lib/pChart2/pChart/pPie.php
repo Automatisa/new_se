@@ -303,7 +303,7 @@ class pPie
 
 		/* Compute the scale */
 		$SerieSum = array_sum($Values);
-		$ScaleFactor = (360 - $WastedAngular) / $SerieSum;
+		$ScaleFactor = ($SerieSum > 0) ? (360 - $WastedAngular) / $SerieSum : 0;
 		$RestoreShadow = $this->myPicture->Shadow;
 		if ($this->myPicture->Shadow) {
 			$this->myPicture->Shadow = FALSE;
