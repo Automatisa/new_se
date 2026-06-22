@@ -37,9 +37,9 @@ class module_controller extends ctrl_module
     static $type;
     static $reset;
     static $addmissing;
-    static $logerror;
-    static $logwarning;
-    static $getlog;
+    static $logerror   = array();
+    static $logwarning = array();
+    static $getlog     = array();
     static $showlog;
     static $notwritable;
     static $forceupdate;
