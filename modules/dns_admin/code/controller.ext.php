@@ -26,6 +26,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+if (!class_exists('privilege')) {
+    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+}
+
 class module_controller extends ctrl_module
 {
 
