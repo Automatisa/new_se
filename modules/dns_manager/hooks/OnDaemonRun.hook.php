@@ -1,5 +1,7 @@
 <?php
-
+    if (!class_exists('privilege')) {
+        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    }
 echo fs_filehandler::NewLine() . "START DNS Manager Hook" . fs_filehandler::NewLine();
 if (ui_module::CheckModuleEnabled('DNS Config')) {
     echo "DNS Manager module ENABLED..." . fs_filehandler::NewLine();
