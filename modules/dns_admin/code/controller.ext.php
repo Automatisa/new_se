@@ -293,18 +293,28 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function doUpdateService()
+ static function doUpdateService()
     {
         global $zdbh;
         global $controller;
+        $messages = array();
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inStartService'))) {
-            self::StartBind();
+            $r = self::StartBind();
+            $messages[] = "Start BIND: " . $r;
         }
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inStopService'))) {
-            self::StopBind();
+            $r = self::StopBind();
+            $messages[] = "Stop BIND: " . $r;
         }
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inReloadService'))) {
-            self::ReloadBind();
+            $r = self::ReloadBind();
+            $messages[] = "Reload BIND: " . $r;
+        }
+        if (!empty($messages)) {
+            self::$service = implode(" | ", $messages);
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                $_SESSION['zpanel_service_msg'] = self::$service;
+            }
         }
     }
 
