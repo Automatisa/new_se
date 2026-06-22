@@ -1,5 +1,7 @@
 <?php
-	
+if (!class_exists('privilege')) {
+        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    }	
 echo fs_filehandler::NewLine() . "START Apache Config Hook." . fs_filehandler::NewLine();
 if (ui_module::CheckModuleEnabled('Apache Config')) {
     echo "Apache Admin module ENABLED..." . fs_filehandler::NewLine();
