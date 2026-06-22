@@ -21,6 +21,9 @@
  
 
 # for LEscript you can use any logger according to Psr\Log\LoggerInterface
+    if (!class_exists('privilege')) {
+        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    }
 class Logger {
 	function __call($name, $arguments) {
 		echo date('Y-m-d H:i:s')." [$name] " . $arguments[0] . "\n";
