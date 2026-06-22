@@ -373,28 +373,42 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function StartBind()
+   static function StartBind()
     {
         if (sys_versions::ShowOSPlatformVersion() == "Windows") {
             /** @todo this needs changing to use the system command */
             exec('net start ' . ctrl_options::GetSystemOption('bind_service') . '', $out);
+            return "OK (windows)";
         } else {
             // Security fix (June 2026): replace zsudo with privilege::run()
             // (action key maps to a fixed command in privilege.class.php).
-            $out = privilege::run('bind_start');
+            list($code, $stdout, $stderr) = privilege::run('bind_start');
             sleep(2);
+            if ($code === 0) {
+                return "OK (exit 0)";
+            }
+            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+            if ($msg == '') { $msg = "exit " . $code; }
+            return "FAIL (" . $msg . ")";
         }
     }
 
-    static function StopBind()
+   static function StopBind()
     {
         if (sys_versions::ShowOSPlatformVersion() == "Windows") {
             /** @todo this needs changing to use the system command */
             exec('net stop ' . ctrl_options::GetSystemOption('bind_service') . '', $out);
+            return "OK (windows)";
         } else {
             // Security fix (June 2026): replace zsudo with privilege::run().
-            $out = privilege::run('bind_stop');
+            list($code, $stdout, $stderr) = privilege::run('bind_stop');
             sleep(2);
+            if ($code === 0) {
+                return "OK (exit 0)";
+            }
+            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+            if ($msg == '') { $msg = "exit " . $code; }
+            return "FAIL (" . $msg . ")";
         }
     }
 
@@ -404,9 +418,16 @@ class module_controller extends ctrl_module
             /** @todo this needs changing to use the system command */
             $reload_bind = ctrl_options::GetSystemOption('bind_dir') . 'rndc.exe reload';
             pclose(popen($reload_bind, 'r'));
+            return "OK (windows)";
         } else {
             // Security fix (June 2026): replace zsudo with privilege::run().
-            $out = privilege::run('bind_reload');
+            list($code, $stdout, $stderr) = privilege::run('bind_reload');
+            if ($code === 0) {
+                return "OK (exit 0)";
+            }
+            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+            if ($msg == '') { $msg = "exit " . $code; }
+            return "FAIL (" . $msg . ")";
         }
     }
 
