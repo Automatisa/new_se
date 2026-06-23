@@ -1073,7 +1073,9 @@ function RestartHttpdServices() {
 		system("" . ctrl_options::GetSystemOption('httpd_exe') . " " . ctrl_options::GetSystemOption('apache_restart') . "", $returnValue);
 	} else {
 		// Security fix (June 2026): replace zsudo with privilege::run().
-		$returnValue = privilege::run('apache_restart');
+		// privilege::run() returns array($exitCode, $stdout, $stderr)
+		$result = privilege::run('apache_restart');
+		$returnValue = $result[0];
 	}
 
 	echo "Apache reload " . ((0 === $returnValue ) ? "suceeded" : "failed") . "." . fs_filehandler::NewLine();
