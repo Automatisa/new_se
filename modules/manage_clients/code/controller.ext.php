@@ -552,13 +552,13 @@ class module_controller extends ctrl_module
         $sql->bindParam(':date', $date);
         $sql->bindParam(':ac_id_pk', $client['ac_id_pk']);
         $sql->execute();
-        // Lets create the client diectories
+        // Lets create the client directories
         fs_director::CreateDirectory(ctrl_options::GetSystemOption('hosted_dir') . $username);
-        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username, 0777);
-        fs_director::CreateDirectory(ctrl_options::GetSystemOption('hosted_dir') . $username . "/public_html");
-        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username . "/public_html", 0777);
+        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username, 0755);
+        // public_html ya NO se crea aquí: se crea por dominio en modules/domains
+        // con la estructura: hosted_dir/username/domain_dir/public_html/
         fs_director::CreateDirectory(ctrl_options::GetSystemOption('hosted_dir') . $username . "/backups");
-        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username . "/backups", 0777);
+        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username . "/backups", 0755);
         // Send the user account details via. email (if requested)...
         if ($sendemail <> 0) {
             if (isset($_SERVER['HTTPS'])) {
