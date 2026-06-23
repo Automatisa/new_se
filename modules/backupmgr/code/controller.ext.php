@@ -75,7 +75,7 @@ class module_controller extends ctrl_module
     static function CheckHasData($userid)
     {
         $currentuser = ctrl_users::GetUserDetail($userid);
-        $datafolder = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/";
+        $datafolder = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/";
         $dirFiles = array();
         if ($handle = opendir($datafolder)) {
             while (false !== ($file = readdir($handle))) {
