@@ -153,9 +153,9 @@ function WriteVhostConfigFile() {
 				. "/var/spool/" . '"' . fs_filehandler::NewLine(); 
 				
 		# Set Function Blacklist 
-		$line .= "php_admin_value sp.configuration_file " . '"/etc/sentora/configs/php/sp/panel.rules"' . fs_filehandler::NewLine();		
+		// php_admin_value sp.configuration_file not supported with PHP-FPM
 				
-		$line .= "php_admin_value session.save_path " . '"/var/sentora/sessions"' . fs_filehandler::NewLine();
+		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
 		
 		$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-error.log" ' . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
@@ -216,9 +216,9 @@ function WriteVhostConfigFile() {
 				. "/var/spool/" . '"' . fs_filehandler::NewLine(); 
 				
 		# Set Function Blacklist 
-		$line .= "php_admin_value sp.configuration_file " . '"/etc/sentora/configs/php/sp/panel.rules"' . fs_filehandler::NewLine();
+		// php_admin_value sp.configuration_file not supported with PHP-FPM
 		
-		$line .= "php_admin_value session.save_path " . '"/var/sentora/sessions"' . fs_filehandler::NewLine();
+		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
 	
 		$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-error.log" ' . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
@@ -679,18 +679,17 @@ function WriteVhostConfigFile() {
 				// Get Package openbasedir and PHP handler enabled options
 				if (ctrl_options::GetSystemOption('use_openbase') == "true") {
 					if ($rowvhost['vh_obasedir_in'] <> 0) {
-						$line .= 'php_admin_value open_basedir "'
-							  . $_vhpaths['public_html'] . '/' . ctrl_options::GetSystemOption('openbase_seperator')
+						// open_basedir configured in PHP-FPM pool, not in vhost
 							  . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 					}
 				}
 				
 				# Set Function Blacklist 
-				$line .= $func_blklist_sys . fs_filehandler::NewLine();
+				// func_blklist_sys (Suhosin/Snuff) not supported with PHP-FPM
 				
 				# PHP_admin_values
-				$line .= 'php_admin_value upload_tmp_dir ' . '"' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-				$line .= 'php_admin_value session.save_path ' . '"' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'SetEnv PHP_VALUE "upload_tmp_dir=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'SetEnv PHP_VALUE "session.save_path=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 				
 				// Logs
 				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
@@ -795,16 +794,16 @@ function WriteVhostConfigFile() {
 				// Get Package openbasedir and PHP handler enabled options
 				if (ctrl_options::GetSystemOption('use_openbase') == "true") {
 					if ($rowvhost['vh_obasedir_in'] <> 0) {
-						$line .= 'php_admin_value open_basedir "' . $_vhpaths['public_html'] . '/' . ctrl_options::GetSystemOption('openbase_seperator') . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+						// open_basedir configured in PHP-FPM pool, not in vhost
 					}
 				}
 				
 				# Set Function Blacklist 
-				$line .= $func_blklist_sys . fs_filehandler::NewLine();
+				// func_blklist_sys (Suhosin/Snuff) not supported with PHP-FPM
 				
 				# PHP_admin_values
-				$line .= 'php_admin_value upload_tmp_dir "' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-				$line .= 'php_admin_value session.save_path "' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'SetEnv PHP_VALUE "upload_tmp_dir=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'SetEnv PHP_VALUE "session.save_path=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 							
 				// Logs
 				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
