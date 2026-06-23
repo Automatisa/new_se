@@ -76,7 +76,8 @@ function renewCertificates() {
 		if ($sslVhost['vh_ssl_tx'] !== false) {
 			
 			$vhostOwner = ctrl_users::GetUserDetail($sslVhost['vh_acc_fk']);
-			$domainPath = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/public_html" . $sslVhost['vh_directory_vc'];
+			$_vhp_ssl = ctrl_options::GetVhostPaths($vhostOwner['username'], $sslVhost['vh_directory_vc']);
+			$domainPath = $_vhp_ssl['public_html'];
 			echo "Checking certificate for Client: " . $vhostOwner['username'] . " / Domain: " . $sslVhost['vh_name_vc'] . fs_filehandler::NewLine();
 			//echo "At location: " . $domainPath . fs_filehandler::NewLine(); - For DEBUGGING
 			
