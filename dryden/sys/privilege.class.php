@@ -76,11 +76,12 @@ class privilege
      * @var array<string, array{argv?: array<int,string>, argv_template?: array<int,string>, sudo_rule: string, doas_rule: string}>
      */
     private static $actions = array(
-        // Apache restart (used by apache_admin + sentrypt after cert renewal).
+        // Apache reload (used by apache_admin + sentrypt after cert renewal).
+        // Uses 'reload' instead of 'restart' to avoid dropping active connections.
         'apache_restart' => array(
-            'argv' => array('/usr/sbin/service', 'apache24', 'restart'),
-            'sudo_rule' => '/usr/sbin/service apache24 restart',
-            'doas_rule' => 'cmd /usr/sbin/service args apache24 restart',
+            'argv' => array('/usr/sbin/service', 'apache24', 'reload'),
+            'sudo_rule' => '/usr/sbin/service apache24 reload',
+            'doas_rule' => 'cmd /usr/sbin/service args apache24 reload',
         ),
 
         // BIND start/stop/reload (used by dns_admin + dns_manager).
