@@ -168,6 +168,36 @@ class ctrl_options {
     }
 
     /**
+     * Returns all filesystem paths derived from a vhost record.
+     *
+     * New directory layout (Opcion B):
+     *   hosted_dir / username / vh_directory_vc / public_html/
+     *   hosted_dir / username / vh_directory_vc / tmp/
+     *   hosted_dir / username / vh_directory_vc / logs/
+     *   hosted_dir / username / vh_directory_vc / _errorpages/
+     *   hosted_dir / username / vh_directory_vc / _cgi-bin/
+     *
+     * vh_directory_vc is stored WITHOUT leading slash, e.g. "ejemplo_com".
+     *
+     * @param string $username      The account username.
+     * @param string $vh_directory  Value of vh_directory_vc from x_vhosts.
+     * @return array  Associative array with keys:
+     *                  domain_root, public_html, tmp, logs, errorpages, cgibin
+     */
+    public static function GetVhostPaths($username, $vh_directory) {
+        $base = rtrim(self::GetSystemOption('hosted_dir'), '/');
+        $domain_root = $base . '/' . $username . '/' . $vh_directory;
+        return array(
+            'domain_root' => $domain_root,
+            'public_html' => $domain_root . '/public_html',
+            'tmp'         => $domain_root . '/tmp',
+            'logs'        => $domain_root . '/logs',
+            'errorpages'  => $domain_root . '/_errorpages',
+            'cgibin'      => $domain_root . '/_cgi-bin',
+        );
+    }
+
+    /**
      * Dynamically builds a drop-down menu of avaliable options based on predfined list of values (seperated with a '|' pipe character!)
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @param string $name The name to use for the <select> tag.
