@@ -101,9 +101,9 @@ function ExecuteBackup($userid, $username, $download = 0) {
     $dbstamp = date("dmy_Gi", time());
     // We now see what the OS is before we work out what compression command to use..
     if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-        $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " a -tzip -y-r " . $temp_dir . $backupname . ".zip " . $homedir . "/public_html"));
-    } else {//cd /var/sentora/hostdata/zadmin/; zip -r backups/backup.zip public_html/
-        $resault = exec("cd " . $homedir . "/ && " . ctrl_options::GetSystemOption('zip_exe') . " -r9 " . $temp_dir . $backupname . " public_html/*");
+        $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " a -tzip -y-r " . $temp_dir . $backupname . ".zip " . $homedir));
+    } else {// Backup todo el home del usuario (nueva estructura: un dir por dominio)
+        $resault = exec("cd " . $homedir . "/../ && " . ctrl_options::GetSystemOption('zip_exe') . " -r9 " . $temp_dir . $backupname . " " . $username . "/ --exclude=" . $username . "/backups/*");
         @chmod($temp_dir . $backupname . ".zip", 0777);
     }
     // Now lets backup all MySQL datbases for the user and add them to the archive...
