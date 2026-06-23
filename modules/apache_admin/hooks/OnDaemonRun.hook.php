@@ -312,7 +312,9 @@ function WriteVhostConfigFile() {
 	$rows->execute();
 	$packageinfo = $rows->fetch();
 	#*************************************************
-	$RootDir =  ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . '/public_html' . $rowvhost['vh_directory_vc'];  
+	# Nueva estructura: hosted_dir/username/vh_directory_vc/public_html/
+	$_vhpaths = ctrl_options::GetVhostPaths($vhostuser['username'], $rowvhost['vh_directory_vc']);
+	$RootDir  = $_vhpaths['public_html'];
 	$vh_snuff_path = "/etc/sentora/configs/php/sp/";
 	$vh_vhostuser = $vhostuser['username'];
 	
@@ -652,10 +654,10 @@ function WriteVhostConfigFile() {
 		   
 		    if ($rowvhost['vh_ssl_tx'] == null) {
 		   
-				# Create Apache Vhost direcory and log folders
-				# Temp
-				if ( !is_dir( ctrl_options::GetSystemOption('hosted_dir') . $vhostuser[ 'username' ] . "/tmp" ) ) {
-					fs_director::CreateDirectory( ctrl_options::GetSystemOption( 'hosted_dir' ) . $vhostuser[ 'username' ] . "/tmp" );
+				# Create Apache Vhost directory and log folders
+				# Temp (por dominio en nueva estructura)
+				if ( !is_dir( $_vhpaths['tmp'] ) ) {
+					fs_director::CreateDirectory( $_vhpaths['tmp'] );
 				}
 				# Logs
 				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
@@ -675,10 +677,9 @@ function WriteVhostConfigFile() {
 				// Get Package openbasedir and PHP handler enabled options
 				if (ctrl_options::GetSystemOption('use_openbase') == "true") {
 					if ($rowvhost['vh_obasedir_in'] <> 0) {
-						$line .= 'php_admin_value open_basedir "' 
-							  . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/public_html" 
-							  . $rowvhost['vh_directory_vc'] . '/' . ctrl_options::GetSystemOption('openbase_seperator') 
-							  . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . '"' . fs_filehandler::NewLine();
+						$line .= 'php_admin_value open_basedir "'
+							  . $_vhpaths['public_html'] . '/' . ctrl_options::GetSystemOption('openbase_seperator')
+							  . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 					}
 				}
 				
@@ -686,8 +687,8 @@ function WriteVhostConfigFile() {
 				$line .= $func_blklist_sys . fs_filehandler::NewLine();
 				
 				# PHP_admin_values
-				$line .= 'php_admin_value upload_tmp_dir ' . '"' . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . "\"" . fs_filehandler::NewLine();
-				$line .= 'php_admin_value session.save_path ' . '"' . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . "\"" . fs_filehandler::NewLine();
+				$line .= 'php_admin_value upload_tmp_dir ' . '"' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'php_admin_value session.save_path ' . '"' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 				
 				// Logs
 				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
@@ -732,7 +733,7 @@ function WriteVhostConfigFile() {
 				
 				// Error documents:- Error pages are added automatically if they are found in the _errorpages directory
 				// and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-				$errorpages = ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/public_html" . $rowvhost['vh_directory_vc'] . "/_errorpages";
+				$errorpages = $_vhpaths['errorpages'];  # no-SSL block
 				if (is_dir($errorpages)) {
 					if ($handle = opendir($errorpages)) {
 						while (($file = readdir($handle)) !== false) {
@@ -792,10 +793,7 @@ function WriteVhostConfigFile() {
 				// Get Package openbasedir and PHP handler enabled options
 				if (ctrl_options::GetSystemOption('use_openbase') == "true") {
 					if ($rowvhost['vh_obasedir_in'] <> 0) {
-						$line .= 'php_admin_value open_basedir "' 
-					  		  . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/public_html" 
-							  . $rowvhost['vh_directory_vc'] . '/' . ctrl_options::GetSystemOption('openbase_seperator') 
-							  . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . '"' . fs_filehandler::NewLine();
+						$line .= 'php_admin_value open_basedir "' . $_vhpaths['public_html'] . '/' . ctrl_options::GetSystemOption('openbase_seperator') . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 					}
 				}
 				
@@ -803,8 +801,8 @@ function WriteVhostConfigFile() {
 				$line .= $func_blklist_sys . fs_filehandler::NewLine();
 				
 				# PHP_admin_values
-				$line .= 'php_admin_value upload_tmp_dir ' . '"' . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . "\"" . fs_filehandler::NewLine();
-				$line .= 'php_admin_value session.save_path ' . '"' . ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/tmp/" . "\"" . fs_filehandler::NewLine();
+				$line .= 'php_admin_value upload_tmp_dir "' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
+				$line .= 'php_admin_value session.save_path "' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 							
 				// Logs
 				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
@@ -849,7 +847,7 @@ function WriteVhostConfigFile() {
 		
 				// Error documents:- Error pages are added automatically if they are found in the _errorpages directory
 				// and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-				$errorpages = ctrl_options::GetSystemOption('hosted_dir') . $vhostuser['username'] . "/public_html" . $rowvhost['vh_directory_vc'] . "/_errorpages";
+				$errorpages = $_vhpaths['errorpages'];  # SSL block
 				if (is_dir($errorpages)) {
 					if ($handle = opendir($errorpages)) {
 						while (($file = readdir($handle)) !== false) {
