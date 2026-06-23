@@ -125,10 +125,12 @@ function WriteVhostConfigFile() {
     $line .= "################################################################" . fs_filehandler::NewLine();
     $line .= fs_filehandler::NewLine();
 
-    # Listen is mandatory for each port <> 80 (80 is defined in system config)
-	# For each custom port
+    # Listen is mandatory for each port <> 80 (80 is defined in system httpd.conf)
+	# For each custom port, skip 80 to avoid "multiple Listeners on same port" error
     foreach ($customPortList as $port) {
-        $line .= "Listen " . $port . fs_filehandler::NewLine();
+        if ($port != '80' && $port != 80) {
+            $line .= "Listen " . $port . fs_filehandler::NewLine();
+        }
     }
 	
 	$line .= fs_filehandler::NewLine();
