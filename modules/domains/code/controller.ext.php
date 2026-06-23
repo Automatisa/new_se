@@ -83,14 +83,14 @@ class module_controller extends ctrl_module
         global $controller;
         $currentuser = ctrl_users::GetUserDetail($uid);
         $res = array();
-        $handle = @opendir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html");
-        $chkdir = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/";
+        $base = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/') . '/' . $currentuser['username'];
+        $handle = @opendir($base);
         if (!$handle) {
             # Log an error as the folder cannot be opened...
         } else {
             while ($file = @readdir($handle)) {
-                if ($file != "." && $file != ".." && $file != "_errorpages") {
-                    if (is_dir($chkdir . $file)) {
+                if ($file != "." && $file != ".." && $file != "backups" && $file != "tmp" && $file != "ssl") {
+                    if (is_dir($base . '/' . $file) && is_dir($base . '/' . $file . '/public_html')) {
                         array_push($res, array('domains' => $file));
                     }
                 }
@@ -146,32 +146,27 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
             //** New Home Directory **//
         if ($autohome == 1) {
-    // Path limpio SIN slash inicial (era el bug)
-    $destination = str_replace(".", "_", $domain);
-    
-    // Construir el path completo (sin doble slash aunque hosted_dir termine en /)
-    $vhost_path = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/')
-                . '/' . $currentuser['username']
-                . "/public_html/" . $destination . "/";
-    
-    // Crear el directorio raiz del dominio
-    fs_director::CreateDirectory(rtrim($vhost_path, '/'));
-    
-    // Crear subdirectorios estandar (los mismos que OnDaemonRun.hook.php intenta crear)
-    fs_director::CreateDirectory($vhost_path . '_cgi-bin');
-    fs_director::CreateDirectory($vhost_path . '_errorpages');
-    fs_director::CreateDirectory($vhost_path . 'logs');
-    fs_director::CreateDirectory($vhost_path . 'mail');
-    
-    // Permisos correctos: 0755 (solo el dueño y root escriben)
-    // NO usar 0777 (inseguro)
-    fs_director::SetFileSystemPermissions(rtrim($vhost_path, '/'), 0755);
-    
-    //** Existing Home Directory **//
-}
- else {
-                $destination = "/" . $destination;
-                $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
+            // vh_directory_vc se guarda SIN slash: "ejemplo_com"
+            // La ruta real se construye siempre via ctrl_options::GetVhostPaths()
+            $destination = str_replace(".", "_", $domain);
+            $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
+
+            // Crear árbol de directorios del dominio
+            fs_director::CreateDirectory($paths['domain_root']);
+            fs_director::CreateDirectory($paths['public_html']);
+            fs_director::CreateDirectory($paths['tmp']);
+            fs_director::CreateDirectory($paths['logs']);
+            fs_director::CreateDirectory($paths['errorpages']);
+            fs_director::CreateDirectory($paths['cgibin']);
+
+            fs_director::SetFileSystemPermissions($paths['domain_root'], 0755);
+            $vhost_path = $paths['public_html'] . '/';
+
+        //** Existing Home Directory **//
+        } else {
+                $destination = str_replace(".", "_", $destination);
+                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
+                $vhost_path = $paths['public_html'] . '/';
             }
             // Error documents:- Error pages are added automatically if they are found in the _errorpages directory
             // and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
