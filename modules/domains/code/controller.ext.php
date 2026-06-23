@@ -145,14 +145,31 @@ class module_controller extends ctrl_module
         $domain = strtolower(str_replace(' ', '', $domain));
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
             //** New Home Directory **//
-            if ($autohome == 1) {
-                $destination = str_replace(".", "_", $domain);
-                $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
-                fs_director::CreateDirectory(trim($vhost_path, '/'));
-                fs_director::CreateDirectory($vhost_path);
-                fs_director::SetFileSystemPermissions($vhost_path, 0777);
-                //** Existing Home Directory **//
-            } else {
+        if ($autohome == 1) {
+    // Path limpio SIN slash inicial (era el bug)
+    $destination = str_replace(".", "_", $domain);
+    
+    // Construir el path completo (sin doble slash aunque hosted_dir termine en /)
+    $vhost_path = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/')
+                . '/' . $currentuser['username']
+                . "/public_html/" . $destination . "/";
+    
+    // Crear el directorio raiz del dominio
+    fs_director::CreateDirectory(rtrim($vhost_path, '/'));
+    
+    // Crear subdirectorios estandar (los mismos que OnDaemonRun.hook.php intenta crear)
+    fs_director::CreateDirectory($vhost_path . '_cgi-bin');
+    fs_director::CreateDirectory($vhost_path . '_errorpages');
+    fs_director::CreateDirectory($vhost_path . 'logs');
+    fs_director::CreateDirectory($vhost_path . 'mail');
+    
+    // Permisos correctos: 0755 (solo el dueño y root escriben)
+    // NO usar 0777 (inseguro)
+    fs_director::SetFileSystemPermissions(rtrim($vhost_path, '/'), 0755);
+    
+    //** Existing Home Directory **//
+}
+ else {
                 $destination = "/" . $destination;
                 $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
             }
