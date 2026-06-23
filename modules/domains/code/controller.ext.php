@@ -117,6 +117,12 @@ class module_controller extends ctrl_module
 			if (file_exists($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules')) {
 				unlink($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules') or print fs_filehandler::NewLine() . "Couldn't delete " . $rowvhost['vh_name_vc'] . "vhost sp file" . fs_filehandler::NewLine();
 			}
+
+		// Eliminar directorio del dominio del disco
+		$paths = ctrl_options::GetVhostPaths($vhostusername, $rowvhost['vh_directory_vc']);
+		if (is_dir($paths['domain_root'])) {
+			fs_filehandler::RemoveDirectory($paths['domain_root']);
+		}
 		}
 		
 		// Delete Domain
@@ -524,4 +530,3 @@ class module_controller extends ctrl_module
 
 	 
 }
-
