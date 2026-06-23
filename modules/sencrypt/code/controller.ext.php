@@ -1223,7 +1223,8 @@ class module_controller extends ctrl_module {
 			$sql->execute();
 		$domain_folder=$sql->fetchColumn();
 		//$domain_folder = str_replace(".","_", $domain);
-		$domainRoot = ctrl_options::GetSystemOption('hosted_dir') . $username . "/public_html/" . $domain_folder;
+		$_vhp = ctrl_options::GetVhostPaths($username, $domain_folder);
+		$domainRoot = $_vhp['public_html'];
 
 		require("modules/sencrypt/code/Lescript.php");
 		date_default_timezone_set("UTC");
@@ -1696,7 +1697,8 @@ class module_controller extends ctrl_module {
 		$userid = $currentuser["userid"];
 		$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/letsencrypt/";
 		$certlocation = $accountDir . $domain;
-		$domainRoot = ctrl_options::GetSystemOption('hosted_dir') . $username . "/public_html/" . $domain;
+		$_vhp2 = ctrl_options::GetVhostPaths($username, str_replace('.', '_', $domain));
+		$domainRoot = $_vhp2['public_html'];
 
 		# Convert PEM cert to DER format base64url for revoke
 		# tg
