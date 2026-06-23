@@ -121,7 +121,7 @@ class module_controller extends ctrl_module
 		// Eliminar directorio del dominio del disco
 		$paths = ctrl_options::GetVhostPaths($vhostusername, $rowvhost['vh_directory_vc']);
 		if (is_dir($paths['domain_root'])) {
-			fs_filehandler::RemoveDirectory($paths['domain_root']);
+			fs_filehandler::RemoveDirectory($paths['domain_root'] . "/");
 		}
 		}
 		
