@@ -680,7 +680,6 @@ function WriteVhostConfigFile() {
 				if (ctrl_options::GetSystemOption('use_openbase') == "true") {
 					if ($rowvhost['vh_obasedir_in'] <> 0) {
 						// open_basedir configured in PHP-FPM pool, not in vhost
-							  . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
 					}
 				}
 				
