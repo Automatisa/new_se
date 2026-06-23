@@ -96,14 +96,14 @@ class module_controller extends ctrl_module
         global $controller;
         $currentuser = ctrl_users::GetUserDetail($uid);
         $res = array();
-        $handle = @opendir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html");
-        $chkdir = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/";
+        $base = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/') . '/' . $currentuser['username'];
+        $handle = @opendir($base);
         if (!$handle) {
             # Log an error as the folder cannot be opened...
         } else {
             while ($file = @readdir($handle)) {
-                if ($file != "." && $file != ".." && $file != "_errorpages") {
-                    if (is_dir($chkdir . $file)) {
+                if ($file != "." && $file != ".." && $file != "backups" && $file != "tmp" && $file != "ssl") {
+                    if (is_dir($base . '/' . $file) && is_dir($base . '/' . $file . '/public_html')) {
                         array_push($res, array('domains' => $file));
                     }
                 }
@@ -156,13 +156,19 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
             //** New Home Directory **//
             if ($autohome == 1) {
-                $destination = "/" . str_replace(".", "_", $domain);
-                $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
-                fs_director::CreateDirectory($vhost_path);
+                // Los subdominios viven dentro del public_html del dominio padre
+                // vh_directory_vc = "ejemplo_com/sub" (sin slash inicial)
+                $destination = str_replace(".", "_", $domain);
+                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
+                $vhost_path = $paths['public_html'] . '/';
+                fs_director::CreateDirectory($paths['domain_root']);
+                fs_director::CreateDirectory($paths['public_html']);
+                fs_director::CreateDirectory($paths['tmp']);
                 //** Existing Home Directory **//
             } else {
-                $destination = "/" . $destination;
-                $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
+                $destination = str_replace(".", "_", $destination);
+                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
+                $vhost_path = $paths['public_html'] . '/';
             }
             // Error documents:- Error pages are added automatically if they are found in the _errorpages directory
             // and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
