@@ -403,7 +403,7 @@ class module_controller extends ctrl_module
     #########################################################
     static function fileInPathCheck($file)
     {
-        $path = self::getHostDir() . self::getCurrentUsername() . '/public_html/' . $file . '/';
+        $path = self::getHostDir() . self::getCurrentUsername() . '/' . $file . '/';
         $realPath = realpath($path);
         
         if(!$realPath)
