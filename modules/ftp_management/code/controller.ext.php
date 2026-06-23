@@ -129,14 +129,14 @@ class module_controller extends ctrl_module
     {
         $currentuser = ctrl_users::GetUserDetail($uid);
         $res = array();
-        $handle = @opendir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html");
-        $chkdir = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/";
+        $base = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/') . '/' . $currentuser['username'];
+        $handle = @opendir($base);
         if (!$handle) {
             // Log an error as the folder cannot be opened...
         } else {
             while ($file = @readdir($handle)) {
-                if ($file != "." && $file != ".." && $file != "_errorpages") {
-                    if (is_dir($chkdir . $file)) {
+                if ($file != "." && $file != ".." && $file != "backups" && $file != "tmp" && $file != "ssl") {
+                    if (is_dir($base . '/' . $file) && is_dir($base . '/' . $file . '/public_html')) {
                         $res[] = array('domains' => runtime_xss::xssClean($file));
                     }
                 }
