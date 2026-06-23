@@ -146,7 +146,7 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
             //** New Home Directory **//
             if ($autohome == 1) {
-                $destination = "/" . str_replace(".", "_", $domain);
+                $destination = str_replace(".", "_", $domain);
                 $vhost_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $destination . "/";
                 fs_director::CreateDirectory($vhost_path);
                 fs_director::SetFileSystemPermissions($vhost_path, 0777);
