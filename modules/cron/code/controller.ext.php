@@ -144,7 +144,7 @@ class module_controller extends ctrl_module
         $line .= '<td><input name="inScript" type="text" id="inScript" size="50" /><br />'
                 . ui_language::translate("example") . ': /folder/task.php<br>'
                 . ui_language::translate('Note 1 : Script path is relative to your sentora-user root directory:') . '<br>'
-                . ' &nbsp; <b>' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/public_html/</b><br>'
+                . ' &nbsp; <b>' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/</b><br>'
                 . ui_language::translate('Note 2 : Each file access in your script must use absolute directory path as above.')
                 . '</td>';
         $line .= "</tr>";
@@ -193,7 +193,7 @@ class module_controller extends ctrl_module
             $sql->bindParam(':script', $controller->GetControllerRequest('FORM', 'inScript'));
             $sql->bindParam(':desc', $controller->GetControllerRequest('FORM', 'inDescription'));
             $sql->bindParam(':timing', $controller->GetControllerRequest('FORM', 'inTiming'));
-            $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/public_html/" . $controller->GetControllerRequest('FORM', 'inScript');
+            $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/" . $controller->GetControllerRequest('FORM', 'inScript');
             $sql->bindParam(':fullpath', $full_path);
             $sql->execute();
             self::WriteCronFile();
@@ -260,7 +260,7 @@ class module_controller extends ctrl_module
             $retval = TRUE;
         }
         // Check to make sure the cron script exists before we go any further...
-        if (!is_file(fs_director::RemoveDoubleSlash(fs_director::ConvertSlashes(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/public_html/' . $controller->GetControllerRequest('FORM', 'inScript'))))) {
+        if (!is_file(fs_director::RemoveDoubleSlash(fs_director::ConvertSlashes(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/' . $controller->GetControllerRequest('FORM', 'inScript'))))) {
             self::$noexists = TRUE;
             $retval = TRUE;
         }
