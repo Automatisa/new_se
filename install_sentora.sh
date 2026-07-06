@@ -1264,6 +1264,17 @@ pass  quick from <sentora_whitelist>
 block drop quick from <sentora_blocked>
 block drop quick from <sshguard>
 
+# ---- Servicios base SIEMPRE permitidos ----
+# IMPRESCINDIBLE: sin permitir SSH aquí, activar pf deja el servidor sin acceso
+# remoto (block in all bloquea el puerto 22). El resto son los servicios que el
+# panel necesita servir; fw_admin añade reglas extra mediante el anchor de abajo.
+pass in quick proto tcp to port 22 keep state
+pass in quick proto tcp to port { 80, 443 } keep state
+pass in quick proto tcp to port { 25, 465, 587, 110, 143, 993, 995 } keep state
+pass in quick proto tcp to port { 20, 21, 49152:65534 } keep state
+pass in quick proto { tcp, udp } to port 53 keep state
+pass in quick inet proto icmp icmp-type echoreq keep state
+
 # ---- Anchor para reglas dinámicas gestionadas por el panel ----
 anchor "sentora_rules"
 PFCF
