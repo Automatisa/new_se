@@ -733,7 +733,7 @@ INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk
 -- con bin/setzadmin (UPDATE ... WHERE ac_user_vc='zadmin'); aquí solo el registro base.
 TRUNCATE TABLE `x_accounts`;
 INSERT INTO `x_accounts` (`ac_id_pk`, `ac_user_vc`, `ac_pass_vc`, `ac_email_vc`, `ac_reseller_fk`, `ac_package_fk`, `ac_group_fk`, `ac_usertheme_vc`, `ac_usercss_vc`, `ac_enabled_in`, `ac_passsalt_vc`) VALUES
-('1', 'zadmin', '', 'postmaster@localhost', '0', '1', '1', 'Sentora_Default', 'Default', '1', '');
+('1', 'zadmin', '', 'postmaster@localhost', '0', '1', '1', 'Sentora_Default', '', '1', '');
 TRUNCATE TABLE `x_profiles`;
 INSERT INTO `x_profiles` (`ud_id_pk`, `ud_user_fk`, `ud_fullname_vc`, `ud_language_vc`, `ud_group_fk`, `ud_package_fk`) VALUES
 ('1', '1', 'Master Administrator', 'en', '1', '1');
