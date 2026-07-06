@@ -106,7 +106,9 @@ if [ "$MYSQL_EXISTING" = "true" ]; then
 fi
 
 mkdir -p "$PANEL_DATA"
-chmod 700 "$PANEL_DATA"
+# 0755: los servicios (bind, dovecot, rspamd…) deben poder atravesar hasta sus
+# subdirectorios de logs/datos. Los ficheros sensibles llevan sus propios 600.
+chmod 755 "$PANEL_DATA"
 cat > "$PANEL_DATA/install-passwords.txt" <<PWDEOF
 # Sentora Install — Contraseñas generadas
 # MANTENER ESTE ARCHIVO SEGURO
@@ -378,9 +380,8 @@ FLUSH PRIVILEGES;
 "
 ok "Usuarios de DB creados"
 
-# Hashear contraseña de zadmin e insertarla en sentora_core
-ZADMIN_HASH=$(php -r "echo md5('$ZADMIN_PASSWORD');")
-$MYSQL sentora_core -e "UPDATE x_accounts SET ac_pass_vc='$ZADMIN_HASH' WHERE ac_user_vc='zadmin';"
+# La contraseña de zadmin se fija más abajo con bin/setzadmin (tras crear db.php),
+# que genera hash+salt coherentes con runtime_hash, la crypto key y la API key.
 
 # Configurar x_settings clave
 $MYSQL sentora_core -e "
@@ -424,6 +425,13 @@ DBPHP
 chmod 640 "$PANEL_PATH/cnf/db.php"
 chown root:www "$PANEL_PATH/cnf/db.php"
 ok "db.php configurado"
+
+# Fijar contraseña de zadmin con la utilidad oficial: genera hash+salt (runtime_hash),
+# la crypto key (cnf/security.php) y una API key nueva. Requiere cnf/db.php ya escrito.
+php "$PANEL_PATH/bin/setzadmin" --set "$ZADMIN_PASSWORD" > /dev/null
+chown root:www "$PANEL_PATH/cnf/security.php"
+chmod 640 "$PANEL_PATH/cnf/security.php"
+ok "Contraseña de zadmin fijada (setzadmin)"
 
 ###############################################################################
 # 9. POSTFIX
@@ -833,7 +841,8 @@ info "Configurando Redis..."
 cat > /usr/local/etc/redis.conf <<REDISCF
 bind 127.0.0.1
 port 6379
-daemonize no
+daemonize yes
+pidfile /var/run/redis/redis.pid
 loglevel notice
 logfile /var/log/redis/redis.log
 databases 16
@@ -845,6 +854,13 @@ mkdir -p /var/log/redis
 chown redis:redis /var/log/redis 2>/dev/null || chown nobody:nobody /var/log/redis
 
 sysrc redis_enable="YES"
+# Arrancar Redis ya: la configuración de rspamd/clamav usa redis-cli más abajo
+service redis restart 2>/dev/null || service redis start
+# Esperar a que Redis acepte conexiones
+for _i in 1 2 3 4 5 6 7 8 9 10; do
+    redis-cli ping > /dev/null 2>&1 && break
+    sleep 1
+done
 ok "Redis configurado"
 
 ###############################################################################
@@ -876,6 +892,7 @@ RSGREYLIST
 # DNS: rspamd usa resolver externo con recursión para consultas RBL/DQS.
 # El BIND local es autoritativo (recursion no) y no puede resolver zonas externas.
 # El fichero dinámico lo gestiona el panel desde antispam_admin → Global Settings.
+mkdir -p /var/sentora/rspamd
 cat > /var/sentora/rspamd/options.inc << EOF
 dns {
     nameserver = ["8.8.8.8:53:1", "8.8.4.4:53:1"];
@@ -1203,6 +1220,15 @@ chmod 600 "$PROFTPD_CONF_DIR/proftpd.key"
 chmod 644 "$PROFTPD_CONF_DIR/proftpd.crt"
 chown root:wheel "$PROFTPD_CONF_DIR/proftpd.key" "$PROFTPD_CONF_DIR/proftpd.crt"
 
+# ProFTPD (y Postfix) necesitan que el hostname del sistema resuelva a una IP.
+# Por defecto el ServerName de proftpd es el hostname corto; si no está en
+# /etc/hosts, proftpd aborta con "no valid servers configured".
+_HN=$(hostname)
+if ! grep -qw "$_HN" /etc/hosts; then
+    printf '%s\t%s %s\n' "$SERVER_IP" "$PANEL_FQDN" "$_HN" >> /etc/hosts
+    ok "Hostname $_HN y FQDN $PANEL_FQDN añadidos a /etc/hosts"
+fi
+
 sysrc proftpd_enable="YES"
 ok "ProFTPD configurado"
 
@@ -1281,10 +1307,10 @@ HTTP_CONF="/usr/local/etc/apache24/httpd.conf"
 
 # Activar módulos necesarios (descomentar si están comentados)
 for modspec in \
-    "rewrite_module modules/mod_rewrite.so" \
-    "ssl_module modules/mod_ssl.so" \
-    "proxy_module modules/mod_proxy.so" \
-    "proxy_fcgi_module modules/mod_proxy_fcgi.so"
+    "rewrite_module libexec/apache24/mod_rewrite.so" \
+    "ssl_module libexec/apache24/mod_ssl.so" \
+    "proxy_module libexec/apache24/mod_proxy.so" \
+    "proxy_fcgi_module libexec/apache24/mod_proxy_fcgi.so"
 do
     modname=$(echo "$modspec" | cut -d' ' -f1)
     modpath=$(echo "$modspec" | cut -d' ' -f2)

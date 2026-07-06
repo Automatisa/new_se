@@ -729,6 +729,42 @@ INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('2', 'Resellers', 'Resellers have the ability to manage, create and maintain user accounts within Sentora.', '1');
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('3', 'Users', 'Users have basic access to Sentora.', '1');
 
+-- Cuenta administradora inicial (zadmin). La contraseña/salt los fija el instalador
+-- con bin/setzadmin (UPDATE ... WHERE ac_user_vc='zadmin'); aquí solo el registro base.
+TRUNCATE TABLE `x_accounts`;
+INSERT INTO `x_accounts` (`ac_id_pk`, `ac_user_vc`, `ac_pass_vc`, `ac_email_vc`, `ac_reseller_fk`, `ac_package_fk`, `ac_group_fk`, `ac_usertheme_vc`, `ac_usercss_vc`, `ac_enabled_in`, `ac_passsalt_vc`) VALUES
+('1', 'zadmin', '', 'postmaster@localhost', '0', '1', '1', 'Sentora_Default', 'Default', '1', '');
+TRUNCATE TABLE `x_profiles`;
+INSERT INTO `x_profiles` (`ud_id_pk`, `ud_user_fk`, `ud_fullname_vc`, `ud_language_vc`, `ud_group_fk`, `ud_package_fk`) VALUES
+('1', '1', 'Master Administrator', 'en', '1', '1');
+
+-- Permisos por grupo (grupo -> módulo). El volcado original perdió estas filas y
+-- sin ellas el menú lateral queda casi vacío. Se generan por nombre de carpeta
+-- (independiente de los IDs de módulo, que varían entre forks).
+-- Los módulos propios (fw_admin, antispam, api_manager, clamav...) se auto-conceden
+-- en su install.sql al registrarse.
+TRUNCATE TABLE `x_permissions`;
+-- Administradores (grupo 1): acceso a TODOS los módulos registrados.
+INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
+  SELECT '1', `mo_id_pk` FROM `x_modules`;
+-- Usuarios (grupo 3): solo módulos de cliente (nunca módulos de administración).
+INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
+  SELECT '3', `mo_id_pk` FROM `x_modules` WHERE `mo_folder_vc` IN (
+    'my_account','password_assistant','domains','sub_domains','parked_domains',
+    'mailboxes','forwarders','aliases','distlists','ftp_management',
+    'mysql_databases','mysql_users','protected_directories','cron','backupmgr',
+    'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
+    'sencrypt','dns_manager','user_logviewer');
+-- Resellers (grupo 2): lo de usuario + gestión de clientes/paquetes/grupos.
+INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
+  SELECT '2', `mo_id_pk` FROM `x_modules` WHERE `mo_folder_vc` IN (
+    'my_account','password_assistant','domains','sub_domains','parked_domains',
+    'mailboxes','forwarders','aliases','distlists','ftp_management',
+    'mysql_databases','mysql_users','protected_directories','cron','backupmgr',
+    'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
+    'sencrypt','dns_manager','user_logviewer',
+    'manage_clients','packages','shadowing','client_notices','manage_groups');
+
 TRUNCATE TABLE `x_quotas`;
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('1', '1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '0', '2G', '1G', '1G', '300', '600', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '1');
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('2', '2', '0', '0', '0', '0', '0', '0', '0', '0', '0', '128M', '50M', '50M', '30', '60', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '1');
