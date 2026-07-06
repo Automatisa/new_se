@@ -215,6 +215,20 @@ if ! pw usershow vacation > /dev/null 2>&1; then
     ok "Usuario vacation creado"
 fi
 
+# Grupo/usuario opendkim (el puerto FreeBSD de opendkim no los crea)
+if ! pw groupshow opendkim > /dev/null 2>&1; then
+    pw groupadd opendkim
+    ok "Grupo opendkim creado"
+fi
+if ! pw usershow opendkim > /dev/null 2>&1; then
+    pw useradd opendkim \
+        -g opendkim \
+        -d /var/run/milteropendkim \
+        -s /usr/sbin/nologin \
+        -c "OpenDKIM milter"
+    ok "Usuario opendkim creado"
+fi
+
 ###############################################################################
 # 6. CLONAR SENTORA
 ###############################################################################
