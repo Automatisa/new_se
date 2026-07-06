@@ -115,7 +115,10 @@
                             </div>
                             <a href="javascript:void(0);" id="forgotpw" class="small text-muted">¿Olvidaste la contraseña?</a>
                         </div>
-                        <input type="hidden" name="inSessionSecurity" value="1">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="inSessionSecurity" value="1" id="chkSessionSecurity" checked>
+                            <label class="form-check-label small" for="chkSessionSecurity">Seguridad de sesión <span class="text-muted">(ligar la sesión a mi IP y navegador; desmárcalo si usas proxy o IP variable)</span></label>
+                        </div>
                         <div class="d-grid">
                             <button type="submit" class="btn btn-primary btn-lg" name="sublogin2" value="LogIn">
                                 <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar sesión

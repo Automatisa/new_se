@@ -117,7 +117,7 @@ if (isset($_POST['inUsername'])) {
         runtime_csfr::Protect();
 
     $rememberdetails = isset($_POST['inRemember']);
-    $inSessionSecuirty = isset($_POST['inSessionSecuirty']);
+    $inSessionSecuirty = isset($_POST['inSessionSecurity']);
 
     $sql = $zdbh->prepare("SELECT ac_passsalt_vc FROM x_accounts WHERE ac_user_vc = :username AND ac_deleted_ts IS NULL");
     $sql->bindParam(':username', $_POST['inUsername']);
