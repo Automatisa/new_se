@@ -11,7 +11,7 @@ CREATE TABLE `admin` (
   `modified` datetime DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Admins';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Admins';
 
 DROP TABLE IF EXISTS `alias`;
 CREATE TABLE `alias` (
@@ -23,7 +23,7 @@ CREATE TABLE `alias` (
   `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`address`),
   KEY `domain` (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Aliases';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Aliases';
 
 DROP TABLE IF EXISTS `alias_domain`;
 CREATE TABLE `alias_domain` (
@@ -35,7 +35,7 @@ CREATE TABLE `alias_domain` (
   PRIMARY KEY (`alias_domain`),
   KEY `active` (`active`),
   KEY `target_domain` (`target_domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Domain Aliases';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Domain Aliases';
 
 DROP TABLE IF EXISTS `config`;
 CREATE TABLE `config` (
@@ -44,7 +44,7 @@ CREATE TABLE `config` (
   `value` varchar(20) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='PostfixAdmin settings';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='PostfixAdmin settings';
 
 DROP TABLE IF EXISTS `domain`;
 CREATE TABLE `domain` (
@@ -60,7 +60,7 @@ CREATE TABLE `domain` (
   `modified` datetime DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Domains';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Domains';
 
 DROP TABLE IF EXISTS `mailbox`;
 CREATE TABLE `mailbox` (
@@ -76,7 +76,7 @@ CREATE TABLE `mailbox` (
   `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`username`),
   KEY `domain` (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Mailboxes';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Mailboxes';
 
 DROP TABLE IF EXISTS `quota2`;
 CREATE TABLE `quota2` (
@@ -84,7 +84,7 @@ CREATE TABLE `quota2` (
   `bytes` bigint(20) NOT NULL DEFAULT 0,
   `messages` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `vacation`;
 CREATE TABLE `vacation` (
@@ -97,7 +97,7 @@ CREATE TABLE `vacation` (
   `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`email`),
   KEY `email` (`email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Vacation';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Vacation';
 
 DROP TABLE IF EXISTS `vacation_notification`;
 CREATE TABLE `vacation_notification` (
@@ -106,5 +106,5 @@ CREATE TABLE `vacation_notification` (
   `notified_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`on_vacation`,`notified`),
   CONSTRAINT `vacation_notification_pkey` FOREIGN KEY (`on_vacation`) REFERENCES `vacation` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Vacation Notifications';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Vacation Notifications';
 

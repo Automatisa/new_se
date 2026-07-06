@@ -30,7 +30,7 @@ CREATE TABLE `x_accounts` (
   `ac_api_revoked_by_gid` tinyint(1) DEFAULT NULL,
   `ac_suspended_in` int(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`ac_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_aliases`;
 CREATE TABLE `x_aliases` (
@@ -41,7 +41,7 @@ CREATE TABLE `x_aliases` (
   `al_created_ts` int(30) DEFAULT NULL,
   `al_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`al_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_api_audit`;
 CREATE TABLE `x_api_audit` (
@@ -102,7 +102,7 @@ CREATE TABLE `x_autoip` (
   `ai_enabled_in` int(1) DEFAULT 1,
   `ai_lastupdate_ts` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`ai_id_pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_bandwidth`;
 CREATE TABLE `x_bandwidth` (
@@ -116,7 +116,7 @@ CREATE TABLE `x_bandwidth` (
   `bd_transover_in` int(6) DEFAULT NULL,
   `bd_transcheck_in` int(6) DEFAULT NULL,
   PRIMARY KEY (`bd_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_cronjobs`;
 CREATE TABLE `x_cronjobs` (
@@ -129,7 +129,7 @@ CREATE TABLE `x_cronjobs` (
   `ct_created_ts` int(30) DEFAULT NULL,
   `ct_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`ct_id_pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_distlists`;
 CREATE TABLE `x_distlists` (
@@ -139,7 +139,7 @@ CREATE TABLE `x_distlists` (
   `dl_created_ts` int(30) DEFAULT NULL,
   `dl_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`dl_id_pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_distlistusers`;
 CREATE TABLE `x_distlistusers` (
@@ -149,7 +149,7 @@ CREATE TABLE `x_distlistusers` (
   `du_created_ts` int(30) DEFAULT NULL,
   `du_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`du_id_pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_dns`;
 CREATE TABLE `x_dns` (
@@ -168,7 +168,7 @@ CREATE TABLE `x_dns` (
   `dn_created_ts` int(30) DEFAULT NULL,
   `dn_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`dn_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=212 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=212 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_dns_create`;
 CREATE TABLE `x_dns_create` (
@@ -182,7 +182,7 @@ CREATE TABLE `x_dns_create` (
   `dc_weight_in` int(50) DEFAULT NULL,
   `dc_port_in` int(50) DEFAULT NULL,
   PRIMARY KEY (`dc_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_dns_dnssec`;
 CREATE TABLE `x_dns_dnssec` (
@@ -220,7 +220,7 @@ CREATE TABLE `x_faqs` (
   `fq_created_ts` int(30) DEFAULT NULL,
   `fq_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`fq_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_forwarders`;
 CREATE TABLE `x_forwarders` (
@@ -232,7 +232,7 @@ CREATE TABLE `x_forwarders` (
   `fw_created_ts` int(30) DEFAULT NULL,
   `fw_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`fw_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_ftpaccounts`;
 CREATE TABLE `x_ftpaccounts` (
@@ -245,7 +245,7 @@ CREATE TABLE `x_ftpaccounts` (
   `ft_created_ts` int(6) DEFAULT NULL,
   `ft_deleted_ts` int(6) DEFAULT NULL,
   PRIMARY KEY (`ft_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_fw_auto_banned`;
 CREATE TABLE `x_fw_auto_banned` (
@@ -258,7 +258,7 @@ CREATE TABLE `x_fw_auto_banned` (
   `fa_active_in` tinyint(4) NOT NULL DEFAULT 1,
   PRIMARY KEY (`fa_id_pk`),
   UNIQUE KEY `uk_ip` (`fa_ip_vc`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `x_fw_blocked`;
 CREATE TABLE `x_fw_blocked` (
@@ -271,7 +271,7 @@ CREATE TABLE `x_fw_blocked` (
   `fb_deleted_ts` int(11) DEFAULT NULL,
   PRIMARY KEY (`fb_id_pk`),
   UNIQUE KEY `uk_ip` (`fb_ip_vc`,`fb_deleted_ts`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `x_fw_login_attempts`;
 CREATE TABLE `x_fw_login_attempts` (
@@ -282,7 +282,7 @@ CREATE TABLE `x_fw_login_attempts` (
   PRIMARY KEY (`la_id_pk`),
   KEY `idx_ip_ts` (`la_ip_vc`,`la_ts_in`),
   KEY `idx_ts` (`la_ts_in`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `x_fw_rules`;
 CREATE TABLE `x_fw_rules` (
@@ -299,7 +299,7 @@ CREATE TABLE `x_fw_rules` (
   `fr_added_ts` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`fr_id_pk`),
   UNIQUE KEY `uk_rule` (`fr_proto_vc`,`fr_direction_en`,`fr_src_vc`,`fr_port_in`,`fr_port_max_in`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `x_fw_whitelist`;
 CREATE TABLE `x_fw_whitelist` (
@@ -311,7 +311,7 @@ CREATE TABLE `x_fw_whitelist` (
   `fw_deleted_ts` int(11) DEFAULT NULL,
   PRIMARY KEY (`fw_id_pk`),
   UNIQUE KEY `uk_ip` (`fw_ip_vc`,`fw_deleted_ts`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `x_groups`;
 CREATE TABLE `x_groups` (
@@ -320,7 +320,7 @@ CREATE TABLE `x_groups` (
   `ug_notes_tx` text DEFAULT NULL,
   `ug_reseller_fk` int(6) DEFAULT NULL,
   PRIMARY KEY (`ug_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_htaccess`;
 CREATE TABLE `x_htaccess` (
@@ -331,7 +331,7 @@ CREATE TABLE `x_htaccess` (
   `ht_created_ts` int(30) DEFAULT NULL,
   `ht_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`ht_id_pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_htpasswd_file`;
 CREATE TABLE `x_htpasswd_file` (
@@ -344,7 +344,7 @@ CREATE TABLE `x_htpasswd_file` (
   PRIMARY KEY (`x_htpasswd_file_id`),
   UNIQUE KEY `x_htpasswd_file_target` (`x_htpasswd_file_target`),
   KEY `x_htpasswd_file_x_htpasswd_sentora_user_id_idx` (`x_htpasswd_sentora_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_htpasswd_mapper`;
 CREATE TABLE `x_htpasswd_mapper` (
@@ -354,7 +354,7 @@ CREATE TABLE `x_htpasswd_mapper` (
   PRIMARY KEY (`x_htpasswd_mapper_id`),
   KEY `x_htpasswd_mapper_x_htpasswd_file_id_idx` (`x_htpasswd_file_id`),
   KEY `x_htpasswd_mapper_x_htpasswd_user_id_idx` (`x_htpasswd_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_htpasswd_user`;
 CREATE TABLE `x_htpasswd_user` (
@@ -367,7 +367,7 @@ CREATE TABLE `x_htpasswd_user` (
   PRIMARY KEY (`x_htpasswd_user_id`),
   UNIQUE KEY `x_htpasswd_user_username` (`x_htpasswd_user_username`),
   UNIQUE KEY `x_htpasswd_user_password` (`x_htpasswd_user_password`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_logs`;
 CREATE TABLE `x_logs` (
@@ -379,7 +379,7 @@ CREATE TABLE `x_logs` (
   `lg_stack_tx` text DEFAULT NULL,
   `lg_when_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`lg_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=19679 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19679 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_mailboxes`;
 CREATE TABLE `x_mailboxes` (
@@ -390,14 +390,14 @@ CREATE TABLE `x_mailboxes` (
   `mb_created_ts` int(30) DEFAULT NULL,
   `mb_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`mb_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_modcats`;
 CREATE TABLE `x_modcats` (
   `mc_id_pk` int(6) unsigned NOT NULL AUTO_INCREMENT,
   `mc_name_vc` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`mc_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_modules`;
 CREATE TABLE `x_modules` (
@@ -413,7 +413,7 @@ CREATE TABLE `x_modules` (
   `mo_updatever_vc` varchar(10) DEFAULT NULL,
   `mo_updateurl_tx` text DEFAULT NULL,
   PRIMARY KEY (`mo_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_mysql_databases`;
 CREATE TABLE `x_mysql_databases` (
@@ -424,7 +424,7 @@ CREATE TABLE `x_mysql_databases` (
   `my_created_ts` int(30) DEFAULT NULL,
   `my_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`my_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_mysql_dbmap`;
 CREATE TABLE `x_mysql_dbmap` (
@@ -433,7 +433,7 @@ CREATE TABLE `x_mysql_dbmap` (
   `mm_user_fk` int(6) DEFAULT NULL,
   `mm_database_fk` int(6) DEFAULT NULL,
   PRIMARY KEY (`mm_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_mysql_users`;
 CREATE TABLE `x_mysql_users` (
@@ -446,7 +446,7 @@ CREATE TABLE `x_mysql_users` (
   `mu_created_ts` int(30) DEFAULT NULL,
   `mu_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`mu_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_packages`;
 CREATE TABLE `x_packages` (
@@ -457,7 +457,7 @@ CREATE TABLE `x_packages` (
   `pk_created_ts` int(30) DEFAULT NULL,
   `pk_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`pk_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_permissions`;
 CREATE TABLE `x_permissions` (
@@ -465,7 +465,7 @@ CREATE TABLE `x_permissions` (
   `pe_group_fk` int(6) DEFAULT NULL,
   `pe_module_fk` int(6) DEFAULT NULL,
   PRIMARY KEY (`pe_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=109 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=109 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_profiles`;
 CREATE TABLE `x_profiles` (
@@ -480,7 +480,7 @@ CREATE TABLE `x_profiles` (
   `ud_phone_vc` varchar(20) DEFAULT NULL,
   `ud_created_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`ud_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_quotas`;
 CREATE TABLE `x_quotas` (
@@ -512,7 +512,7 @@ CREATE TABLE `x_quotas` (
   `qt_filetype_vc` varchar(30) NOT NULL DEFAULT '*',
   `qt_modified_in` int(1) DEFAULT 0,
   PRIMARY KEY (`qt_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_settings`;
 CREATE TABLE `x_settings` (
@@ -525,7 +525,7 @@ CREATE TABLE `x_settings` (
   `so_module_vc` varchar(50) DEFAULT NULL,
   `so_usereditable_en` enum('true','false') DEFAULT 'false',
   PRIMARY KEY (`so_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=136 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=136 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_translations`;
 CREATE TABLE `x_translations` (
@@ -533,7 +533,7 @@ CREATE TABLE `x_translations` (
   `tr_en_tx` text DEFAULT NULL,
   `tr_de_tx` text DEFAULT NULL,
   PRIMARY KEY (`tr_id_pk`)
-) ENGINE=InnoDB AUTO_INCREMENT=177 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=177 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_vhosts`;
 CREATE TABLE `x_vhosts` (
@@ -555,7 +555,7 @@ CREATE TABLE `x_vhosts` (
   `vh_created_ts` int(30) DEFAULT NULL,
   `vh_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`vh_id_pk`)
-) ENGINE=MyISAM AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 
 -- Data for configuration tables

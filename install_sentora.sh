@@ -141,14 +141,14 @@ sysrc daily_submit_queuerun="NO"
 
 # Base de datos
 if [ "$MYSQL_EXISTING" != "true" ]; then
-    pkg install -y mariadb1011-server mariadb1011-client
+    pkg install -y mysql84-server
 fi
 
 # Postfix con soporte MySQL
 pkg install -y postfix-mysql
 
 # Dovecot + MySQL + Pigeonhole (sieve)
-pkg install -y dovecot dovecot-mysql dovecot-pigeonhole dovecot-pigeonhole-mysql
+pkg install -y dovecot-mysql dovecot-pigeonhole-mysql
 
 # Apache + PHP-FPM + módulos necesarios
 pkg install -y apache24 \
@@ -158,10 +158,10 @@ pkg install -y apache24 \
     php84-dom php84-iconv
 
 # BIND
-pkg install -y bind918
+pkg install -y bind920
 
 # Aplicaciones web
-pkg install -y phpMyAdmin5-php84 roundcube-php84 roundcube-managesieve-php84
+pkg install -y phpMyAdmin5-php84 roundcube-php84
 
 # OpenDKIM — firma DKIM del correo saliente
 pkg install -y opendkim
@@ -170,7 +170,7 @@ pkg install -y opendkim
 pkg install -y rspamd redis
 
 # ProFTPD con soporte MySQL
-pkg install -y proftpd-mysql
+pkg install -y proftpd proftpd-mod_sql_mysql
 
 # Cortafuegos: SSHGuard (protección fuerza bruta sobre pf)
 pkg install -y sshguard
