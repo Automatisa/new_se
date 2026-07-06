@@ -3,6 +3,7 @@
 
 CREATE DATABASE IF NOT EXISTS `sentora_core` DEFAULT CHARACTER SET utf8mb3;
 USE `sentora_core`;
+SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS `x_accounts`;
 CREATE TABLE `x_accounts` (
@@ -851,3 +852,5 @@ INSERT INTO `x_translations` (`tr_id_pk`, `tr_en_tx`, `tr_de_tx`) VALUES ('174',
 INSERT INTO `x_translations` (`tr_id_pk`, `tr_en_tx`, `tr_de_tx`) VALUES ('175', 'Server uptime', NULL);
 INSERT INTO `x_translations` (`tr_id_pk`, `tr_en_tx`, `tr_de_tx`) VALUES ('176', 'FAQ\\\'s', NULL);
 
+
+SET FOREIGN_KEY_CHECKS=1;

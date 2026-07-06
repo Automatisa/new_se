@@ -2,6 +2,7 @@
 
 CREATE DATABASE IF NOT EXISTS `sentora_roundcube` DEFAULT CHARACTER SET utf8mb3;
 USE `sentora_roundcube`;
+SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS `cache`;
 CREATE TABLE `cache` (
@@ -225,3 +226,5 @@ CREATE TABLE `users` (
   UNIQUE KEY `username` (`username`,`mail_host`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
 
+
+SET FOREIGN_KEY_CHECKS=1;

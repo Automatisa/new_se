@@ -2,6 +2,7 @@
 
 CREATE DATABASE IF NOT EXISTS `sentora_postfix` DEFAULT CHARACTER SET utf8mb3;
 USE `sentora_postfix`;
+SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS `admin`;
 CREATE TABLE `admin` (
@@ -108,3 +109,5 @@ CREATE TABLE `vacation_notification` (
   CONSTRAINT `vacation_notification_pkey` FOREIGN KEY (`on_vacation`) REFERENCES `vacation` (`email`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Vacation Notifications';
 
+
+SET FOREIGN_KEY_CHECKS=1;

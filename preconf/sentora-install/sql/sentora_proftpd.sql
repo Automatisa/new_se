@@ -2,6 +2,7 @@
 
 CREATE DATABASE IF NOT EXISTS `sentora_proftpd` DEFAULT CHARACTER SET utf8mb3;
 USE `sentora_proftpd`;
+SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS `ftpgroup`;
 CREATE TABLE `ftpgroup` (
@@ -53,3 +54,5 @@ CREATE TABLE `ftpuser` (
   UNIQUE KEY `userid` (`userid`)
 ) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='ProFTP user table';
 
+
+SET FOREIGN_KEY_CHECKS=1;
