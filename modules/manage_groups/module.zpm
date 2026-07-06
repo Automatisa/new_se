@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -38,8 +38,8 @@
                 <tr>
                     <th colspan="2" align="right">
                         <input type="hidden" name="inGroupID" value="<@ CurrentID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=manage_groups';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=manage_groups';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </th>
                 </tr>
             </table>
@@ -83,7 +83,7 @@
                     <td><& groupname &></td>
                     <td><& usersingroup &></td>
                     <td><& groupdesc &></td>
-                    <td nowrap="nowrap"><button class="button-loader btn btn-default" type="submit" id="button" name="inEdit_<& groupid &>" id="inEdit_<& groupid &>" value="inEdit_<& groupid &>">Edit</button>  <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& groupid &>" id="inDelete_<& groupid &>" value="inDelete_<& groupid &>">Delete</button></td>
+                    <td nowrap="nowrap"><button class="button-loader btn btn-secondary" type="submit" id="button" name="inEdit_<& groupid &>" id="inEdit_<& groupid &>" value="inEdit_<& groupid &>"><i class="bi bi-pencil me-1"></i>Edit</button>  <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& groupid &>" id="inDelete_<& groupid &>" value="inDelete_<& groupid &>"><i class="bi bi-trash me-1"></i>Delete</button></td>
                 </tr>
                 <% endloop %>
             </table>
@@ -109,7 +109,7 @@
                 </tr>
                 <tr>
                     <th colspan="2" align="right">
-                        <button class="button-loader btn btn-primary" type="submit" ><: Create :></button>
+                        <button class="button-loader btn btn-primary" type="submit" ><i class="bi bi-plus-circle me-1"></i><: Create :></button>
                     </th>
                 </tr>
             </table>
@@ -134,7 +134,7 @@
                 <tr>
                     <th colspan="2" align="right">
                         <input type="hidden" name="inGroupID" value="<@ CurrentID @>">
-                        <button class="button-loader btn btn-primary" type="submit" ><: Save :></button>
+                        <button class="button-loader btn btn-primary" type="submit" ><i class="bi bi-floppy me-1"></i><: Save :></button>
                     </th>
                 </tr>
             </table>

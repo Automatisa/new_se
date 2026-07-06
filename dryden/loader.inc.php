@@ -28,6 +28,12 @@ function x__autoload($class_name)
 
 spl_autoload_register('x__autoload');
 
+// La clase 'privilege' (dryden/sys/privilege.class.php) no encaja con la convención
+// del autoloader (buscaría dryden/privilege.class.php), por eso muchos módulos la
+// requerían a mano y otros lo olvidaban -> "Class privilege not found" -> 500.
+// Al ser una clase core de sistema, se carga aquí una sola vez para todos.
+require_once __DIR__ . '/sys/privilege.class.php';
+
 if (isset($_GET['module'])) {
     $CleanModuleName = fs_protector::SanitiseFolderName($_GET['module']);
 

@@ -5,7 +5,7 @@
 -->
 </script>
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -42,8 +42,8 @@
                 <tr>
                     <th colspan="2" align="right">
                         <input type="hidden" name="inPackageID" value="<@ EditCurrentPackageID @>"/>
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=packages';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=packages';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </th>
                 </tr>
             </table>
@@ -94,6 +94,10 @@
                     <td><input name="inNoFTPAccounts" type="text" id="inNoFTPAccounts" size="5" maxlength="3" value="<@ EditCurrentFTP @>" onkeypress="return isNumberKeyOrNeg(event)"/> (-1 = unlimited)</td>
                 </tr>
                 <tr>
+                    <th><: No. Cron Jobs :>:</th>
+                    <td><input name="inNoCronJobs" type="text" id="inNoCronJobs" size="5" maxlength="3" value="<@ EditCurrentCronJobs @>" onkeypress="return isNumberKeyOrNeg(event)"/> (-1 = unlimited)</td>
+                </tr>
+                <tr>
                     <th><: No. MySQL databases :>:</th>
                     <td><input name="inNoMySQL" type="text" id="inNoMySQL" size="5" maxlength="3" value="<@ EditCurrentMySQL @>" onkeypress="return isNumberKeyOrNeg(event)"/> (-1 = unlimited)</td>
                 </tr>
@@ -106,11 +110,34 @@
                     <td><input name="inBandQuota" type="text" id="inBandQuota" size="10" maxlength="10" value="<@ EditCurrentBandWidth @>" onkeypress="return isNumberKey(event)"/> MB (1000MB = 1GB ; 0 = unlimited)</td>
                 </tr>
                 <tr>
+                    <th colspan="2"><strong><: PHP limits :></strong></th>
+                </tr>
+                <tr>
+                    <th><: Memory limit :>:</th>
+                    <td><input name="inPhpMemory" type="text" id="inPhpMemory" size="8" maxlength="10" value="<@ EditCurrentPhpMemory @>"/> (ej. 128M, 512M, 2G)</td>
+                </tr>
+                <tr>
+                    <th><: Upload max filesize :>:</th>
+                    <td><input name="inPhpUpload" type="text" id="inPhpUpload" size="8" maxlength="10" value="<@ EditCurrentPhpUpload @>"/> (ej. 50M, 500M, 1G)</td>
+                </tr>
+                <tr>
+                    <th><: Post max size :>:</th>
+                    <td><input name="inPhpPost" type="text" id="inPhpPost" size="8" maxlength="10" value="<@ EditCurrentPhpPost @>"/> (ej. 50M, 500M, 1G)</td>
+                </tr>
+                <tr>
+                    <th><: Max execution time :>:</th>
+                    <td><input name="inPhpExec" type="text" id="inPhpExec" size="5" maxlength="5" value="<@ EditCurrentPhpExec @>" onkeypress="return isNumberKey(event)"/> segundos</td>
+                </tr>
+                <tr>
+                    <th><: Max input time :>:</th>
+                    <td><input name="inPhpMaxInput" type="text" id="inPhpMaxInput" size="5" maxlength="5" value="<@ EditCurrentPhpMaxInput @>" onkeypress="return isNumberKey(event)"/> segundos</td>
+                </tr>
+                <tr>
                     <th></th>
                     <td>
                         <input type="hidden" name="inPackageID" value="<@ EditCurrentPackageID @>"/>
-                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inSubmit" value="inSave"><: Save :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=packages';return false;"><: Cancel :></button>
+                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inSubmit" value="inSave"><i class="bi bi-floppy me-1"></i><: Save :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=packages';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
@@ -137,10 +164,10 @@
                     <td><& packagename &></td>
                     <td><& created &></td>
                     <td><& clients &></td>
-					<td><& pkg_quota &></td>
+					<td>{! pkg_quota !}</td>
                     <td>
-                        <button class="button-loader btn btn-default" type="submit" id="button" name="inEdit_<& packageid &>" value="<& packageid &>"><: Edit :></button>
-                        <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& packageid &>" value="<& packageid &>"><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="submit" id="button" name="inEdit_<& packageid &>" value="<& packageid &>"><i class="bi bi-pencil me-1"></i><: Edit :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& packageid &>" value="<& packageid &>"><i class="bi bi-trash me-1"></i><: Delete :></button>
                     </td>
                 </tr>
                 <% endloop %>
@@ -194,6 +221,10 @@
                     <td><input name="inNoFTPAccounts" type="text" id="inNoFTPAccounts" value="0" size="5" maxlength="3" onkeypress="return isNumberKeyOrNeg(event)" /> (-1 = unlimited)</td>
                 </tr>
                 <tr>
+                    <th><: No. Cron Jobs :>:</th>
+                    <td><input name="inNoCronJobs" type="text" id="inNoCronJobs" value="0" size="5" maxlength="3" onkeypress="return isNumberKeyOrNeg(event)" /> (-1 = unlimited)</td>
+                </tr>
+                <tr>
                     <th><: No. MySQL databases :>:</th>
                     <td><input name="inNoMySQL" type="text" id="inNoMySQL" value="0" size="5" maxlength="3" onkeypress="return isNumberKeyOrNeg(event)" /> (-1 = unlimited)</td>
                 </tr>
@@ -206,8 +237,31 @@
                     <td><input name="inBandQuota" type="text" id="inBandQuota" value="0" size="10" maxlength="10" onkeypress="return isNumberKey(event)" /> MB (1000MB = 1GB ; 0 = unlimited)</td>
                 </tr>
                 <tr>
+                    <th colspan="2"><strong><: PHP limits :></strong></th>
+                </tr>
+                <tr>
+                    <th><: Memory limit :>:</th>
+                    <td><input name="inPhpMemory" type="text" id="inPhpMemory" value="128M" size="8" maxlength="10" /> (ej. 128M, 512M, 2G)</td>
+                </tr>
+                <tr>
+                    <th><: Upload max filesize :>:</th>
+                    <td><input name="inPhpUpload" type="text" id="inPhpUpload" value="50M" size="8" maxlength="10" /> (ej. 50M, 500M, 1G)</td>
+                </tr>
+                <tr>
+                    <th><: Post max size :>:</th>
+                    <td><input name="inPhpPost" type="text" id="inPhpPost" value="50M" size="8" maxlength="10" /> (ej. 50M, 500M, 1G)</td>
+                </tr>
+                <tr>
+                    <th><: Max execution time :>:</th>
+                    <td><input name="inPhpExec" type="text" id="inPhpExec" value="30" size="5" maxlength="5" onkeypress="return isNumberKey(event)" /> segundos</td>
+                </tr>
+                <tr>
+                    <th><: Max input time :>:</th>
+                    <td><input name="inPhpMaxInput" type="text" id="inPhpMaxInput" value="60" size="5" maxlength="5" onkeypress="return isNumberKey(event)" /> segundos</td>
+                </tr>
+                <tr>
                     <th></th>
-                    <td><button class="button-loader btn btn-primary" type="submit" id="button" name="inSubmit" value="inSave"><: Save :></button></td>
+                    <td><button class="button-loader btn btn-primary" type="submit" id="button" name="inSubmit" value="inSave"><i class="bi bi-floppy me-1"></i><: Save :></button></td>
                 </tr>
             </table>
             <@ CSFR_Tag @>

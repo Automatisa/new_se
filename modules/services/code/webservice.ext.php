@@ -56,13 +56,16 @@ class webservice extends ws_xmws
     {
         $request_data = $this->RawXMWSToArray($this->wsdata);
         $contenttags = $this->XMLDataToArray($this->wsdata);
-        if (sys_monitoring::LocalPortStatus($contenttags['xmws']['content']['port'])) {
+        $port = intval($contenttags['xmws']['content']['port'] ?? 0);
+        if ($port < 1 || $port > 65535 || !in_array($port, self::$localports, true)) {
+            $port_response = 0;
+        } elseif (sys_monitoring::LocalPortStatus($port)) {
             $port_response = 1;
         } else {
             $port_response = 0;
         }
         $response_xml = ws_xmws::NewXMLContentSection('portstatus', array(
-                'port' => $contenttags['xmws']['content']['port'],
+                'port' => $port,
                 'status' => $port_response,
         ));
         $dataobject = new runtime_dataobject();

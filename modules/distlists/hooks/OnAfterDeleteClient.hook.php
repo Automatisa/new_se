@@ -5,20 +5,16 @@ DeleteDistListForDeletedClient();
 function DeleteDistListForDeletedClient() {
     global $zdbh;
     $deletedclients = array();
-    $sql = "SELECT COUNT(*) FROM x_accounts WHERE ac_deleted_ts IS NOT NULL";
-    if ($numrows = $zdbh->query($sql)) {
-        if ($numrows->fetchColumn() <> 0) {
-            $sql = $zdbh->prepare("SELECT * FROM x_accounts WHERE ac_deleted_ts IS NOT NULL");
-            $sql->execute();
-            while ($rowclient = $sql->fetch()) {
-                $deletedclients[] = $rowclient['ac_id_pk'];
-            }
-        }
+    $sql = $zdbh->prepare("SELECT ac_id_pk FROM x_accounts WHERE ac_deleted_ts IS NOT NULL");
+    $sql->execute();
+    while ($rowclient = $sql->fetch()) {
+        $deletedclients[] = $rowclient['ac_id_pk'];
     }
 
     // Include mail server specific file here.
-    if (file_exists("modules/distlists/hooks/" . ctrl_options::GetSystemOption('mailserver_php') . "")) {
-        include("modules/distlists/hooks/" . ctrl_options::GetSystemOption('mailserver_php') . "");
+    $mailserver_file = basename(ctrl_options::GetSystemOption('mailserver_php'));
+    if ($mailserver_file !== '' && file_exists("modules/distlists/hooks/" . $mailserver_file)) {
+        include("modules/distlists/hooks/" . $mailserver_file);
     }
 
     foreach ($deletedclients as $deletedclient) {

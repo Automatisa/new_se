@@ -29,10 +29,12 @@ class ui_language {
 
         if (empty(self::$LangCol)) {
             $uid = ctrl_auth::CurrentUserID();
-            $sql = $zdbh->prepare('SELECT ud_language_vc FROM x_profiles WHERE ud_user_fk=' . $uid);
+            $sql = $zdbh->prepare('SELECT ud_language_vc FROM x_profiles WHERE ud_user_fk = :uid');
+            $sql->bindParam(':uid', $uid, PDO::PARAM_INT);
             $sql->execute();
             $lang = $sql->fetch();
-            self::$LangCol = 'tr_' . $lang['ud_language_vc'] . '_tx';
+            $langCode = (!empty($lang['ud_language_vc'])) ? $lang['ud_language_vc'] : 'en';
+            self::$LangCol = 'tr_' . $langCode . '_tx';
         }
         if (self::$LangCol == 'tr_en_tx')
             return $message; //no translation required, english used

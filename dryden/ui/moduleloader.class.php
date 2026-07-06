@@ -101,9 +101,7 @@ class ui_moduleloader {
                         'mo_type_en' => $row['mo_type_en'],
                         'mo_desc_tx' => $row['mo_desc_tx'],
                         'mo_installed_ts' => $row['mo_installed_ts'],
-                        'mo_enabled_en' => $row['mo_enabled_en'],
-                        'mo_updatever_vc' => $row['mo_updatever_vc'],
-                        'mo_updateurl_tx' => $row['mo_updateurl_tx']));
+                        'mo_enabled_en' => $row['mo_enabled_en']));
                 }
             }
             return $res;

@@ -1,248 +1,155 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <title>Control Panel - Login</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="robots" content="noindex, nofollow">
-
-        <!-- Stylesheets -->
         <link href="/etc/styles/Sentora_Default/global-css/bootstrap.min.css" rel="stylesheet">
+        <link href="/etc/styles/Sentora_Default/global-css/bootstrap-icons.min.css" rel="stylesheet">
         <link href="/etc/styles/Sentora_Default/global-css/login.css" rel="stylesheet">
-
-        <!-- Favicons -->
-        <link rel="apple-touch-icon-precomposed" sizes="57x57"   href="/etc/styles/Sentora_Default/img/ico/apple-touch-icon-57-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" sizes="114x114" href="/etc/styles/Sentora_Default/img/ico/apple-touch-icon-114-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" sizes="72x72"   href="/etc/styles/Sentora_Default/img/ico/apple-touch-icon-72-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/etc/styles/Sentora_Default/img/ico/apple-touch-icon-144-precomposed.png">
-
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav16.png"  sizes="16x16"   type="image/png">
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav32.png"  sizes="32x32"   type="image/png">
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav48.png"  sizes="48x48"   type="image/png">
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav64.png"  sizes="64x64"   type="image/png">
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav128.png" sizes="128x128" type="image/png">
-
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav32.png">
-        <!--[if IE]><link rel="shortcut icon" href="/etc/styles/Sentora_Default/img/ico/favicon.ico"><![endif]-->
-
-        <meta name="msapplication-TileColor" content="#222222">
-        <meta name="msapplication-TileImage" content="/etc/styles/Sentora_Default/img/ico/fav144.png">
-
-        <!-- Scripts -->
-        <script>document.write('<style type="text/css">body {display:none;}<\/style>');</script>
-        <!-- Anti-ClickJacking Protection -->
+        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav32.png" type="image/png">
+        <!-- Anti-ClickJacking -->
         <style id="antiClickjack">body{display:none !important;}</style>
         <script>
             if (self === top) {
-                var antiClickjack = document.getElementById("antiClickjack");
-                antiClickjack.parentNode.removeChild(antiClickjack);
-            } else {
-                top.location = self.location;
-            }
+                document.getElementById("antiClickjack").parentNode.removeChild(document.getElementById("antiClickjack"));
+            } else { top.location = self.location; }
         </script>
-
     </head>
-    <body>
-        <div class="loginwrapper">
-            <div class="panel login-panel">
-                <div class="panel-heading login-head">
-                    <img src="/etc/styles/Sentora_Default/img/logos/sentora_logo.png" alt="Sentora Logo" width="334" height="93">
-                </div>
-                <div class="panel-content form-horizontal">
-                <?php
-                if (isset($_GET['invalidlogin'])) {
-                echo '
-                <div class="alert alert-danger fade in">
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-                Invalid Username or Password!
-                </div>';
-                }
-                if (isset($_GET['loggedout'])) {
-                echo '
-                <div class="alert alert-success fade in">
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-                Logout Successful!
-                </div>';
-                }
-                if(isset($_GET['sessionIssue'])){
-                echo '
-                <div class="alert alert-danger fade in">
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-                You have been logged out, please login again.
-                </div>';
-                }
-                if (isset($_GET['passwordreset'])) {
-                echo '
-                <div class="alert alert-success fade in">
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-                Your password has been reset!
-                </div>';
-                }
-                //if (runtime_sessionsecurity::checkProxy()) {
-                //  echo '
-                //  <div class="alert alert-info fade in logalert">
-                //    <button type="button" class="close" data-dismiss="alert">&times;</button>
-                //    It seems you are behind a proxy or on a webserver. Try disabling Session Security and logging in again.
-                //  </div>';
-                //}
-                ?>
+    <body class="login-bg d-flex align-items-center justify-content-center min-vh-100">
 
-                <?php if (isset($_GET['resetkey']) && ctype_alnum($_GET['resetkey'])) { ?>
+        <div class="login-wrapper">
 
-                    <!-- Reset password form -->
-                    <div id="msgMatchErr" class="alert alert-danger fade in" style="display: none;">
-                        <button type="button" class="close" data-dismiss="alert">&times;</button>
-                        Passwords are different.
-                    </div> 
-                    <form action="?resetkey=<?php echo $_GET['resetkey']; ?>" method="post" name="frmZConfirm" id="frmZConfirm" class="form-horizontal loginform">
-                        <div class="loginmid">
-                            <div class="control-group">
-                                <label class="control-label" for="inputNewPass1">New Password:</label>
-                                <div class="controls">
-                                    <input type="password" class="input-medium" id="inputNewPass1" name="inNewPass" placeholder="New Password" required>
-                                </div>
-                            </div>
-                            <div class="control-group">
-                                <label class="control-label" for="inputNewPass2">Confirm Password:</label>
-                                <div class="controls">
-                                    <input type="password" class="input-medium" id="inputNewPass2" name="inputNewPass2" placeholder="Confirm Password" required>
-                                </div>
-                            </div>
-                            <div class="control-group">
-                                <label class="control-label" for="inPassword">EMail:</label>
-                                <div class="controls">
-                                    <input type="text" class="input-medium" id="inPassword" name="inConfEmail" placeholder="Email" required>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="loginbtm">
-                            <div>
-                                <!-- <a href="javascript:void(0);" id="backtologin2">Back To Login</a> -->
-                            </div>
-                            <div>
-                                <button type="submit" class="btn btn-primary" id="btnReset" name="sublogin2" value="Reset">Submit</button>
-                            </div>
-                        </div>
-                    <?php echo runtime_csfr::Token(); ?>
-                    </form>
-                    <!-- End Reeset password form -->
-                <?php } else {?>
-                    <!-- Forgot password form -->
-                    <form method="post" name="frmZForgot" id="frmZForgot" class="form-horizontal loginform" style="display: none;">
-                        <div class="loginmid">
-                            <div class="control-group">
-                                <label class="control-label" for="inputEmail">
-                                    Email:
-                                </label>
-                                <div class="controls">
-                                    <input type="text" class="input-medium" id="inputEmail" name="inForgotPassword" placeholder="Email" required>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="loginbtm">
-                            <div>
-                                <a href="javascript:void(0);" id="backtologin">Back To Login</a>
-                            </div>
-                            <div>
-                                <button type="submit" class="btn btn-primary" name="sublogin2" value="LogIn">Submit</button>
-                            </div>
-                        </div>
-                    <?php echo runtime_csfr::Token(); ?>
-                    </form>
-                    <!-- End Forgot password form -->
-                    <!-- Login form -->
-                    <form method="post" name="frmZLogin" id="frmZLogin" class="form-horizontal loginform">
-                        <div class="loginmid">
-                            <div class="control-group">
-                                <label class="control-label" for="inputUsername">Username:</label>
-                                <div class="controls">
-                                    <input type="text" class="input-medium" id="inputUsername" name="inUsername" placeholder="Username" required>
-                                </div>
-                            </div>
-                            <div class="control-group">
-                                <label class="control-label" for="inPassword">Password:</label>
-                                <div class="controls">
-                                    <input type="password" class="input-medium" id="inPassword" name="inPassword" placeholder="Password" required>
-                                </div>
-                            </div>
-                            <div class="fluid-row">
-                                <div class="controls">
-                                    <label class="checkbox">
-                                        <input type="checkbox" data-label="Remember Me" name="inRemember" value="1">
-                                        <input type="checkbox" data-label="Enable Session Security" name="inSessionSecurity" checked>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="loginbtm">
-                            <div>
-                                <a href="javascript:void(0);" id="forgotpw">Forgot Password?</a>
-                            </div>
-                            <div>
-                                <button type="submit" class="btn btn-primary" name="sublogin2" value="LogIn">Login</button>
-                            </div>
-                        </div>
-                    <?php echo runtime_csfr::Token(); ?>
-                    </form>
-                    <!-- End Login form -->
-                <?php }?>
-                </div><!-- End Panel content-->
+            <!-- Logo -->
+            <div class="text-center mb-4">
+                <img src="/etc/styles/Sentora_Default/img/logos/sentora_logo.png" alt="Sentora" class="login-logo">
             </div>
-            <p class="vbox">Powered by <a href="http://www.sentora.org/" target="_blank">Sentora</a> Hosting Control Panel</p>
-        </div>
-        <!-- Javascript
-        ================================================== -->
+
+            <!-- Card -->
+            <div class="card shadow-sm login-card">
+                <div class="card-body p-4">
+
+                    <!-- Alertas -->
+                    <?php if (isset($_GET['invalidlogin'])): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Usuario o contraseña incorrectos.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['loggedout'])): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-check-circle-fill me-1"></i> Sesión cerrada correctamente.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['sessionIssue'])): ?>
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-circle-fill me-1"></i> Sesión expirada. Inicia sesión de nuevo.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['passwordreset'])): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-check-circle-fill me-1"></i> Contraseña restablecida.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($_GET['resetkey']) && ctype_alnum($_GET['resetkey'])): ?>
+                    <!-- Formulario restablecer contraseña -->
+                    <h5 class="card-title mb-3">Restablecer contraseña</h5>
+                    <div id="msgMatchErr" class="alert alert-danger" style="display:none">Las contraseñas no coinciden.</div>
+                    <form action="?resetkey=<?php echo htmlspecialchars($_GET['resetkey']); ?>" method="post" id="frmZConfirm">
+                        <div class="mb-3">
+                            <label for="inputNewPass1" class="form-label">Nueva contraseña</label>
+                            <input type="password" class="form-control" id="inputNewPass1" name="inNewPass" placeholder="Nueva contraseña" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="inputNewPass2" class="form-label">Confirmar contraseña</label>
+                            <input type="password" class="form-control" id="inputNewPass2" name="inputNewPass2" placeholder="Confirmar contraseña" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="inConfEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="inConfEmail" name="inConfEmail" placeholder="Email" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Restablecer</button>
+                        </div>
+                        <?php echo runtime_csfr::Token(); ?>
+                    </form>
+
+                    <?php else: ?>
+                    <!-- Formulario olvidé contraseña (oculto) -->
+                    <form method="post" id="frmZForgot" style="display:none">
+                        <h5 class="card-title mb-3">Recuperar contraseña</h5>
+                        <p class="text-muted small mb-3">Introduce tu email y recibirás un enlace de recuperación.</p>
+                        <div class="mb-3">
+                            <label for="inputEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="inputEmail" name="inForgotPassword" placeholder="tu@email.com" required>
+                        </div>
+                        <div class="d-grid mb-2">
+                            <button type="submit" class="btn btn-primary" name="sublogin2" value="LogIn">Enviar enlace</button>
+                        </div>
+                        <div class="text-center">
+                            <a href="javascript:void(0);" id="backtologin" class="small text-muted">← Volver al login</a>
+                        </div>
+                        <?php echo runtime_csfr::Token(); ?>
+                    </form>
+
+                    <!-- Formulario login -->
+                    <form method="post" id="frmZLogin">
+                        <div class="mb-3">
+                            <label for="inputUsername" class="form-label">Usuario</label>
+                            <input type="text" class="form-control form-control-lg" id="inputUsername" name="inUsername" placeholder="Usuario" required autofocus>
+                        </div>
+                        <div class="mb-3">
+                            <label for="inPassword" class="form-label">Contraseña</label>
+                            <input type="password" class="form-control form-control-lg" id="inPassword" name="inPassword" placeholder="Contraseña" required>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="inRemember" value="1" id="chkRemember">
+                                <label class="form-check-label small" for="chkRemember">Recordarme</label>
+                            </div>
+                            <a href="javascript:void(0);" id="forgotpw" class="small text-muted">¿Olvidaste la contraseña?</a>
+                        </div>
+                        <input type="hidden" name="inSessionSecurity" value="1">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" name="sublogin2" value="LogIn">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar sesión
+                            </button>
+                        </div>
+                        <?php echo runtime_csfr::Token(); ?>
+                    </form>
+                    <?php endif; ?>
+
+                </div><!-- /card-body -->
+            </div><!-- /card -->
+
+            <p class="text-center text-muted small mt-3">
+                Powered by <a href="http://www.sentora.org/" target="_blank">Sentora</a>
+            </p>
+        </div><!-- /login-wrapper -->
+
         <script src="/etc/styles/Sentora_Default/js/jquery.js"></script>
-        <script src="/etc/styles/Sentora_Default/js/bootstrap-transition.js"></script>
-        <script src="/etc/styles/Sentora_Default/js/bootstrap-alert.js"></script>
-        <script src="/etc/styles/Sentora_Default/js/prettyCheckable.js"></script>
+        <script src="/etc/styles/Sentora_Default/js/bootstrap.bundle.min.js"></script>
         <script>
-            $().ready(function() {
-                $('input:checkbox').prettyCheckable({
-                    color: 'green',
-                    customClass: 'logcheckbox'
-                });
+            $('#forgotpw').on('click', function() {
+                $('#frmZLogin').slideUp('fast', function() { $('#frmZForgot').slideDown('fast'); });
             });
-        </script>
-        
-        <!-- Login form transitions -->
-        <script>
-            $('#forgotpw').click(function() {
-                $('#frmZLogin').slideUp('slow', function() {
-                    $('#frmZForgot').slideDown("slow");
-                });
+            $('#backtologin').on('click', function() {
+                $('#frmZForgot').slideUp('fast', function() { $('#frmZLogin').slideDown('fast'); });
             });
-            $('#backtologin').click(function() {
-                $('#frmZForgot').slideUp('slow', function() {
-                    $('#frmZLogin').slideDown("slow");
-                });
-            });
-            $('#backtologin2').click(function() {
-                $('#frmZConfirm').slideUp('slow', function() {
-                    $('#frmZLogin').slideDown("slow");
-                });
-            });
-
-            <?php if (isset($_GET['resetkey']) && ctype_alnum($_GET['resetkey'])) { ?>
-            $('#frmZConfirm').submit(function() {
-                $('#msgMatchErr').slideUp("slow");
-                if ($('#inputNewPass1').val().length == 0 || $('#inputNewPass1').val() != $('#inputNewPass2').val())
-                {
-                    $('#msgMatchErr').slideDown("slow");
-                    return false;
+            <?php if (isset($_GET['resetkey']) && ctype_alnum($_GET['resetkey'])): ?>
+            $('#frmZConfirm').on('submit', function() {
+                if ($('#inputNewPass1').val() !== $('#inputNewPass2').val() || !$('#inputNewPass1').val()) {
+                    $('#msgMatchErr').show(); return false;
                 }
-                return true;
+                $('#msgMatchErr').hide(); return true;
             });
-            <?php  } ?>
-
-        </script>
-        
-        <!-- Page fade in after load -->
-        <script>
-            $(window).load(function() {
-                $("body").fadeIn();
-            });
+            <?php endif; ?>
         </script>
     </body>
 </html>

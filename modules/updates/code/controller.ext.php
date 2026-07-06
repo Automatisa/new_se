@@ -31,22 +31,8 @@
 class module_controller extends ctrl_module
 {
     public static function getSentoraUpdates()
-    {   
-        $installed = ctrl_options::GetSystemOption('dbversion');
-        $lastest = ctrl_options::GetSystemOption('latestzpversion');
-        $lastest_tagged = ' (<strong>' . $lastest . '</strong>)';
-        
-        if ($installed < $lastest ) {
-            $msg = ui_language::translate('There are currently new updates for your Sentora installation, please download the latest release') 
-                 . $lastest_tagged .' from <a href="http://www.sentora.org/">http://www.sentora.org/</a>.';
-        } elseif ($installed == $lastest) {
-            $msg = 'Congratulations, You are running the most recent version of Sentora' . $lastest_tagged . '!';
-        } else {
-            $msg = 'You are running a BETA release (<strong>' . $installed . '</strong>), thank you to report what you observed.<br>'
-                  .'<b>Do not use it for production.</b>';
-            if ($latest >= '1.0.0')
-                $msg .='<br><br>Unless you are testing or developing we recommend you to download and use the latest stable release' . $lastest_tagged . '.';
-        }
-        return $msg;
+    {
+        $installed = htmlspecialchars(ctrl_options::GetSystemOption('dbversion'), ENT_QUOTES, 'UTF-8');
+        return 'Sentora version: <strong>' . $installed . '</strong>';
     }
 }

@@ -16,20 +16,7 @@ class runtime_sessionsecurity {
     
     /*****The below are generic function used more than once*****/
     /**
-     * Regenerate the PHPSID  
-     * @author Sam Mottley (smottley@zpanelcp.com)
-     * @return boolean.
-     */
-    static public function sessionRegen(){
-         if(session_regenerate_id()){
-             return true;
-         }else{
-             return false;
-         }
-    }
-    
-    /**
-     * Get users ip address 
+     * Get users ip address
      * @author Sam Mottley (smottley@zpanelcp.com)
      * @return string The Clean IP.
      */
@@ -76,7 +63,8 @@ class runtime_sessionsecurity {
      * @return boolean.
      */
     static public function setUserAgent(){
-        $_SESSION['HTTP_USER_AGENT'] = sha1($_SERVER['HTTP_USER_AGENT'],self::userSpeficData());
+        // Fix: sha1($str, $raw) segundo parámetro es bool; usar concatenación correcta
+        $_SESSION['HTTP_USER_AGENT'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] . self::userSpeficData());
     }
     
     /**
@@ -84,15 +72,16 @@ class runtime_sessionsecurity {
      * @author Sam Mottley (smottley@zpanelcp.com)
      * @return boolean.
      */
-    static public function setCookie(){ 
-        $random = runtime_randomstring::randomHash(100);
-        if(isset($_SESSION['zUserSalt']) && isset($_COOKIE['zUserSaltCookie']) && ($_COOKIE['zUserSaltCookie'] == $_SESSION['zUserSalt'])){
+    static public function setCookie(){
+        $random = bin2hex(random_bytes(32));
+        if(isset($_SESSION['zUserSalt']) && isset($_COOKIE['zUserSaltCookie']) && hash_equals($_SESSION['zUserSalt'], $_COOKIE['zUserSaltCookie'])){
             //already set
         }else{
             $_SESSION['zUserSalt'] = $random;
-            setcookie("zUserSaltCookie", $random, time() + 60 * 60 * 24 * 30, "/"); 
+            // Fix: añadir HttpOnly y SameSite para proteger la cookie de sesión
+            setcookie("zUserSaltCookie", $random, ['expires' => time() + 60 * 60 * 24 * 30, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']);
         }
-        return true;            
+        return true;
     }
     
     /**
@@ -101,7 +90,7 @@ class runtime_sessionsecurity {
      * @return boolean.
      */
     static public function setUserIP(){
-        $_SESSION['ip'] = sha1(self::findIP(), self::userSpeficData());
+        $_SESSION['ip'] = hash('sha256', self::findIP() . self::userSpeficData());
     }
     
     /**
@@ -154,7 +143,7 @@ class runtime_sessionsecurity {
      * @return string The data.
      */
     static public function getProviedUserAgent(){
-        return sha1($_SERVER['HTTP_USER_AGENT'], self::userSpeficData());
+        return hash('sha256', $_SERVER['HTTP_USER_AGENT'] . self::userSpeficData());
     }
     
     /**
@@ -172,7 +161,7 @@ class runtime_sessionsecurity {
      * @return string The data.
      */
     static public function getProviedIP(){
-        return sha1(self::findIP(), self::userSpeficData());
+        return hash('sha256', self::findIP() . self::userSpeficData());
     }
     
     /**
@@ -238,19 +227,6 @@ class runtime_sessionsecurity {
         }
     }
     
-    /**
-     * This checks wheather the user is behind a proxy
-     * @author Sam Mottley (smottley@zpanelcp.com)
-     * @return boolean
-     */
-    static public function checkProxy(){
-        if (@$_SERVER['HTTP_X_FORWARDED_FOR']|| @$_SERVER['HTTP_X_FORWARDED']|| @$_SERVER['HTTP_FORWARDED_FOR']|| @$_SERVER['HTTP_CLIENT_IP']|| @$_SERVER['HTTP_VIA']|| @in_array($_SERVER['REMOTE_PORT'], array(8080,80,6588,8000,3128,553,554))|| @fsockopen($_SERVER['REMOTE_ADDR'], 80, $errno, $errstr, 1)){
-              return true;
-        }else{
-            return false;
-        }
-    }
-
     /**
      * Check if session secuirty enabled
      * @author Sam Mottley (smottley@zpanelcp.com)

@@ -80,14 +80,16 @@ class module_controller extends ctrl_module
     static function ListCurrentMailboxes($mid)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_mailboxes WHERE mb_id_pk=:mid AND mb_deleted_ts IS NULL ORDER BY mb_address_vc ASC";
-        //$numrows = $zdbh->query($sql);
+        $currentuser = ctrl_users::GetUserDetail();
+        $sql = "SELECT * FROM x_mailboxes WHERE mb_id_pk=:mid AND mb_acc_fk=:uid AND mb_deleted_ts IS NULL ORDER BY mb_address_vc ASC";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':mid', $mid);
+        $numrows->bindParam(':uid', $currentuser['userid']);
         $numrows->execute();
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $sql->bindParam(':mid', $mid);
+            $sql->bindParam(':uid', $currentuser['userid']);
             $res = array();
             $sql->execute();
             while ($rowmailboxes = $sql->fetch()) {
@@ -143,7 +145,7 @@ class module_controller extends ctrl_module
         $fulladdress = strtolower(str_replace(' ', '', $address . "@" . $domain));
         self::$create = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
 
@@ -168,15 +170,23 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         global $controller;
+        // HIGH-3 FIX: verify mailbox belongs to the authenticated user before deletion
+        $currentuser = ctrl_users::GetUserDetail();
+        $ownCheck = $zdbh->prepare("SELECT mb_id_pk FROM x_mailboxes WHERE mb_id_pk=:mid AND mb_acc_fk=:uid AND mb_deleted_ts IS NULL");
+        $ownCheck->bindParam(':mid', $mid);
+        $ownCheck->bindParam(':uid', $currentuser['userid']);
+        $ownCheck->execute();
+        if (!$ownCheck->fetch()) {
+            return false;
+        }
         runtime_hook::Execute('OnBeforeDeleteMailbox');
         self::$delete = true;
-        //$rowmailbox = $zdbh->query("SELECT * FROM x_mailboxes WHERE mb_id_pk=" . $mid . "")->Fetch();
         $numrows = $zdbh->prepare("SELECT * FROM x_mailboxes WHERE mb_id_pk=:mid");
         $numrows->bindParam(':mid', $mid);
         $numrows->execute();
         $rowmailbox = $numrows->fetch();
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile)) {
             include($MailServerFile);
         }
@@ -194,9 +204,17 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         global $controller;
-		
+        // HIGH-3 FIX: verify mailbox belongs to the authenticated user before update
+        $currentuser = ctrl_users::GetUserDetail();
+        $ownCheck = $zdbh->prepare("SELECT mb_id_pk FROM x_mailboxes WHERE mb_id_pk=:mid AND mb_acc_fk=:uid AND mb_deleted_ts IS NULL");
+        $ownCheck->bindParam(':mid', $mid);
+        $ownCheck->bindParam(':uid', $currentuser['userid']);
+        $ownCheck->execute();
+        if (!$ownCheck->fetch()) {
+            return false;
+        }
 		if (fs_director::CheckForEmptyValue(self::CheckPasswordForErrors($password))) {
-            
+
 			runtime_hook::Execute('OnBeforeUpdateMailbox');
 			$numrows = $zdbh->prepare("SELECT * FROM x_mailboxes WHERE mb_id_pk=:mid");
 			$numrows->bindParam(':mid', $mid);
@@ -209,7 +227,7 @@ class module_controller extends ctrl_module
 			}
 			self::$update = true;
 			// Include mail server specific file here.
-			$MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+			$MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
 			if (file_exists($MailServerFile)) {
 				include($MailServerFile);
 			}
@@ -225,9 +243,11 @@ class module_controller extends ctrl_module
     static function ExecuteEnableMailbox($mid)
     {
         global $zdbh;
+        $currentuser = ctrl_users::GetUserDetail();
         runtime_hook::Execute('OnBeforeEnableMailbox');
-        $sql = $zdbh->prepare("UPDATE x_mailboxes SET mb_enabled_in=1 WHERE mb_id_pk=:mid");
+        $sql = $zdbh->prepare("UPDATE x_mailboxes SET mb_enabled_in=1 WHERE mb_id_pk=:mid AND mb_acc_fk=:uid");
         $sql->bindParam(':mid', $mid);
+        $sql->bindParam(':uid', $currentuser['userid']);
         $sql->execute();
         $retval = true;
         runtime_hook::Execute('OnAfterEnableMailbox');
@@ -237,9 +257,11 @@ class module_controller extends ctrl_module
     static function ExecuteDisableMailbox($mid)
     {
         global $zdbh;
+        $currentuser = ctrl_users::GetUserDetail();
         runtime_hook::Execute('OnBeforeDisableMailbox');
-        $sql = $zdbh->prepare("UPDATE x_mailboxes SET mb_enabled_in=0 WHERE mb_id_pk=:mid");
+        $sql = $zdbh->prepare("UPDATE x_mailboxes SET mb_enabled_in=0 WHERE mb_id_pk=:mid AND mb_acc_fk=:uid");
         $sql->bindParam(':mid', $mid);
+        $sql->bindParam(':uid', $currentuser['userid']);
         $sql->execute();
         $retval = true;
         runtime_hook::Execute('OnAfterDisableMailbox');
@@ -249,6 +271,7 @@ class module_controller extends ctrl_module
     static function CheckCreateForErrors($address, $domain, $password)
     {
         global $zdbh;
+        $currentuser = ctrl_users::GetUserDetail();
         $fulladdress = strtolower(str_replace(' ', '', $address . '@' . $domain));
         if (fs_director::CheckForEmptyValue($address)) {
             self::$noaddress = true;
@@ -258,17 +281,26 @@ class module_controller extends ctrl_module
             self::$password = true;
             return false;
         }
-		// Check for password length...
-		if (strlen($password) < ctrl_options::GetSystemOption('password_minlength')) {
-			self::$badpasswordlength = true;
-			return false;
-		}
-		// Check for invalid password
+        // Check for password length...
+        if (strlen($password) < ctrl_options::GetSystemOption('password_minlength')) {
+            self::$badpasswordlength = true;
+            return false;
+        }
+        // Check for invalid password
         if (!self::IsValidPassword($password)) {
             self::$badpass = true;
             return false;
         }
         if (!self::IsValidEmail($fulladdress)) {
+            self::$validemail = true;
+            return false;
+        }
+        // Verify the submitted domain actually belongs to this user
+        $domainCheck = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_acc_fk=:uid AND vh_name_vc=:domain AND vh_enabled_in=1 AND vh_deleted_ts IS NULL");
+        $domainCheck->bindParam(':uid', $currentuser['userid']);
+        $domainCheck->bindParam(':domain', $domain);
+        $domainCheck->execute();
+        if (!$domainCheck->fetch()) {
             self::$validemail = true;
             return false;
         }
@@ -312,33 +344,27 @@ class module_controller extends ctrl_module
     {
         return preg_match('/^[a-z0-9]+([_\\.-][a-z0-9]+)*@([a-z0-9]+([\.-][a-z0-9]+)*)+\\.[a-z]{2,}$/i', $email) == 1;
     }
-	static function IsValidPassword($password)
+    static function IsValidPassword($password)
     {
-        //return preg_match('/(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{17,}/', $password) || preg_match('/-$/', $password) == 1;
-		return preg_match('/(?=.*\d)(?=.*[a-z])(?=.*[A-Z])/', $password) || preg_match('/-$/', $password) == 1;
+        return (bool) preg_match('/(?=.*\d)(?=.*[a-z])(?=.*[A-Z])/', $password);
     }
 	
-	static function CheckPasswordForErrors($password)
+    static function CheckPasswordForErrors($password)
     {
-        global $zdbh;
         $retval = FALSE;
-		
-		// Check to make sure the password is not blank before we go any further...
         if ($password == '') {
             self::$password = TRUE;
             $retval = TRUE;
         }
-		// Check for password length...
-		if (strlen($password) < ctrl_options::GetSystemOption('password_minlength')) {
-			self::$badpasswordlength = true;
-			return false;
-		}
-        // Check for invalid password
+        if (strlen($password) < ctrl_options::GetSystemOption('password_minlength')) {
+            self::$badpasswordlength = true;
+            $retval = TRUE;
+        }
         if (!self::IsValidPassword($password)) {
             self::$badpass = true;
             $retval = TRUE;
         }
-		return $retval;
+        return $retval;
     }
 	
     /**
@@ -523,9 +549,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('mailboxes', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

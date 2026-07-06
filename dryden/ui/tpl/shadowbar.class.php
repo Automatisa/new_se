@@ -19,7 +19,7 @@ class ui_tpl_shadowbar {
     public static function Template() {
 		$shadoweduser = ctrl_users::GetUserDetail();
 		$shadowedusername = $shadoweduser['username'];
-        if (isset($_SESSION['ruid'])) {
+        if (!empty($_SESSION['ruid_stack'])) {
             return '<div class="zshadowbar" id="zshadowbar"><a href="./?returnsession=true"><button type="button" class="shadow-btn btn btn-danger"><: End shadowing :> <b>' . $shadowedusername . '</b> <: and return to your session. :></button></a></div>';
         } else {
             return false;

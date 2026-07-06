@@ -24,17 +24,8 @@ $config = [];
 // Currently supported db_providers: mysql, pgsql, sqlite, mssql or sqlsrv
 // For examples see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
 // NOTE: for SQLite use absolute path: 'sqlite:////full/path/to/sqlite.db?mode=0646'
-$config['db_dsnw'] = 'mysql://roundcube:!ROUNDCUBE_PASSWORD!@localhost/sentora_roundcube';
-$config['db_table_users'] = 'users';
-$config['db_table_identities'] = 'identities';
-$config['db_table_contacts'] = 'contacts';
-$config['db_table_contactgroups'] = 'contactgroups';
-$config['db_table_contactgroupmembers'] = 'contactgroupmembers';
-$config['db_table_session'] = 'session';
-$config['db_table_cache'] = 'cache';
-$config['db_table_cache_index'] = 'cache_index';
-$config['db_table_cache_thread'] = 'cache_thread';
-$config['db_table_cache_messages'] = 'cache_messages';
+// Use 127.0.0.1 (TCP) not localhost (socket). FreeBSD MariaDB socket is not at /tmp/mysql.sock.
+$config['db_dsnw'] = 'mysql://roundcube:!ROUNDCUBE_PASSWORD!@127.0.0.1/sentora_roundcube';
 
 // ----------------------------------
 // SMTP
@@ -74,7 +65,7 @@ $config['product_name'] = 'Sentora Webmail'; //Default was 'Roundcube Webmail'
 // ----------------------------------
 // IMAP
 // ----------------------------------
-## Using default. Nothing to change..
+$config['default_host'] = 'localhost';
 
 // ----------------------------------
 // PLUGINS
@@ -135,7 +126,7 @@ $config['skins_allowed'] = [];
 // 0 - Never, always ask
 // 1 - Ask if sender is not in address book
 // 2 - Always show inline images
-$config['show_images'] = 2; //Default was 0
+$config['show_images'] = 1; // 1 = ask if sender not in address book (avoids tracking pixels)
 
 // compose html formatted messages by default
 // 0 - never, 1 - always, 2 - on reply to HTML message, 3 - on forward or reply to HTML message

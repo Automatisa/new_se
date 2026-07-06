@@ -48,17 +48,17 @@ class ui_sysmessage {
                 $class = 'alert-primary';
                 break;
             case 'notice':
-                $class = 'alert-info notice-manager-alert hidden';
+                $class = 'alert-info notice-manager-alert d-none';
                 break;
             default:
                 $class = 'alert-info';
         }
 
         runtime_hook::Execute('OnBeforeSysMessageShout');
-        $line = '<div class="alert alert-block '. $class. '">';
-        $heading = $title ? '<h4>'.$title.'</h4>' : '';
-        $closeBtn = $closeBtn ? '<button type="button" class="close" data-dismiss="alert">×</button>' : '';
-        $line .= $closeBtn . $heading.'<p>' .$message. '</p></div>';
+        $line = '<div class="alert alert-dismissible fade show '. $class. '" role="alert">';
+        $heading = $title ? '<strong>'.$title.'</strong> ' : '';
+        $closeBtn = $closeBtn ? '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' : '';
+        $line .= $closeBtn . $heading.$message.'</div>';
         runtime_hook::Execute('OnAfterSysMessageShout');
         return $line;
     }

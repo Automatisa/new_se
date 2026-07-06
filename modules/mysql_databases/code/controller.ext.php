@@ -70,7 +70,12 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
-                $numrowdb = $zdbh->query("SELECT COUNT(*) FROM x_mysql_dbmap WHERE mm_acc_fk=" . $rowmysql['my_acc_fk'] . " AND mm_database_fk=" . $rowmysql['my_id_pk'] . "")->fetch();
+                // MED-6 FIX: replace string concatenation with prepared statement
+                $dbmapStmt = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_dbmap WHERE mm_acc_fk=:acc AND mm_database_fk=:dbid");
+                $dbmapStmt->bindValue(':acc', (int)$rowmysql['my_acc_fk'], PDO::PARAM_INT);
+                $dbmapStmt->bindValue(':dbid', (int)$rowmysql['my_id_pk'], PDO::PARAM_INT);
+                $dbmapStmt->execute();
+                $numrowdb = $dbmapStmt->fetch();
                 $res[] = array('mysqlid' => $rowmysql['my_id_pk'],
                     'totaldb' => $numrowdb[0],
                     'mysqlname' => $rowmysql['my_name_vc'],
@@ -337,9 +342,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('mysql', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

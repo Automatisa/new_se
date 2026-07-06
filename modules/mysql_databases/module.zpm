@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -21,11 +21,12 @@
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ EditCurrentDatabaseID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=mysql_databases';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=mysql_databases';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -35,7 +36,7 @@
         <h2><: Current MySQL&reg; Databases :></h2>
         <% if DatabaseList %>
         <form action="./?module=mysql_databases&action=DeleteDatabase" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Database name :></th>
                     <th><: Size :></th>
@@ -47,10 +48,11 @@
                     <td><& mysqlname &></td>
                     <td><& mysqlfriendlysize &></td>
                     <td><& totaldb &></td>
-                    <td><button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& mysqlid &>" id="inDelete_<& mysqlid &>" value="<& mysqlid &>"><: Delete :></button></td>
+                    <td><button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& mysqlid &>" id="inDelete_<& mysqlid &>" value="<& mysqlid &>"><i class="bi bi-trash me-1"></i><: Delete :></button></td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %>
@@ -66,7 +68,7 @@
                     <h2><: Create a new MySQL&reg; database :></h2>
                     <% if QuotaLimit %>
                     <form action="./?module=mysql_databases&action=CreateDatabase" method="post">
-                        <table class="table table-striped">
+                        <div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th nowrap="nowrap">
 									<: Database name :>:<br />
@@ -76,9 +78,10 @@
                             </tr>
                             <tr>
                                 <th colspan="2" align="right">
-                                    <@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" ><: Create :></button></th>
+                                    <@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" ><i class="bi bi-plus-circle me-1"></i><: Create :></button></th>
                             </tr>
                         </table>
+</div><!-- /table-responsive -->
                     </form>
                     <% else %>
                     <: You have reached your MySQL database limit! :>
@@ -86,6 +89,7 @@
                 </td>
                 <td align="right"><@ MysqlUsagepChart @></td>
             </tr></table>
+</div><!-- /table-responsive -->
     </div>
     <% endif %>
 

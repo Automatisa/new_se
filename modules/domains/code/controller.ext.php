@@ -69,6 +69,7 @@ class module_controller extends ctrl_module
                     'name' => $rowdomains['vh_name_vc'],
                     'directory' => $rowdomains['vh_directory_vc'],
                     'active' => $rowdomains['vh_active_in'],
+                    'enabled' => $rowdomains['vh_enabled_in'],
                     'id' => $rowdomains['vh_id_pk'],
                 ));
             }
@@ -112,19 +113,33 @@ class module_controller extends ctrl_module
 				
 		$vhostuser = ctrl_users::GetUserDetail($rowvhost['vh_acc_fk']);
 		$vhostusername = $vhostuser['username'];
-		$vh_snuff_path = "/etc/sentora/configs/php/sp/";
-		
-			if (file_exists($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules')) {
-				unlink($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules') or print fs_filehandler::NewLine() . "Couldn't delete " . $rowvhost['vh_name_vc'] . "vhost sp file" . fs_filehandler::NewLine();
-			}
-
 		// Eliminar directorio del dominio del disco
 		$paths = ctrl_options::GetVhostPaths($vhostusername, $rowvhost['vh_directory_vc']);
 		if (is_dir($paths['domain_root'])) {
 			fs_filehandler::RemoveDirectory($paths['domain_root'] . "/");
 		}
+
+		// Cascade-delete subdomains of this domain
+		$domainname = $rowvhost['vh_name_vc'];
+		$sqlsubs = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc LIKE :pattern AND vh_type_in=2 AND vh_deleted_ts IS NULL");
+		$subpattern = '%.' . $domainname;
+		$sqlsubs->bindParam(':pattern', $subpattern);
+		$sqlsubs->execute();
+		$now = time();
+		while ($rowsub = $sqlsubs->fetch()) {
+			$subsnuff = $vh_snuff_path . $vhostusername . "/" . $rowsub['vh_name_vc'] . '.rules';
+			if (file_exists($subsnuff)) { unlink($subsnuff); }
+			$subpaths = ctrl_options::GetVhostPaths($vhostusername, $rowsub['vh_directory_vc']);
+			if (is_dir($subpaths['domain_root'])) {
+				fs_filehandler::RemoveDirectory($subpaths['domain_root'] . "/");
+			}
+			$delsub = $zdbh->prepare("UPDATE x_vhosts SET vh_deleted_ts=:now WHERE vh_id_pk=:subid");
+			$delsub->bindParam(':now', $now);
+			$delsub->bindParam(':subid', $rowsub['vh_id_pk']);
+			$delsub->execute();
 		}
-		
+		}
+
 		// Delete Domain
         runtime_hook::Execute('OnBeforeDeleteDomain');
         $sql = $zdbh->prepare("UPDATE x_vhosts
@@ -150,30 +165,21 @@ class module_controller extends ctrl_module
         $currentuser = ctrl_users::GetUserDetail($uid);
         $domain = strtolower(str_replace(' ', '', $domain));
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
-            //** New Home Directory **//
-        if ($autohome == 1) {
-            // vh_directory_vc se guarda SIN slash: "ejemplo_com"
-            // La ruta real se construye siempre via ctrl_options::GetVhostPaths()
             $destination = str_replace(".", "_", $domain);
             $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
 
-            // Crear árbol de directorios del dominio
             fs_director::CreateDirectory($paths['domain_root']);
             fs_director::CreateDirectory($paths['public_html']);
             fs_director::CreateDirectory($paths['tmp']);
             fs_director::CreateDirectory($paths['logs']);
+            foreach (array('-access.log', '-error.log', '-bandwidth.log') as $_logsuffix) {
+                $_logfile = $paths['logs'] . '/' . $domain . $_logsuffix;
+                if (!file_exists($_logfile)) { @touch($_logfile); }
+            }
             fs_director::CreateDirectory($paths['errorpages']);
             fs_director::CreateDirectory($paths['cgibin']);
-
             fs_director::SetFileSystemPermissions($paths['domain_root'], 0755);
             $vhost_path = $paths['public_html'] . '/';
-
-        //** Existing Home Directory **//
-        } else {
-                $destination = str_replace(".", "_", $destination);
-                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
-                $vhost_path = $paths['public_html'] . '/';
-            }
             // Error documents:- Error pages are added automatically if they are found in the _errorpages directory
             // and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
             fs_director::CreateDirectory($vhost_path . "/_errorpages/");
@@ -212,14 +218,6 @@ class module_controller extends ctrl_module
             $sql->bindParam(':domain', $domain);
             $sql->bindParam(':destination', $destination);
             $sql->execute();
-            // Only run if the Server platform is Windows.
-            if (sys_versions::ShowOSPlatformVersion() == 'Windows') {
-                if (ctrl_options::GetSystemOption('disable_hostsen') == 'false') {
-                    // Lets add the hostname to the HOSTS file so that the server can view the domain immediately...
-                    @exec("C:/Sentora/bin/zpss/setroute.exe " . $domain . "");
-                    @exec("C:/Sentora/bin/zpss/setroute.exe www." . $domain . "");
-                }
-            }
             self::SetWriteApacheConfigTrue();
             $retval = TRUE;
             runtime_hook::Execute('OnAfterAddDomain');
@@ -238,7 +236,7 @@ class module_controller extends ctrl_module
             return FALSE;
         }
         // Check for invalid characters in the domain...
-        if (!self::IsValidDomainName($domain)) {
+        if (!fs_director::IsValidDomainName($domain)) {
             self::$badname = TRUE;
             return FALSE;
         }
@@ -258,18 +256,11 @@ class module_controller extends ctrl_module
                 return FALSE;
             }
         }
-        // Check to make sure user not adding a subdomain and blocks stealing of subdomains....
-        // Get shared domain list
-        $SharedDomains = array();
-        $a = explode(',', ctrl_options::GetSystemOption('shared_domains'));
-        foreach ($a as $b) {
-            $SharedDomains[] = $b;
-        }
+        // Check to make sure user not adding a subdomain and blocks stealing of subdomains.
         if (substr_count($domain, ".") > 1) {
             $part = explode('.', $domain);
             foreach ($part as $check) {
-                if (!in_array($check, $SharedDomains)) {
-                    if (strlen($check) > 3) {
+                if (strlen($check) > 3) {
                         $sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc LIKE :check AND vh_type_in !=2 AND vh_deleted_ts IS NULL");
                         $checkSql = '%' . $check . '%';
                         $sql->bindParam(':check', $checkSql);
@@ -287,7 +278,6 @@ class module_controller extends ctrl_module
                                 }
                             }
                         }
-                    }
                 }
             }
         }
@@ -305,20 +295,6 @@ class module_controller extends ctrl_module
         return in_array($error, $errordocs);
     }
 
-    static function IsValidDomainName($a)
-    {
-        if (stristr($a, '.')) {
-            $part = explode(".", $a);
-            foreach ($part as $check) {
-                if (!preg_match('/^[a-z\d][a-z\d-]{0,62}$/i', $check) || preg_match('/-$/', $check)) {
-                    return false;
-                }
-            }
-        } else {
-            return false;
-        }
-        return true;
-    }
 
     static function IsValidEmail($email)
     {
@@ -353,10 +329,11 @@ class module_controller extends ctrl_module
         $domains = self::ListDomains($currentuser['userid']);
         if (!fs_director::CheckForEmptyValue($domains)) {
             foreach ($domains as $row) {
-                $status = self::getDomainStatusHTML($row['active'], $row['id']);
+                $status = self::getDomainStatusHTML($row['active'], $row['enabled'], $row['id']);
                 $res[] = array('name' => $row['name'],
                     'directory' => $row['directory'],
                     'active' => $row['active'],
+                    'enabled' => $row['enabled'],
                     'status' => $status,
                     'id' => $row['id']);
             }
@@ -467,6 +444,23 @@ class module_controller extends ctrl_module
         return ($domain) ? $domain : '';
     }
 
+    static function getSubDomainsForDelete()
+    {
+        global $zdbh, $controller;
+        $urlvars = $controller->GetAllControllerRequests('URL');
+        $domain = isset($urlvars['domain']) ? $urlvars['domain'] : '';
+        if (empty($domain)) return false;
+        $sql = $zdbh->prepare("SELECT vh_name_vc FROM x_vhosts WHERE vh_name_vc LIKE :pattern AND vh_type_in=2 AND vh_deleted_ts IS NULL");
+        $pattern = '%.' . $domain;
+        $sql->bindParam(':pattern', $pattern);
+        $sql->execute();
+        $res = array();
+        while ($row = $sql->fetch()) {
+            $res[] = array('subname' => $row['vh_name_vc']);
+        }
+        return !empty($res) ? $res : false;
+    }
+
     static function getDomainUsagepChart()
     {
         $currentuser = ctrl_users::GetUserDetail();
@@ -476,26 +470,281 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('domains', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }
 
-    static function getDomainStatusHTML($int, $id)
+    static function getDomainStatusHTML($active, $enabled, $id)
     {
         global $controller;
-        if ($int == 1) {
-            return '<td><font color="green">' . ui_language::translate('Live') . '</font></td>'
-                    . '<td></td>';
+        $mod = $controller->GetControllerRequest('URL', 'module');
+
+        if ((int)$enabled === 0) {
+            $statusTd = '<td><span style="color:#e67e22;font-weight:bold">' . ui_language::translate('Suspended') . '</span></td>';
+        } elseif ((int)$active === 1) {
+            $statusTd = '<td><span style="color:green;font-weight:bold">' . ui_language::translate('Live') . '</span></td>';
         } else {
-            return '<td><font color="orange">' . ui_language::translate('Pending') . '</font></td>'
-                    . '<td><a href="#" class="help_small" id="help_small_' . $id . '_a"'
-                    . 'title="' . ui_language::translate('Your domain will become active at the next scheduled update.  This can take up to one hour.') . '">'
-                    . '<img src="/modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/help_small.png" border="0" /></a>';
+            $statusTd = '<td><span style="color:orange">' . ui_language::translate('Pending') . '</span></td>';
+        }
+
+        $toggleLabel = ((int)$enabled === 0) ? ui_language::translate('Activate') : ui_language::translate('Suspend');
+        $toggleClass = ((int)$enabled === 0) ? 'btn-success' : 'btn-warning';
+
+        $actionsTd = '<td style="white-space:nowrap">'
+            . '<button class="button-loader btn btn-sm ' . $toggleClass . '" type="submit"'
+            . ' name="inToggle_' . (int)$id . '" value="' . (int)$id . '"'
+            . ' formaction="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&action=ToggleDomain">'
+            . $toggleLabel . '</button> '
+            . '<a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=PhpSettings&id=' . (int)$id . '"'
+            . ' class="btn btn-info btn-sm">PHP</a> '
+            . '<button class="delete btn btn-danger btn-sm" type="submit"'
+            . ' name="inDelete_' . (int)$id . '" value="inDelete_' . (int)$id . '"><i class="bi bi-trash me-1"></i>'
+            . ui_language::translate('Delete') . '</button>'
+            . '</td>';
+
+        return $statusTd . $actionsTd;
+    }
+
+    static function ExecuteToggleDomain($vhostid, $uid)
+    {
+        global $zdbh;
+        $sql = $zdbh->prepare("SELECT vh_enabled_in FROM x_vhosts WHERE vh_id_pk = :id AND vh_acc_fk = :uid AND vh_deleted_ts IS NULL");
+        $sql->bindParam(':id', $vhostid, PDO::PARAM_INT);
+        $sql->bindParam(':uid', $uid, PDO::PARAM_INT);
+        $sql->execute();
+        $row = $sql->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return false;
+        $newState = ((int)$row['vh_enabled_in'] === 1) ? 0 : 1;
+        $upd = $zdbh->prepare("UPDATE x_vhosts SET vh_enabled_in = :state WHERE vh_id_pk = :id");
+        $upd->bindParam(':state', $newState, PDO::PARAM_INT);
+        $upd->bindParam(':id', $vhostid, PDO::PARAM_INT);
+        $upd->execute();
+        self::SetWriteApacheConfigTrue();
+        return true;
+    }
+
+    static function doToggleDomain()
+    {
+        global $controller;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $formvars = $controller->GetAllControllerRequests('FORM');
+        $domains = self::ListDomains($currentuser['userid']);
+        if ($domains) {
+            foreach ($domains as $row) {
+                if (isset($formvars['inToggle_' . $row['id']])) {
+                    self::ExecuteToggleDomain($row['id'], $currentuser['userid']);
+                    self::$ok = true;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // -----------------------------------------------------------------------
+    // PHP settings per-domain (x_domain_php + FPM pools)
+    // -----------------------------------------------------------------------
+
+    private static $phpSettingsCache = null;
+
+    private static function loadPhpSettings()
+    {
+        if (self::$phpSettingsCache !== null) return self::$phpSettingsCache;
+        global $controller, $zdbh;
+        $urlvars = $controller->GetAllControllerRequests('URL');
+        if (!isset($urlvars['show']) || $urlvars['show'] !== 'PhpSettings' || !isset($urlvars['id'])) {
+            self::$phpSettingsCache = false;
+            return false;
+        }
+        $vhostid     = (int)$urlvars['id'];
+        $currentuser = ctrl_users::GetUserDetail();
+        $chk = $zdbh->prepare("SELECT vh_name_vc FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $currentuser['userid']]);
+        $vhost = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$vhost) { self::$phpSettingsCache = false; return false; }
+        $row = $zdbh->prepare("SELECT * FROM x_domain_php WHERE dp_vhost_fk=:id");
+        $row->execute([':id' => $vhostid]);
+        $s = $row->fetch(PDO::FETCH_ASSOC) ?: [];
+        self::$phpSettingsCache = [
+            'domain_name'    => $vhost['vh_name_vc'],
+            'vhost_id'       => $vhostid,
+            'upload_max'     => $s['dp_upload_max_vc']    ?? '50M',
+            'post_max'       => $s['dp_post_max_vc']      ?? '50M',
+            'memory_limit'   => $s['dp_memory_limit_vc']  ?? '128M',
+            'max_exec'       => $s['dp_max_exec_in']      ?? 30,
+            'max_input'      => $s['dp_max_input_in']     ?? 60,
+            'display_errors' => $s['dp_display_errors_in'] ?? 0,
+        ];
+        return self::$phpSettingsCache;
+    }
+
+    static function getisPhpSettings()
+    {
+        return self::loadPhpSettings() !== false;
+    }
+
+    static function getPhpDomainName()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? htmlspecialchars($s['domain_name'], ENT_QUOTES) : '';
+    }
+
+    static function getPhpVhostId()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? (int)$s['vhost_id'] : 0;
+    }
+
+    static function getPhpUploadMax()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? htmlspecialchars($s['upload_max'], ENT_QUOTES) : '50M';
+    }
+
+    static function getPhpPostMax()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? htmlspecialchars($s['post_max'], ENT_QUOTES) : '50M';
+    }
+
+    static function getPhpMemoryLimit()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? htmlspecialchars($s['memory_limit'], ENT_QUOTES) : '128M';
+    }
+
+    static function getPhpMaxExec()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? (int)$s['max_exec'] : 30;
+    }
+
+    static function getPhpMaxInput()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? (int)$s['max_input'] : 60;
+    }
+
+    static function getPhpDisplayErrorsChecked()
+    {
+        $s = self::loadPhpSettings();
+        return ($s && $s['display_errors']) ? 'checked' : '';
+    }
+
+    static function doSavePhpSettings()
+    {
+        global $controller;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $formvars    = $controller->GetAllControllerRequests('FORM');
+        $vhostid     = (int)($formvars['inVhostId'] ?? 0);
+        if (self::ExecuteSavePhpSettings($vhostid, $currentuser['userid'], $formvars)) {
+            self::$ok = true;
+            // Diferir el reload de FPM a después de enviar la respuesta al cliente.
+            // En FreeBSD, service php_fpm reload hace execvp() que mata al worker actual
+            // si se llama sincrónicamente → 503. fastcgi_finish_request() envía la
+            // respuesta al cliente antes de que el worker muera por el reload.
+            register_shutdown_function(function() {
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                }
+                if (!class_exists('privilege')) {
+                    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+                }
+                try {
+                    privilege::run('fpm_regenerate');
+                } catch (\Throwable $e) {
+                    error_log('domains: fpm_regenerate (shutdown) failed: ' . $e->getMessage());
+                }
+            });
+            return true;
+        }
+        return false;
+    }
+
+    static function ExecuteSavePhpSettings($vhostid, $uid, $formvars)
+    {
+        global $zdbh;
+        $chk = $zdbh->prepare("SELECT vh_id_pk, vh_acc_fk FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $uid]);
+        if (!$chk->fetch()) return false;
+
+        // Obtener límites del paquete del usuario propietario del vhost.
+        $pkgLimits = $zdbh->prepare("
+            SELECT COALESCE(q.qt_php_memory_vc,  '128M') AS pkg_memory,
+                   COALESCE(q.qt_php_upload_vc,  '50M')  AS pkg_upload,
+                   COALESCE(q.qt_php_post_vc,    '50M')  AS pkg_post,
+                   COALESCE(q.qt_php_exec_in,    30)     AS pkg_exec,
+                   COALESCE(q.qt_php_maxinput_in,60)     AS pkg_maxinput
+            FROM x_accounts a
+            LEFT JOIN x_packages pk ON pk.pk_id_pk = a.ac_package_fk AND pk.pk_deleted_ts IS NULL
+            LEFT JOIN x_quotas q ON q.qt_package_fk = pk.pk_id_pk
+            WHERE a.ac_id_pk = :uid AND a.ac_deleted_ts IS NULL
+        ");
+        $pkgLimits->execute([':uid' => $uid]);
+        $pkg = $pkgLimits->fetch(PDO::FETCH_ASSOC) ?: [
+            'pkg_memory' => '128M', 'pkg_upload' => '50M', 'pkg_post' => '50M',
+            'pkg_exec' => 30, 'pkg_maxinput' => 60,
+        ];
+
+        $upload_max  = self::capPhpSize(self::sanitizeSizeValue($formvars['inUploadMax']   ?? '50M',  '50M'),  $pkg['pkg_upload']);
+        $post_max    = self::capPhpSize(self::sanitizeSizeValue($formvars['inPostMax']     ?? '50M',  '50M'),  $pkg['pkg_post']);
+        $memory      = self::capPhpSize(self::sanitizeSizeValue($formvars['inMemoryLimit'] ?? '128M', '128M'), $pkg['pkg_memory']);
+        $max_exec    = min(max(1, (int)($formvars['inMaxExec']  ?? 30)),  (int)$pkg['pkg_exec']);
+        $max_input   = min(max(1, (int)($formvars['inMaxInput'] ?? 60)),  (int)$pkg['pkg_maxinput']);
+        $display_err = isset($formvars['inDisplayErrors']) ? 1 : 0;
+
+        $upd = $zdbh->prepare("INSERT INTO x_domain_php
+                (dp_vhost_fk, dp_upload_max_vc, dp_post_max_vc, dp_memory_limit_vc,
+                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in)
+            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err)
+            ON DUPLICATE KEY UPDATE
+                dp_upload_max_vc=:umax, dp_post_max_vc=:pmax, dp_memory_limit_vc=:mem,
+                dp_max_exec_in=:exec, dp_max_input_in=:input, dp_display_errors_in=:err");
+        $upd->execute([
+            ':vid'   => $vhostid,
+            ':umax'  => $upload_max,
+            ':pmax'  => $post_max,
+            ':mem'   => $memory,
+            ':exec'  => $max_exec,
+            ':input' => $max_input,
+            ':err'   => $display_err,
+        ]);
+        return true;
+    }
+
+    private static function sanitizeSizeValue($val, $default)
+    {
+        $val = strtoupper(trim((string)$val));
+        return preg_match('/^\d+[KMG]?$/', $val) ? $val : $default;
+    }
+
+    private static function parsePhpSize(string $s): int
+    {
+        $s    = trim($s);
+        $unit = strtolower(substr($s, -1));
+        $val  = (int)$s;
+        switch ($unit) {
+            case 'g': return $val * 1073741824;
+            case 'm': return $val * 1048576;
+            case 'k': return $val * 1024;
+            default:  return $val;
         }
     }
+
+    private static function capPhpSize(string $domain_val, string $pkg_val): string
+    {
+        return (self::parsePhpSize($domain_val) <= self::parsePhpSize($pkg_val))
+            ? $domain_val
+            : $pkg_val;
+    }
+
+    // -----------------------------------------------------------------------
 
     static function getResult()
     {

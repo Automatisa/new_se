@@ -8,23 +8,31 @@
 		font-size: 12px;
 		background-color: #000;
 	}
+	.syslog-table td, .syslog-table th {
+		font-size: 12px;
+		word-break: break-word;
+		max-width: 300px;
+	}
+	.syslog-table td:last-child {
+		white-space: nowrap;
+	}
 </style>
 <% if isPreviewLog %>
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-	<div class="panel-heading">
+	<div class="card-header">
 		<img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 		<div class="zmodule_title">
 			<@ ModuleName @>
 		</div>
 		<div class="zmodule_desc">Preview of <@ CurrentLogFile @></div>
 	</div>
-	<div class="panel-body">
+	<div class="card-body">
 		<pre class="logContainer"><@ PreviewBuffer @></pre>
 	</div>
 </div>
 <% endif %>
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-	<div class="panel-heading">
+	<div class="card-header">
 		<img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 		<div class="zmodule_title">
 			<@ ModuleName @>
@@ -32,6 +40,34 @@
 		<div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ ModuleDesc @></div>
 	</div>
 	<@ Result @>
+	<div class="zgrid_wrapper">
+		<h2><: PHP Error Log :></h2>
+		<% if LogPhpErrorList %>
+		<form action="./?module=user_logviewer&action=PhpErrorLogActions" method="post">
+			<table class="table table-striped">
+				<tr>
+					<th><: Domain name :></th>
+					<th><: File :></th>
+					<th><: Size :></th>
+					<th></th>
+					<th></th>
+				</tr>
+				<% loop LogPhpErrorList %>
+				<tr>
+					<td><a href="http://<& name &>/" target="_blank"><& name &></a></td>
+					<td><& filepath &></td>
+					<td><& fsize &></td>
+					<td><button class="btn btn-secondary" type="submit" name="inPreview" value="<& id &>"><i class="bi bi-eye me-1"></i><: Preview :></button></td>
+					<td><button class="btn btn-primary" type="submit" name="inDownload" value="<& id &>"><i class="bi bi-download me-1"></i><: Download :></button></td>
+				</tr>
+				<% endloop %>
+			</table>
+			<@ CSFR_Tag @>
+		</form>
+		<% else %>
+		<: You currently do not have any domains configured. :>
+		<% endif %>
+	</div>
 	<div class="zgrid_wrapper">
 		<h2><: Domains Error Log :></h2>
 		<% if LogErrorList %>
@@ -49,8 +85,8 @@
 					<td><a href="http://<& name &>/" target="_blank"><& name &></a></td>
 					<td><& filepath &></td>
 					<td><& fsize &></td>
-					<td><button class="btn btn-default" type="submit" id="button" name="inPreview" id="inPreview" value="<& id &>"><: Preview :></button></td>
-					<td><button class="btn btn-primary" type="submit" id="button" name="inDownload" id="inDownload" value="<& id &>"><: Download :></button></td>
+					<td><button class="btn btn-secondary" type="submit" name="inPreview" value="<& id &>"><i class="bi bi-eye me-1"></i><: Preview :></button></td>
+					<td><button class="btn btn-primary" type="submit" name="inDownload" value="<& id &>"><i class="bi bi-download me-1"></i><: Download :></button></td>
 				</tr>
 				<% endloop %>
 			</table>
@@ -77,8 +113,8 @@
 					<td><a href="http://<& name &>/" target="_blank"><& name &></a></td>
 					<td><& filepath &></td>
 					<td><& fsize &></td>
-					<td><button class="btn btn-default" type="submit" id="button" name="inPreview" id="inPreview" value="<& id &>"><: Preview :></button></td>
-					<td><button class="btn btn-primary" type="submit" id="button" name="inDownload" id="inDownload" value="<& id &>"><: Download :></button></td>
+					<td><button class="btn btn-secondary" type="submit" name="inPreview" value="<& id &>"><i class="bi bi-eye me-1"></i><: Preview :></button></td>
+					<td><button class="btn btn-primary" type="submit" name="inDownload" value="<& id &>"><i class="bi bi-download me-1"></i><: Download :></button></td>
 				</tr>
 				<% endloop %>
 			</table>
@@ -89,3 +125,4 @@
 		<% endif %>
 	</div>
 </div>
+

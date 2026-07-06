@@ -1,35 +1,32 @@
-# Sentora Panel logs -
-/var/sentora/logs/sentora*.log /var/sentora/logs/daemon*.log 
-/var/zpanel/logs/zpanel*.log /var/zpanel/logs/daemon*.log
+# NOTE: FreeBSD uses newsyslog(8), not logrotate.
+# Install logrotate from ports (sysutils/logrotate) or adapt to newsyslog.conf.d/
 
-{
-       su root root
+# Sentora Panel logs
+/var/sentora/logs/sentora*.log /var/sentora/logs/daemon*.log {
+       su root wheel
        weekly
        missingok
-       rotate 2
+       rotate 4
        compress
        delaycompress
-       create 664 root root
+       create 640 root wheel
        sharedscripts
        postrotate
-               /etc/init.d/apache2 reload > /dev/null
+               service apache24 reload > /dev/null 2>&1 || true
        endscript
 }
 
-# Sentora User Domain logs -
-/var/sentora/logs/domains/*/*access.log /var/sentora/logs/domains/*/*bandwidth.log /var/sentora/logs/domains/*/*error.log
-/var/zpanel/logs/domains/*/*access.log /var/zpanel/logs/domains/*/*bandwidth.log /var/zpanel/logs/domains/*/*error.log
-
-{
-       su root root
+# Sentora User Domain logs
+/var/sentora/logs/domains/*/*access.log /var/sentora/logs/domains/*/*bandwidth.log /var/sentora/logs/domains/*/*error.log {
+       su root wheel
        weekly
        missingok
-       rotate 2
+       rotate 4
        compress
        delaycompress
-       create 664 root root
+       create 640 root wheel
        sharedscripts
        postrotate
-               /etc/init.d/apache2 reload > /dev/null
+               service apache24 reload > /dev/null 2>&1 || true
        endscript
 }

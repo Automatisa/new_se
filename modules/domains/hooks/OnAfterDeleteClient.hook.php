@@ -5,15 +5,10 @@ DeleteDomainsForDeletedClient();
 function DeleteDomainsForDeletedClient() {
     global $zdbh;
     $deletedclients = array();
-    $sql = "SELECT COUNT(*) FROM x_accounts WHERE ac_deleted_ts IS NOT NULL";
-    if ($numrows = $zdbh->query($sql)) {
-        if ($numrows->fetchColumn() <> 0) {
-            $sql = $zdbh->prepare("SELECT * FROM x_accounts WHERE ac_deleted_ts IS NOT NULL");
-            $sql->execute();
-            while ($rowclient = $sql->fetch()) {
-                $deletedclients[] = $rowclient['ac_id_pk'];
-            }
-        }
+    $sql = $zdbh->prepare("SELECT ac_id_pk FROM x_accounts WHERE ac_deleted_ts IS NOT NULL");
+    $sql->execute();
+    while ($rowclient = $sql->fetch()) {
+        $deletedclients[] = $rowclient['ac_id_pk'];
     }
     foreach ($deletedclients as $deletedclient) {
         $deletedir = false;

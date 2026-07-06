@@ -68,6 +68,7 @@ class module_controller extends ctrl_module
                 $modsql = $zdbh->prepare("SELECT * FROM x_modules WHERE mo_folder_vc <> 'zpx_core_module' ORDER BY mo_name_vc ASC");
                 $modsql->execute();
                 $line .= "<form action=\"./?module=moduleadmin&action=EditModule\" method=\"post\">";
+                $line .= runtime_csfr::Token();
                 $line .= "<table class=\"table table-striped\">";
                 $line .= "<tr>";
                 $line .= "<th></th>";
@@ -151,11 +152,7 @@ class module_controller extends ctrl_module
 					
                     }
                     $line .= "</td><td style=\"text-align:center\">";
-                    if (ui_module::GetModuleHasUpdates($modules['mo_folder_vc'])) {
-                        $line .= "<img src=\"modules/" . $controller->GetControllerRequest('URL', 'module') . "/assets/down.gif\"><br>" . ui_language::translate("Latest version") . ": <a href=\"" . $modules['mo_updateurl_tx'] . "\" target=\"_blank\">" . $modules['mo_updatever_vc'] . "</a>";
-                    } else {
-                        $line .= "<img src=\"modules/" . $controller->GetControllerRequest('URL', 'module') . "/assets/up.gif\">";
-                    }
+                    $line .= "<img src=\"modules/" . $controller->GetControllerRequest('URL', 'module') . "/assets/up.gif\">";
                     /**
                      * --
                      */
@@ -185,7 +182,7 @@ class module_controller extends ctrl_module
                     }
                 }
                 $line .= "</table><br>";
-                $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSave\" value=\"inSave\">" . ui_language::translate("Save changes") . "</button></form>";
+                $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSave\" value=\"inSave\"><i class=\"bi bi-floppy me-1\"></i>" . ui_language::translate("Save changes") . "</button></form>";
             } else {
                 $line .= ui_language::translate("You have no administration modules at this time.");
             }
@@ -211,6 +208,7 @@ class module_controller extends ctrl_module
 
     static function doEditModule()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         $currentuser = ctrl_users::GetUserDetail();
@@ -330,34 +328,6 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function getModuleUpdateURL()
-    {
-        global $controller;
-        global $zdbh;
-        //$retval = $zdbh->query("SELECT mo_updateurl_tx FROM x_modules WHERE mo_folder_vc = '" . $controller->GetControllerRequest('URL', 'showinfo') . "'")->Fetch();
-        $numrows = $zdbh->prepare("SELECT mo_updateurl_tx FROM x_modules WHERE mo_folder_vc = :info");
-        $info = $controller->GetControllerRequest('URL', 'showinfo');
-        $numrows->bindParam(':info', $info);
-        $numrows->execute();
-        $retval = $numrows->fetch();
-        $retval = $retval['mo_updateurl_tx'];
-        return $retval;
-    }
-
-    static function getLatestVersion()
-    {
-        global $controller;
-        global $zdbh;
-        //$retval = $zdbh->query("SELECT mo_updatever_vc FROM x_modules WHERE mo_folder_vc = '" . $controller->GetControllerRequest('URL', 'showinfo') . "'")->Fetch();
-        $numrows = $zdbh->prepare("SELECT mo_updatever_vc FROM x_modules WHERE mo_folder_vc = :info");
-        $info = $controller->GetControllerRequest('URL', 'showinfo');
-        $numrows->bindParam(':info', $info);
-        $numrows->execute();
-        $retval = $numrows->fetch();
-        $retval = $retval['mo_updatever_vc'];
-        return $retval;
-    }
-
     static function getModuleType()
     {
         global $controller;
@@ -372,42 +342,72 @@ class module_controller extends ctrl_module
         return $retval;
     }
 
+    // FIX-31: el template llama getLatestVersion() y getModuleUpdateURL() durante la
+    // compilación via CompileFunctionEcho. Si no existen → Error fatal → página en blanco.
+    // Las comprobaciones de actualización a internet están deshabilitadas (privacidad EU).
+    static function getLatestVersion()
+    {
+        return false;
+    }
+
+    static function getModuleUpdateURL()
+    {
+        return '';
+    }
+
     static function doInstallModule()
     {
+        runtime_csfr::Protect();
         self::$error_message = "";
         self::$error = false;
         if ($_FILES['modulefile']['error'] > 0) {
             self::$error_message = "Couldn't upload the file, " . $_FILES['modulefile']['error'] . "";
-        } else {
-            $archive_ext = fs_director::GetFileExtension($_FILES['modulefile']['name']);
-            $module_folder = fs_director::GetFileNameNoExtentsion($_FILES['modulefile']['name']);
-            $module_dir = ctrl_options::GetSystemOption('sentora_root') . 'modules/' . $module_folder;
-            if (!fs_director::CheckFolderExists($module_dir)) {
-                if ($archive_ext != 'zpp') {
-                    self::$error_message = "Package type was not detected as a .zpp (Sentora Package) archive.";
-                } else {
-                    if (fs_director::CreateDirectory($module_dir)) {
-                        if (sys_archive::Unzip($_FILES['modulefile']['tmp_name'], $module_dir . '/')) {
-                            if (!fs_director::CheckFileExists($module_dir . '/module.xml')) {
-                                self::$error_message = "No module.xml file found in the unzipped archive.";
-                            } else {
-                                ui_module::ModuleInfoToDB($module_folder);
-                                $extra_config = $module_dir . "/deploy/install.run";
-                                if (fs_director::CheckFileExists($extra_config))
-                                    exec(ctrl_options::GetSystemOption('php_exer') . " " . $extra_config . "");
-                                self::$ok = true;
-                            }
-                        } else {
-                            self::$error_message = "Couldn't unzip the archive (" . $_FILES['modulefile']['tmp_name'] . ") to " . $module_dir . '/';
-                        }
-                    } else {
-                        self::$error_message = "Couldn't create module folder in " . $module_dir;
-                    }
-                }
-            } else {
-                self::$error_message = "The module " . $module_folder . " is already installed on this server!";
-            }
+            return;
         }
+
+        $archive_ext = fs_director::GetFileExtension($_FILES['modulefile']['name']);
+        $raw_folder  = fs_director::GetFileNameNoExtentsion(basename($_FILES['modulefile']['name']));
+
+        // Only allow safe module folder names: letters, digits, underscores, hyphens.
+        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $raw_folder)) {
+            self::$error_message = "Invalid module package name.";
+            return;
+        }
+        $module_folder = $raw_folder;
+        $module_dir    = ctrl_options::GetSystemOption('sentora_root') . 'modules/' . $module_folder;
+
+        if (fs_director::CheckFolderExists($module_dir)) {
+            self::$error_message = "The module " . htmlspecialchars($module_folder) . " is already installed on this server!";
+            return;
+        }
+        if ($archive_ext != 'zpp') {
+            self::$error_message = "Package type was not detected as a .zpp (Sentora Package) archive.";
+            return;
+        }
+        if (!fs_director::CreateDirectory($module_dir)) {
+            self::$error_message = "Couldn't create module folder in " . $module_dir;
+            return;
+        }
+        if (!sys_archive::Unzip($_FILES['modulefile']['tmp_name'], $module_dir . '/')) {
+            fs_director::RemoveDirectory($module_dir);
+            self::$error_message = "Couldn't unzip the archive to " . $module_dir . '/';
+            return;
+        }
+        if (!fs_director::CheckFileExists($module_dir . '/module.xml')) {
+            fs_director::RemoveDirectory($module_dir);
+            self::$error_message = "No module.xml file found in the unzipped archive.";
+            return;
+        }
+
+        ui_module::ModuleInfoToDB($module_folder);
+
+        // Run install script directly in PHP context — no exec() or shell needed.
+        $install_run = $module_dir . '/deploy/install.run';
+        if (fs_director::CheckFileExists($install_run)) {
+            include($install_run);
+        }
+
+        self::$ok = true;
         return;
     }
 

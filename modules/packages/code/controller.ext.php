@@ -36,6 +36,7 @@ class module_controller extends ctrl_module
     static $ok;
     static $edit;
     static $samepackage;
+    static $poolexceeded;
 
     /**
      * The 'worker' methods.
@@ -58,10 +59,16 @@ class module_controller extends ctrl_module
 			$pkg_quota = str_replace('fowarders', ui_language::translate('Mail Forwarders'), $pkg_quota);
 			$pkg_quota = str_replace('distlists', ui_language::translate('Distribution Lists'), $pkg_quota);
 			$pkg_quota = str_replace('ftpaccounts', ui_language::translate('FTP Accounts'), $pkg_quota);
+			$pkg_quota = str_replace('cronjobs', ui_language::translate('Cron Jobs'), $pkg_quota);
 			$pkg_quota = str_replace('mysql', ui_language::translate('Databases'), $pkg_quota);
 			$pkg_quota = str_replace('diskquota', ui_language::translate('Disc Quota'), $pkg_quota);
 			$pkg_quota = str_replace('bandquota', ui_language::translate('Bandwidth Quota'), $pkg_quota);
 			$pkg_quota = str_replace('mailboxes', ui_language::translate('Mailboxes'), $pkg_quota);
+			$pkg_quota = str_replace('phpmemory', ui_language::translate('PHP Memory'), $pkg_quota);
+			$pkg_quota = str_replace('phpupload', ui_language::translate('PHP Upload'), $pkg_quota);
+			$pkg_quota = str_replace('phppost', ui_language::translate('PHP Post'), $pkg_quota);
+			$pkg_quota = str_replace('phpexec', ui_language::translate('PHP Exec Time'), $pkg_quota);
+			$pkg_quota = str_replace('phpmaxinput', ui_language::translate('PHP Max Input'), $pkg_quota);
 			# clean up the string
 			$pkg_quota = str_replace('{', '', $pkg_quota);
 			$pkg_quota = str_replace('}', '', $pkg_quota);
@@ -137,10 +144,16 @@ class module_controller extends ctrl_module
                     'fowarders' => $rowpackages['qt_fowarders_in'],
                     'distlists' => $rowpackages['qt_distlists_in'],
                     'ftpaccounts' => $rowpackages['qt_ftpaccounts_in'],
+                    'cronjobs' => $rowpackages['qt_cronjobs_in'],
                     'mysql' => $rowpackages['qt_mysql_in'],
                     'diskquota' => ($rowpackages['qt_diskspace_bi'] / 1024000),
                     'bandquota' => ($rowpackages['qt_bandwidth_bi'] / 1024000),
                     'mailboxes' => $rowpackages['qt_mailboxes_in'],
+                    'phpmemory' => $rowpackages['qt_php_memory_vc'],
+                    'phpupload' => $rowpackages['qt_php_upload_vc'],
+                    'phppost' => $rowpackages['qt_php_post_vc'],
+                    'phpexec' => $rowpackages['qt_php_exec_in'],
+                    'phpmaxinput' => $rowpackages['qt_php_maxinput_in'],
                     'packagename' => stripslashes($rowpackages['pk_name_vc'])));
             }
             return $res;
@@ -191,10 +204,32 @@ class module_controller extends ctrl_module
         return true;
     }
 
-    static function ExecuteCreatePackage($uid, $packagename, $EnablePHP, $Domains, $SubDomains, $ParkedDomains, $Mailboxes, $Fowarders, $DistLists, $FTPAccounts, $MySQL, $DiskQuota, $BandQuota)
+    static function ExecuteCreatePackage($uid, array $pkg)
     {
         global $zdbh;
-        if (fs_director::CheckForEmptyValue(self::CheckNumeric($EnablePHP, $Domains, $SubDomains, $ParkedDomains, $Mailboxes, $Fowarders, $DistLists, $FTPAccounts, $MySQL, $DiskQuota, $BandQuota))) {
+        extract($pkg, EXTR_SKIP);
+        if (fs_director::CheckForEmptyValue(self::CheckNumeric($pkg))) {
+            return false;
+        }
+        if (!self::CheckPhpSize($PhpMemory) || !self::CheckPhpSize($PhpUpload) || !self::CheckPhpSize($PhpPost)) {
+            self::$error = true;
+            return false;
+        }
+        // Verificar que los valores del paquete caben en el pool del reseller (mín. 1 cliente).
+        $new_quotas = [
+            'qt_domains_in' => (int)$Domains, 'qt_subdomains_in' => (int)$SubDomains,
+            'qt_parkeddomains_in' => (int)$ParkedDomains, 'qt_mailboxes_in' => (int)$Mailboxes,
+            'qt_fowarders_in' => (int)$Fowarders, 'qt_distlists_in' => (int)$DistLists,
+            'qt_ftpaccounts_in' => (int)$FTPAccounts, 'qt_cronjobs_in' => (int)$CronJobs,
+            'qt_mysql_in' => (int)$MySQL,
+            'qt_diskspace_bi' => (float)$DiskQuota * 1024000,
+            'qt_bandwidth_bi' => (float)$BandQuota * 1024000,
+            'qt_php_memory_vc' => $PhpMemory, 'qt_php_upload_vc' => $PhpUpload,
+            'qt_php_post_vc' => $PhpPost, 'qt_php_exec_in' => (int)$PhpExec,
+            'qt_php_maxinput_in' => (int)$PhpMaxInput,
+        ];
+        if (!ctrl_users::CheckResellerPoolForPkg($uid, $new_quotas, 0, 1)) {
+            self::$poolexceeded = true;
             return false;
         }
         $packagename = str_replace(' ', '', $packagename);
@@ -237,7 +272,13 @@ class module_controller extends ctrl_module
 										qt_fowarders_in,
 										qt_distlists_in,
 										qt_ftpaccounts_in,
+										qt_cronjobs_in,
 										qt_mysql_in,
+										qt_php_memory_vc,
+										qt_php_upload_vc,
+										qt_php_post_vc,
+										qt_php_exec_in,
+										qt_php_maxinput_in,
 										qt_diskspace_bi,
 										qt_bandwidth_bi) VALUES (
 										:pk_id_pk,
@@ -248,7 +289,13 @@ class module_controller extends ctrl_module
 										:Fowarders,
 										:DistLists,
 										:FTPAccounts,
+										:CronJobs,
 										:MySQL,
+										:PhpMemory,
+										:PhpUpload,
+										:PhpPost,
+										:PhpExec,
+										:PhpMaxInput,
 										:DiskQuotaFinal,
 										:BandQuotaFinal)");
         $DiskQuotaFinal = $DiskQuota * 1024000;
@@ -256,6 +303,7 @@ class module_controller extends ctrl_module
         $sql->bindParam(':DiskQuotaFinal', $DiskQuotaFinal);
         $sql->bindParam(':BandQuotaFinal', $BandQuotaFinal);
         $sql->bindParam(':MySQL', $MySQL);
+        $sql->bindParam(':CronJobs', $CronJobs);
         $sql->bindParam(':DistLists', $DistLists);
         $sql->bindParam(':Fowarders', $Fowarders);
         $sql->bindParam(':Mailboxes', $Mailboxes);
@@ -263,6 +311,11 @@ class module_controller extends ctrl_module
         $sql->bindParam(':FTPAccounts', $FTPAccounts);
         $sql->bindParam(':ParkedDomains', $ParkedDomains);
         $sql->bindParam(':Domains', $Domains);
+        $sql->bindParam(':PhpMemory', $PhpMemory);
+        $sql->bindParam(':PhpUpload', $PhpUpload);
+        $sql->bindParam(':PhpPost', $PhpPost);
+        $sql->bindParam(':PhpExec', $PhpExec);
+        $sql->bindParam(':PhpMaxInput', $PhpMaxInput);
         $sql->bindParam(':pk_id_pk', $package['pk_id_pk']);
         $sql->execute();
         runtime_hook::Execute('OnAfterCreatePackage');
@@ -270,10 +323,35 @@ class module_controller extends ctrl_module
         return true;
     }
 
-    static function ExecuteUpdatePackage($uid, $pid, $packagename, $EnablePHP, $Domains, $SubDomains, $ParkedDomains, $Mailboxes, $Fowarders, $DistLists, $FTPAccounts, $MySQL, $DiskQuota, $BandQuota)
+    static function ExecuteUpdatePackage($uid, $pid, array $pkg)
     {
         global $zdbh;
-        if (fs_director::CheckForEmptyValue(self::CheckNumeric($EnablePHP, $Domains, $SubDomains, $ParkedDomains, $Mailboxes, $Fowarders, $DistLists, $FTPAccounts, $MySQL, $DiskQuota, $BandQuota))) {
+        extract($pkg, EXTR_SKIP);
+        if (fs_director::CheckForEmptyValue(self::CheckNumeric($pkg))) {
+            return false;
+        }
+        if (!self::CheckPhpSize($PhpMemory) || !self::CheckPhpSize($PhpUpload) || !self::CheckPhpSize($PhpPost)) {
+            self::$error = true;
+            return false;
+        }
+        // Nº de clientes actuales usando este paquete (mínimo 1 para reservar al menos 1 slot)
+        $cnt_sql = $zdbh->prepare("SELECT COUNT(*) FROM x_accounts WHERE ac_package_fk=:pid AND ac_deleted_ts IS NULL");
+        $cnt_sql->execute([':pid' => $pid]);
+        $client_count = max(1, (int)$cnt_sql->fetchColumn());
+        $new_quotas = [
+            'qt_domains_in' => (int)$Domains, 'qt_subdomains_in' => (int)$SubDomains,
+            'qt_parkeddomains_in' => (int)$ParkedDomains, 'qt_mailboxes_in' => (int)$Mailboxes,
+            'qt_fowarders_in' => (int)$Fowarders, 'qt_distlists_in' => (int)$DistLists,
+            'qt_ftpaccounts_in' => (int)$FTPAccounts, 'qt_cronjobs_in' => (int)$CronJobs,
+            'qt_mysql_in' => (int)$MySQL,
+            'qt_diskspace_bi' => (float)$DiskQuota * 1024000,
+            'qt_bandwidth_bi' => (float)$BandQuota * 1024000,
+            'qt_php_memory_vc' => $PhpMemory, 'qt_php_upload_vc' => $PhpUpload,
+            'qt_php_post_vc' => $PhpPost, 'qt_php_exec_in' => (int)$PhpExec,
+            'qt_php_maxinput_in' => (int)$PhpMaxInput,
+        ];
+        if (!ctrl_users::CheckResellerPoolForPkg($uid, $new_quotas, $pid, $client_count)) {
+            self::$poolexceeded = true;
             return false;
         }
         $packagename = str_replace(' ', '', $packagename);
@@ -294,19 +372,26 @@ class module_controller extends ctrl_module
         $sql = $zdbh->prepare("UPDATE x_quotas SET qt_domains_in = :Domains,
 								qt_parkeddomains_in = :ParkedDomains,
 								qt_ftpaccounts_in   = :FTPAccounts,
+								qt_cronjobs_in      = :CronJobs,
 								qt_subdomains_in    = :SubDomains,
 								qt_mailboxes_in     = :Mailboxes,
 								qt_fowarders_in     = :Fowarders,
 								qt_distlists_in     = :DistLists,
 								qt_diskspace_bi     = :DiskQuotaFinal,
 								qt_bandwidth_bi     = :BandQuotaFinal,
-								qt_mysql_in         = :MySQL
+								qt_mysql_in         = :MySQL,
+								qt_php_memory_vc    = :PhpMemory,
+								qt_php_upload_vc    = :PhpUpload,
+								qt_php_post_vc      = :PhpPost,
+								qt_php_exec_in      = :PhpExec,
+								qt_php_maxinput_in  = :PhpMaxInput
                                                                 WHERE qt_package_fk = :pid");
         $DiskQuotaFinal = $DiskQuota * 1024000;
         $BandQuotaFinal = $BandQuota * 1024000;
         $sql->bindParam(':DiskQuotaFinal', $DiskQuotaFinal);
         $sql->bindParam(':BandQuotaFinal', $BandQuotaFinal);
         $sql->bindParam(':MySQL', $MySQL);
+        $sql->bindParam(':CronJobs', $CronJobs);
         $sql->bindParam(':DistLists', $DistLists);
         $sql->bindParam(':Fowarders', $Fowarders);
         $sql->bindParam(':Mailboxes', $Mailboxes);
@@ -314,6 +399,11 @@ class module_controller extends ctrl_module
         $sql->bindParam(':FTPAccounts', $FTPAccounts);
         $sql->bindParam(':ParkedDomains', $ParkedDomains);
         $sql->bindParam(':Domains', $Domains);
+        $sql->bindParam(':PhpMemory', $PhpMemory);
+        $sql->bindParam(':PhpUpload', $PhpUpload);
+        $sql->bindParam(':PhpPost', $PhpPost);
+        $sql->bindParam(':PhpExec', $PhpExec);
+        $sql->bindParam(':PhpMaxInput', $PhpMaxInput);
         $sql->bindParam(':pid', $pid);
         $sql->execute();
         runtime_hook::Execute('OnAfterUpdatePackage');
@@ -361,24 +451,33 @@ class module_controller extends ctrl_module
         return true;
     }
 
-    static function CheckNumeric($EnablePHP, $Domains, $SubDomains, $ParkedDomains, $Mailboxes, $Fowarders, $DistLists, $FTPAccounts, $MySQL, $DiskQuota, $BandQuota)
+    static function CheckNumeric(array $pkg)
     {
-        if (!is_numeric($EnablePHP) ||
-                !is_numeric($Domains) ||
-                !is_numeric($SubDomains) ||
-                !is_numeric($ParkedDomains) ||
-                !is_numeric($Mailboxes) ||
-                !is_numeric($Fowarders) ||
-                !is_numeric($DistLists) ||
-                !is_numeric($FTPAccounts) ||
-                !is_numeric($MySQL) ||
-                !is_numeric($DiskQuota) ||
-                !is_numeric($BandQuota)) {
+        $allNumeric = is_numeric($pkg['EnablePHP']) && is_numeric($pkg['Domains']) && is_numeric($pkg['SubDomains'])
+            && is_numeric($pkg['ParkedDomains']) && is_numeric($pkg['Mailboxes']) && is_numeric($pkg['Fowarders'])
+            && is_numeric($pkg['DistLists']) && is_numeric($pkg['FTPAccounts']) && is_numeric($pkg['CronJobs'])
+            && is_numeric($pkg['MySQL']) && is_numeric($pkg['DiskQuota']) && is_numeric($pkg['BandQuota'])
+            && is_numeric($pkg['PhpExec']) && is_numeric($pkg['PhpMaxInput']);
+        if (!$allNumeric) {
             self::$error = true;
             return false;
-        } else {
-            return true;
         }
+        $countsOk = (int)$pkg['Domains'] >= -1 && (int)$pkg['SubDomains'] >= -1 && (int)$pkg['ParkedDomains'] >= -1
+            && (int)$pkg['Mailboxes'] >= -1 && (int)$pkg['Fowarders'] >= -1 && (int)$pkg['DistLists'] >= -1
+            && (int)$pkg['FTPAccounts'] >= -1 && (int)$pkg['CronJobs'] >= -1 && (int)$pkg['MySQL'] >= -1;
+        $quotasOk = (int)$pkg['DiskQuota'] >= 0 && (int)$pkg['BandQuota'] >= 0;
+        $phpOk    = (int)$pkg['PhpExec'] >= 1 && (int)$pkg['PhpMaxInput'] >= 1;
+        if (!$countsOk || !$quotasOk || !$phpOk) {
+            self::$error = true;
+            return false;
+        }
+        return true;
+    }
+
+    static function CheckPhpSize($val)
+    {
+        // Acepta: número + unidad opcional K/M/G, ej. '128M', '2G', '512K', '134217728'
+        return (bool)preg_match('/^\d+[KMGkmg]?$/', trim((string)$val));
     }
 
     static function AddDefaultPackageTime($uid)
@@ -424,7 +523,27 @@ class module_controller extends ctrl_module
         } else {
             $EnablePHP = 0;
         }
-        if (self::ExecuteCreatePackage($currentuser['userid'], $formvars['inPackageName'], $EnablePHP, $formvars['inNoDomains'], $formvars['inNoSubDomains'], $formvars['inNoParkedDomains'], $formvars['inNoMailboxes'], $formvars['inNoFowarders'], $formvars['inNoDistLists'], $formvars['inNoFTPAccounts'], $formvars['inNoMySQL'], $formvars['inDiskQuota'], $formvars['inBandQuota']))
+        $pkg = [
+            'packagename'   => $formvars['inPackageName'],
+            'EnablePHP'     => $EnablePHP,
+            'Domains'       => $formvars['inNoDomains'],
+            'SubDomains'    => $formvars['inNoSubDomains'],
+            'ParkedDomains' => $formvars['inNoParkedDomains'],
+            'Mailboxes'     => $formvars['inNoMailboxes'],
+            'Fowarders'     => $formvars['inNoFowarders'],
+            'DistLists'     => $formvars['inNoDistLists'],
+            'FTPAccounts'   => $formvars['inNoFTPAccounts'],
+            'CronJobs'      => $formvars['inNoCronJobs'],
+            'MySQL'         => $formvars['inNoMySQL'],
+            'DiskQuota'     => $formvars['inDiskQuota'],
+            'BandQuota'     => $formvars['inBandQuota'],
+            'PhpMemory'     => $formvars['inPhpMemory'],
+            'PhpUpload'     => $formvars['inPhpUpload'],
+            'PhpPost'       => $formvars['inPhpPost'],
+            'PhpExec'       => $formvars['inPhpExec'],
+            'PhpMaxInput'   => $formvars['inPhpMaxInput'],
+        ];
+        if (self::ExecuteCreatePackage($currentuser['userid'], $pkg))
             return true;
         return false;
     }
@@ -440,7 +559,27 @@ class module_controller extends ctrl_module
         } else {
             $EnablePHP = 0;
         }
-        if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $formvars['inPackageName'], $EnablePHP, $formvars['inNoDomains'], $formvars['inNoSubDomains'], $formvars['inNoParkedDomains'], $formvars['inNoMailboxes'], $formvars['inNoFowarders'], $formvars['inNoDistLists'], $formvars['inNoFTPAccounts'], $formvars['inNoMySQL'], $formvars['inDiskQuota'], $formvars['inBandQuota']))
+        $pkg = [
+            'packagename'   => $formvars['inPackageName'],
+            'EnablePHP'     => $EnablePHP,
+            'Domains'       => $formvars['inNoDomains'],
+            'SubDomains'    => $formvars['inNoSubDomains'],
+            'ParkedDomains' => $formvars['inNoParkedDomains'],
+            'Mailboxes'     => $formvars['inNoMailboxes'],
+            'Fowarders'     => $formvars['inNoFowarders'],
+            'DistLists'     => $formvars['inNoDistLists'],
+            'FTPAccounts'   => $formvars['inNoFTPAccounts'],
+            'CronJobs'      => $formvars['inNoCronJobs'],
+            'MySQL'         => $formvars['inNoMySQL'],
+            'DiskQuota'     => $formvars['inDiskQuota'],
+            'BandQuota'     => $formvars['inBandQuota'],
+            'PhpMemory'     => $formvars['inPhpMemory'],
+            'PhpUpload'     => $formvars['inPhpUpload'],
+            'PhpPost'       => $formvars['inPhpPost'],
+            'PhpExec'       => $formvars['inPhpExec'],
+            'PhpMaxInput'   => $formvars['inPhpMaxInput'],
+        ];
+        if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg))
             return true;
         return false;
     }
@@ -635,6 +774,17 @@ class module_controller extends ctrl_module
         }
     }
 
+    static function getEditCurrentCronJobs()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['cronjobs'];
+        } else {
+            return "";
+        }
+    }
+
     static function getEditCurrentDisk()
     {
         global $controller;
@@ -661,6 +811,61 @@ class module_controller extends ctrl_module
     {
         $currentuser = ctrl_users::GetUserDetail();
         self::AddDefaultPackageTime($currentuser['userid']);
+    }
+
+    static function getEditCurrentPhpMemory()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['phpmemory'];
+        } else {
+            return '128M';
+        }
+    }
+
+    static function getEditCurrentPhpUpload()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['phpupload'];
+        } else {
+            return '50M';
+        }
+    }
+
+    static function getEditCurrentPhpPost()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['phppost'];
+        } else {
+            return '50M';
+        }
+    }
+
+    static function getEditCurrentPhpExec()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['phpexec'];
+        } else {
+            return '30';
+        }
+    }
+
+    static function getEditCurrentPhpMaxInput()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['phpmaxinput'];
+        } else {
+            return '60';
+        }
     }
 
     static function getPHPChecked()
@@ -690,6 +895,9 @@ class module_controller extends ctrl_module
         }
         if (!fs_director::CheckForEmptyValue(self::$samepackage)) {
             return ui_sysmessage::shout(ui_language::translate("You cant move clients to the same package you are deleting!"), "zannounceerror");
+        }
+        if (!fs_director::CheckForEmptyValue(self::$poolexceeded)) {
+            return ui_sysmessage::shout(ui_language::translate("The package values exceed the resource pool assigned to your reseller account. Please reduce the quotas or request a package upgrade from the administrator."), "zannounceerror");
         }
         if (!fs_director::CheckForEmptyValue(self::$ok)) {
             return ui_sysmessage::shout(ui_language::translate("Changes to your packages have been saved successfully!"), "zannounceok");

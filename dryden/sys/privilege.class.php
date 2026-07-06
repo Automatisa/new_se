@@ -76,9 +76,9 @@ class privilege
      * @var array<string, array{argv?: array<int,string>, argv_template?: array<int,string>, sudo_rule: string, doas_rule: string}>
      */
     private static $actions = array(
-        // Apache reload (used by apache_admin + sentrypt after cert renewal).
-        // Uses 'reload' instead of 'restart' to avoid dropping active connections.
-        'apache_restart' => array(
+        // Apache graceful reload — workers finalizan su petición en curso antes de reiniciarse.
+        // Nunca corta conexiones activas. Usado por apache_admin y sencrypt tras renovar certs.
+        'apache_reload' => array(
             'argv' => array('/usr/sbin/service', 'apache24', 'reload'),
             'sudo_rule' => '/usr/sbin/service apache24 reload',
             'doas_rule' => 'cmd /usr/sbin/service args apache24 reload',
@@ -113,17 +113,275 @@ class privilege
         ),
 
         // chmod the BIND log file (was `chmod 0777 <bindlog>` in dns_admin).
-        // Hardened: 0644 instead of 0777; bind group owned by `bind`.
+        // 0664: owner (bind) rw, group (www) rw, others r. Lets www write via
+        // group membership after bind_log_chown sets the group to www.
         'bind_log_chmod' => array(
             // The actual log path is filled in at call time from the
             // validated option, not from this fixed table.
-            'argv_template' => array('/bin/chmod', '0644', '__BIND_LOG__'),
-            'sudo_rule' => '/bin/chmod 0644 /var/sentora/logs/bind/bind.log',
+            'argv_template' => array('/bin/chmod', '0664', '__BIND_LOG__'),
+            'sudo_rule' => '/bin/chmod 0664 /var/sentora/logs/bind/bind.log',
             // doas.conf: command-only (no `args` clause), since the BIND
             // log path is dynamic. The argument whitelist is enforced on
             // the PHP side via realpath + basename regex.
             'doas_rule' => 'cmd /bin/chmod',
         ),
+
+        // chown the BIND log file so the group becomes `www`, allowing the
+        // web user to write (combined with 0664 from bind_log_chmod above).
+        // bind:www 0664 means: bind daemon writes as owner, www writes as group.
+        'bind_log_chown' => array(
+            'argv_template' => array('/usr/sbin/chown', 'bind:www', '__BIND_LOG__'),
+            'sudo_rule' => '/usr/sbin/chown bind:www /var/sentora/logs/bind/bind.log',
+            'doas_rule' => 'cmd /usr/sbin/chown',
+        ),
+
+        // OpenDKIM reload (used by dns_manager daemon hook after writing KeyTable/SigningTable).
+        // FreeBSD package installs the service as milter-opendkim (not opendkim).
+        'dkim_reload' => array(
+            'argv' => array('/usr/sbin/service', 'milter-opendkim', 'reload'),
+            'sudo_rule' => '/usr/sbin/service milter-opendkim reload',
+            'doas_rule' => 'cmd /usr/sbin/service args milter-opendkim reload',
+        ),
+
+        // ProFTPD reload (used by ftp_management after writing ftp-access.conf).
+        'proftpd_reload' => array(
+            'argv' => array('/usr/sbin/service', 'proftpd', 'reload'),
+            'sudo_rule' => '/usr/sbin/service proftpd reload',
+            'doas_rule' => 'cmd /usr/sbin/service args proftpd reload',
+        ),
+
+        // ProFTPD full restart (used by ftp_admin).
+        'proftpd_restart' => array(
+            'argv' => array('/usr/sbin/service', 'proftpd', 'restart'),
+            'sudo_rule' => '/usr/sbin/service proftpd restart',
+            'doas_rule' => 'cmd /usr/sbin/service args proftpd restart',
+        ),
+
+        // Generates a new self-signed TLS certificate for ProFTPD.
+        'proftpd_cert_generate' => array(
+            'argv' => array('/usr/local/sentora/bin/ftp_cert_generate.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_generate.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_generate.sh',
+        ),
+
+        // Validates and applies a new ProFTPD config written to /tmp/sentora_proftpd_new.conf.
+        'proftpd_config_update' => array(
+            'argv' => array('/usr/local/sentora/bin/ftp_config_update.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/ftp_config_update.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_config_update.sh',
+        ),
+
+        // Updates TLSRSACertificateFile + TLSRSACertificateKeyFile in proftpd config.
+        // Reads paths from /tmp/sentora_ftp_cert and /tmp/sentora_ftp_key.
+        'proftpd_cert_paths_update' => array(
+            'argv' => array('/usr/local/sentora/bin/ftp_cert_paths_update.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_paths_update.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_paths_update.sh',
+        ),
+
+        // Validates and installs an uploaded commercial SSL cert+key into the proftpd certs dir.
+        // Reads from /tmp/sentora_ftp_cert_upload and /tmp/sentora_ftp_key_upload.
+        'proftpd_cert_upload' => array(
+            'argv' => array('/usr/local/sentora/bin/ftp_cert_upload.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_upload.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_upload.sh',
+        ),
+
+        // PHP-FPM graceful reload (used by API system reload endpoint).
+        // 'service php_fpm reload' sends SIGUSR2: workers finish current requests
+        // before restarting, so the API call that triggers this completes normally.
+        // 'restart' (SIGTERM) would kill the current worker mid-response → 503.
+        'phpfpm_reload' => array(
+            'argv' => array('/usr/sbin/service', 'php_fpm', 'reload'),
+            'sudo_rule' => '/usr/sbin/service php_fpm reload',
+            'doas_rule' => 'cmd /usr/sbin/service args php_fpm reload',
+        ),
+
+        // Regenera todos los pools FPM desde x_domain_php y recarga FPM.
+        // Usado al guardar config PHP de un dominio — aplica cambios sin esperar al daemon.
+        // El script necesita root para escribir en /usr/local/etc/php-fpm.d/.
+        'fpm_regenerate' => array(
+            'argv' => array('/usr/local/bin/php', '-d', 'display_errors=Off',
+                            '/usr/local/sentora/bin/fpm_regen.php'),
+            'sudo_rule' => '/usr/local/bin/php -d display_errors=Off /usr/local/sentora/bin/fpm_regen.php',
+            'doas_rule' => 'cmd /usr/local/bin/php args -d display_errors=Off /usr/local/sentora/bin/fpm_regen.php',
+        ),
+
+        // ---- fw_admin: cortafuegos pf + SSHGuard --------------------------------
+        //
+        // Argumentos dinámicos (IPs) se pasan a través de archivos temporales con
+        // permisos root:www 660, nunca directamente como argv. Los scripts wrapper
+        // en /usr/local/sentora/bin/ validan el contenido con regex antes de usarlo.
+
+        // Reconstruye tabla pf 'sentora_blocked' desde x_fw_blocked de la BD.
+        'fw_block_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_block_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_block_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_block_apply.sh',
+        ),
+
+        // Reconstruye tabla pf 'sentora_whitelist' desde x_fw_whitelist de la BD.
+        'fw_whitelist_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_whitelist_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_whitelist_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_whitelist_apply.sh',
+        ),
+
+        // Desbanea la IP escrita en /var/sentora/run/fw_unban_request (root:www 660).
+        // El script valida el contenido con regex antes de llamar a pfctl.
+        'fw_sshguard_unban' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_sshguard_unban.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_sshguard_unban.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_sshguard_unban.sh',
+        ),
+
+        // Vuelca estado de pf + SSHGuard a /var/sentora/logs/fw_status.json (www:www 640).
+        'fw_status_dump' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_status_dump.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_status_dump.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_status_dump.sh',
+        ),
+
+        // Aplica reglas personalizadas de x_fw_rules al anchor pf "sentora_rules".
+        'fw_rules_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_rules_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_rules_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_rules_apply.sh',
+        ),
+
+        // Recarga el servicio pf (tras cambios manuales en pf.conf).
+        'fw_pf_reload' => array(
+            'argv'      => array('/usr/sbin/service', 'pf', 'reload'),
+            'sudo_rule' => '/usr/sbin/service pf reload',
+            'doas_rule' => 'cmd /usr/sbin/service args pf reload',
+        ),
+
+        // Reinicia SSHGuard (tras cambios en sshguard.conf).
+        'fw_sshguard_restart' => array(
+            'argv'      => array('/usr/sbin/service', 'sshguard', 'restart'),
+            'sudo_rule' => '/usr/sbin/service sshguard restart',
+            'doas_rule' => 'cmd /usr/sbin/service args sshguard restart',
+        ),
+
+        // ---- hosting_users: usuarios de sistema por cuenta de hosting ----------
+        //
+        // El nombre de usuario a procesar se pasa mediante un fichero de petición
+        // en /var/sentora/run/ (root:www 660), nunca como argumento directo.
+        // El script valida el contenido con regex antes de actuar.
+
+        // Crea el usuario de sistema h_USERNAME y corrige la propiedad de hostdata.
+        'hosting_user_add' => array(
+            'argv'      => array('/usr/local/sentora/bin/hosting_user_add.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/hosting_user_add.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_add.sh',
+        ),
+
+        // Elimina el usuario de sistema h_USERNAME y su grupo.
+        'hosting_user_del' => array(
+            'argv'      => array('/usr/local/sentora/bin/hosting_user_del.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/hosting_user_del.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_del.sh',
+        ),
+
+        // rspamd start / stop / restart. Usados por antispam_admin.
+        'rspamd_start' => array(
+            'argv'      => array('/usr/sbin/service', 'rspamd', 'start'),
+            'sudo_rule' => '/usr/sbin/service rspamd start',
+            'doas_rule' => 'cmd /usr/sbin/service args rspamd start',
+        ),
+        'rspamd_stop' => array(
+            'argv'      => array('/usr/sbin/service', 'rspamd', 'stop'),
+            'sudo_rule' => '/usr/sbin/service rspamd stop',
+            'doas_rule' => 'cmd /usr/sbin/service args rspamd stop',
+        ),
+        'rspamd_restart' => array(
+            'argv'      => array('/usr/sbin/service', 'rspamd', 'restart'),
+            'sudo_rule' => '/usr/sbin/service rspamd restart',
+            'doas_rule' => 'cmd /usr/sbin/service args rspamd restart',
+        ),
+        'rspamd_reload' => array(
+            'argv'      => array('/usr/sbin/service', 'rspamd', 'reload'),
+            'sudo_rule' => '/usr/sbin/service rspamd reload',
+            'doas_rule' => 'cmd /usr/sbin/service args rspamd reload',
+        ),
+        'antispam_rbl_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/antispam_rbl_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/antispam_rbl_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/antispam_rbl_apply.sh',
+        ),
+
+        // ClamAV — usados por clamav_admin
+        'clamd_start' => array(
+            'argv'      => array('/usr/sbin/service', 'clamav_clamd', 'start'),
+            'sudo_rule' => '/usr/sbin/service clamav_clamd start',
+            'doas_rule' => 'cmd /usr/sbin/service args clamav_clamd start',
+        ),
+        'clamd_stop' => array(
+            'argv'      => array('/usr/sbin/service', 'clamav_clamd', 'stop'),
+            'sudo_rule' => '/usr/sbin/service clamav_clamd stop',
+            'doas_rule' => 'cmd /usr/sbin/service args clamav_clamd stop',
+        ),
+        'clamd_restart' => array(
+            'argv'      => array('/usr/sbin/service', 'clamav_clamd', 'restart'),
+            'sudo_rule' => '/usr/sbin/service clamav_clamd restart',
+            'doas_rule' => 'cmd /usr/sbin/service args clamav_clamd restart',
+        ),
+        'freshclam_start' => array(
+            'argv'      => array('/usr/sbin/service', 'clamav_freshclam', 'start'),
+            'sudo_rule' => '/usr/sbin/service clamav_freshclam start',
+            'doas_rule' => 'cmd /usr/sbin/service args clamav_freshclam start',
+        ),
+        'freshclam_restart' => array(
+            'argv'      => array('/usr/sbin/service', 'clamav_freshclam', 'restart'),
+            'sudo_rule' => '/usr/sbin/service clamav_freshclam restart',
+            'doas_rule' => 'cmd /usr/sbin/service args clamav_freshclam restart',
+        ),
+        'freshclam_update' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_freshclam_update.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_freshclam_update.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_freshclam_update.sh',
+        ),
+        'clamd_scan_mailboxes' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_scan_mailboxes.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_scan_mailboxes.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_scan_mailboxes.sh',
+        ),
+        // Lanzadores daemon(8) — retornan inmediatamente sin bloquear PHP-FPM
+        'clamd_scan_launch' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_scan_launch.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_scan_launch.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_scan_launch.sh',
+        ),
+        'freshclam_launch' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_freshclam_launch.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_freshclam_launch.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_freshclam_launch.sh',
+        ),
+        'clamd_stop_bg' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_clamd_stop.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_clamd_stop.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_clamd_stop.sh',
+        ),
+        'clamav_cron_update' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_cron_update.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_cron_update.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_cron_update.sh',
+        ),
+        // Restaura un archivo de cuarentena a /var/mail/.
+        // El nombre del archivo se pasa en /var/sentora/run/clamav_restore_request
+        // (www:www 600), nunca como argumento directo, para evitar inyección de rutas.
+        'clamd_quarantine_restore' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_quarantine_restore.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_quarantine_restore.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_quarantine_restore.sh',
+        ),
+
+        'clamav_user_scan' => array(
+            'argv'      => array('/usr/local/sentora/bin/clamav_user_scan.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/clamav_user_scan.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_user_scan.sh',
+        ),
+
     );
 
     /**
@@ -135,7 +393,7 @@ class privilege
      * @return array{0:int,1:string,2:string} [exit_code, stdout, stderr]
      * @throws RuntimeException If the action is unknown or sudo/doas missing.
      */
-    public static function run($action, array $args = array())
+    public static function run($action, array $args = array(), $nowait = false)
     {
         if (!isset(self::$actions[$action])) {
             throw new RuntimeException("privilege::run: unknown action '$action'");
@@ -150,17 +408,36 @@ class privilege
             $argv = self::materializeTemplate($spec['argv_template'], $args);
         }
 
-        // Locate the privilege-escalation wrapper.
-        $wrapper = self::detectWrapper();
-        if ($wrapper === null) {
-            throw new RuntimeException(
-                'privilege::run: no sudo/doas binary available — refusing to fall back to setuid zsudo.'
-            );
+        // If already root, no wrapper needed — doas/sudo would reject root
+        // because doas.conf only grants the web user (www), not root itself.
+        if (self::isRoot()) {
+            $fullArgv = $argv;
+        } else {
+            $wrapper = self::detectWrapper();
+            if ($wrapper === null) {
+                throw new RuntimeException(
+                    'privilege::run: no sudo/doas binary available — refusing to fall back to setuid zsudo.'
+                );
+            }
+            $fullArgv = array_merge(array($wrapper[0]), $wrapper[1], $argv);
         }
 
-        // Build the final command. We never go through a shell — execve()
-        // directly, so metacharacters in argv are safe by construction.
-        $fullArgv = array_merge(array($wrapper[0]), $wrapper[1], $argv);
+        if ($nowait) {
+            // Para comandos que arrancan daemons: stdout/stderr a /dev/null para que
+            // proc_open no bloquee esperando a que el proceso hijo cierre los descriptores.
+            $descriptors = array(
+                0 => array('pipe', 'r'),
+                1 => array('file', '/dev/null', 'w'),
+                2 => array('file', '/dev/null', 'w'),
+            );
+            $proc = proc_open($fullArgv, $descriptors, $pipes, null, null, array('bypass_shell' => true));
+            if (!is_resource($proc)) {
+                throw new RuntimeException('privilege::run: proc_open failed for ' . $fullArgv[0]);
+            }
+            fclose($pipes[0]);
+            $exitCode = proc_close($proc);
+            return array((int)$exitCode, '', '');
+        }
 
         $descriptors = array(
             0 => array('pipe', 'r'),
@@ -242,6 +519,20 @@ class privilege
             $lines[] = '';
         }
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Returns true when the current process is running as root (uid 0).
+     * Avoids posix_getuid() which is not loaded on FreeBSD PHP-FPM.
+     */
+    private static function isRoot()
+    {
+        if (function_exists('posix_getuid')) {
+            return posix_getuid() === 0;
+        }
+        $out = array();
+        @exec('id -u 2>/dev/null', $out);
+        return isset($out[0]) && (int)$out[0] === 0;
     }
 
     /**

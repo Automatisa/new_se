@@ -1,0 +1,129 @@
+<div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+        <div class="zmodule_title"><@ ModuleName @></div>
+        <div class="zmodule_desc"><@ ModuleDesc @></div>
+    </div>
+    <@ Result @>
+    <div class="card-body">
+
+        <% if SelectedMailbox %>
+
+        <!-- ============================================================ VISTA CONFIGURACIÓN -->
+        <div style="margin-bottom:15px;">
+            <a href="./?module=antispam" class="btn btn-secondary btn-sm">
+                <span class="bi bi-chevron-left"></span> <: Your Mailboxes :>
+            </a>
+        </div>
+
+        <div class="zgrid_wrapper">
+            <h3><: Settings for :> <strong><@ SelectedMailboxAddress @></strong></h3>
+            <form method="post" action="./?module=antispam&action=SaveSettings">
+                <input type="hidden" name="inMailboxId" value="<@ SelectedMailboxId @>">
+                <@ CSFR_Tag @>
+                <div class="mb-3">
+                    <label class="col-sm-3 col-form-label"><: Spam score threshold :></label>
+                    <div class="col-sm-3">
+                        <@ ScoreInput @>
+                        <span class="help-block"><: Leave empty to use global setting :></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="col-sm-3 col-form-label"><: Action :></label>
+                    <div class="col-sm-3"><@ ActionSelect @></div>
+                </div>
+                <div class="mb-3">
+                    <div class="offset-sm-3 col-sm-9">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i><: Save :></button>
+                        <a href="./?module=antispam" class="btn btn-secondary" style="margin-left:5px;"><: Cancel :></a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="zgrid_wrapper">
+            <h3><: Whitelist :> <small><: (never spam) :></small></h3>
+            <form method="post" action="./?module=antispam&action=AddToList" class="form-inline" style="margin-bottom:10px;">
+                <input type="hidden" name="inMailboxId" value="<@ SelectedMailboxId @>">
+                <input type="hidden" name="inType" value="white">
+                <@ CSFR_Tag @>
+                <div class="input-group">
+                    <input type="text" name="inAddress" class="form-control" placeholder="user@domain.com or @domain.com" style="width:280px;">
+                    <button type="submit" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i><: Add :></button>
+                </div>
+            </form>
+            <% if Whitelist %>
+            <div class="table-responsive"><table class="table table-striped table-sm">
+                <tr><th><: Address :></th><th></th></tr>
+                <% loop Whitelist %>
+                <tr>
+                    <td><& al_address_vc &></td>
+                    <td>{! remove_form !}</td>
+                </tr>
+                <% endloop %>
+            </table>
+</div>
+            <% else %>
+            <p class="text-muted"><: No whitelist entries. :></p>
+            <% endif %>
+        </div>
+
+        <div class="zgrid_wrapper">
+            <h3><: Blacklist :> <small><: (always spam) :></small></h3>
+            <form method="post" action="./?module=antispam&action=AddToList" class="form-inline" style="margin-bottom:10px;">
+                <input type="hidden" name="inMailboxId" value="<@ SelectedMailboxId @>">
+                <input type="hidden" name="inType" value="black">
+                <@ CSFR_Tag @>
+                <div class="input-group">
+                    <input type="text" name="inAddress" class="form-control" placeholder="user@domain.com or @domain.com" style="width:280px;">
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-plus-circle me-1"></i><: Add :></button>
+                </div>
+            </form>
+            <% if Blacklist %>
+            <div class="table-responsive"><table class="table table-striped table-sm">
+                <tr><th><: Address :></th><th></th></tr>
+                <% loop Blacklist %>
+                <tr>
+                    <td><& al_address_vc &></td>
+                    <td>{! remove_form !}</td>
+                </tr>
+                <% endloop %>
+            </table>
+</div>
+            <% else %>
+            <p class="text-muted"><: No blacklist entries. :></p>
+            <% endif %>
+        </div>
+
+        <% else %>
+
+        <!-- ============================================================ VISTA LISTADO -->
+        <% if MailboxList %>
+        <div class="zgrid_wrapper">
+            <h3><: Your Mailboxes :></h3>
+            <div class="row">
+            <% loop MailboxList %>
+                <div class="col-md-4" style="margin-bottom:10px;">
+                    <div class="{! panel_class !}" style="margin:0;">
+                        <div class="card-header" style="padding:8px 12px;">
+                            <strong><& address &></strong>
+                            <span class="float-end">{! status_badge !}</span>
+                        </div>
+                        <div class="card-body" style="padding:8px 12px;">
+                            {! toggle_form !}
+                            &nbsp;
+                            {! configure_form !}
+                        </div>
+                    </div>
+                </div>
+            <% endloop %>
+            </div>
+        </div>
+        <% else %>
+        <p><: You have no mailboxes configured. :></p>
+        <% endif %>
+
+        <% endif %>
+
+    </div>
+</div>

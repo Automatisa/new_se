@@ -1,0 +1,144 @@
+<?php
+/**
+ * install.run — ejecutado automáticamente por doInstallModule() al instalar
+ * el módulo via moduleadmin, o manualmente via setup_api_manager.php.
+ * Requiere: $zdbh disponible en el contexto padre.
+ */
+global $zdbh;
+
+// ── 1. Tabla de tokens ────────────────────────────────────────────────────────
+//
+// at_token_vc       : legacy — solo en tokens anteriores a Fase A, NULL en nuevos.
+// at_token_hash_vc  : SHA-256 del token original (único campo usado para auth).
+// at_allowed_ip_vc  : IP origen autorizada. NULL = sin restricción. '0.0.0.0'/'::'= sin restricción explícita.
+// at_last_ip_vc     : última IP que usó el token con éxito.
+// at_expires_ts     : NULL = no expira; fecha futura = expiración.
+//
+$zdbh->exec("
+    CREATE TABLE IF NOT EXISTS x_api_tokens (
+        at_id_pk         INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+        at_name_vc       VARCHAR(128)    NOT NULL,
+        at_creator_vc    VARCHAR(64)     NOT NULL DEFAULT '',
+        at_token_vc      VARCHAR(64)     NULL     DEFAULT NULL,
+        at_token_hash_vc VARCHAR(64)     NULL     DEFAULT NULL,
+        at_scope_vc      VARCHAR(32)     NOT NULL DEFAULT 'read',
+        at_user_fk       INT UNSIGNED    NULL     DEFAULT NULL,
+        at_enabled_in    TINYINT(1)      NOT NULL DEFAULT 1,
+        at_created_ts    DATETIME        NOT NULL,
+        at_lastused_ts   DATETIME        NULL     DEFAULT NULL,
+        at_last_ip_vc    VARCHAR(45)     NULL     DEFAULT NULL,
+        at_allowed_ip_vc VARCHAR(45)     NULL     DEFAULT NULL,
+        at_expires_ts    DATETIME        NULL     DEFAULT NULL,
+        at_deleted_ts    DATETIME        NULL     DEFAULT NULL,
+        PRIMARY KEY (at_id_pk),
+        UNIQUE KEY uq_token_hash (at_token_hash_vc)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+");
+
+// Columnas nuevas en instalaciones existentes (idempotentes)
+try { $zdbh->exec("ALTER TABLE x_api_tokens MODIFY COLUMN at_token_vc VARCHAR(64) NULL DEFAULT NULL"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens DROP INDEX uq_token"); }          catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_token_hash_vc VARCHAR(64) NULL DEFAULT NULL AFTER at_token_vc"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD UNIQUE KEY uq_token_hash (at_token_hash_vc)"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_last_ip_vc    VARCHAR(45) NULL DEFAULT NULL AFTER at_lastused_ts"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_allowed_ip_vc VARCHAR(45) NULL DEFAULT NULL AFTER at_last_ip_vc"); }   catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_expires_ts    DATETIME    NULL DEFAULT NULL AFTER at_allowed_ip_vc"); } catch (Exception $e) {}
+// Columnas heredadas de versiones anteriores
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_scope_vc  VARCHAR(32)  NOT NULL DEFAULT 'read' AFTER at_token_hash_vc"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_api_tokens ADD COLUMN IF NOT EXISTS at_user_fk   INT UNSIGNED NULL DEFAULT NULL AFTER at_scope_vc"); }           catch (Exception $e) {}
+
+// Migrar tokens existentes: poblar at_token_hash_vc con SHA-256 del token plain.
+// Los tokens nuevos tendrán at_token_vc = NULL y at_token_hash_vc = hash.
+$zdbh->exec(
+    "UPDATE x_api_tokens
+        SET at_token_hash_vc = SHA2(at_token_vc, 256)
+      WHERE at_token_hash_vc IS NULL
+        AND at_token_vc IS NOT NULL
+        AND at_token_vc != ''"
+);
+
+// ── 1b. Tabla de auditoría de requests (log de uso de la API) ─────────────────
+$zdbh->exec("
+    CREATE TABLE IF NOT EXISTS x_api_log (
+        al_id_pk       INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+        al_token_fk    INT UNSIGNED  NULL,
+        al_method_vc   VARCHAR(8)    NOT NULL DEFAULT '',
+        al_resource_vc VARCHAR(256)  NOT NULL DEFAULT '',
+        al_ip_vc       VARCHAR(45)   NOT NULL DEFAULT '',
+        al_status_in   SMALLINT      NOT NULL DEFAULT 0,
+        al_ts          DATETIME      NOT NULL,
+        PRIMARY KEY (al_id_pk),
+        KEY idx_token (al_token_fk),
+        KEY idx_ts    (al_ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+");
+
+// ── 2. Entradas en x_settings ─────────────────────────────────────────────────
+$settings_defaults = [
+    [
+        'name'      => 'api_rest_enabled',
+        'value'     => 'false',
+        'cleanname' => 'REST API habilitada',
+        'desc'      => 'Activa o desactiva el endpoint REST /bin/api.php',
+    ],
+    [
+        'name'      => 'api_disabled_message',
+        'value'     => '',
+        'cleanname' => 'Mensaje API desactivada',
+        'desc'      => 'Mensaje mostrado cuando la API global está desactivada. Vacío = mensaje por defecto.',
+    ],
+];
+
+foreach ($settings_defaults as $s) {
+    $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_settings WHERE so_name_vc = :n");
+    $chk->execute([':n' => $s['name']]);
+    if ((int)$chk->fetchColumn() === 0) {
+        $zdbh->prepare(
+            "INSERT INTO x_settings
+                (so_module_vc, so_name_vc, so_value_tx, so_cleanname_vc, so_desc_tx, so_usereditable_en)
+             VALUES ('api_manager', :name, :val, :clean, :desc, 'false')"
+        )->execute([':name' => $s['name'], ':val' => $s['value'], ':clean' => $s['cleanname'], ':desc' => $s['desc']]);
+    }
+}
+
+// ── 3. Permisos de grupo para que resellers y usuarios vean el módulo ─────────
+$mod_row = $zdbh->query("SELECT mo_id_pk FROM x_modules WHERE mo_folder_vc='api_manager' LIMIT 1")->fetch();
+if ($mod_row) {
+    $mid = (int)$mod_row['mo_id_pk'];
+    foreach ([1, 2, 3] as $gid) {
+        $ins = $zdbh->prepare(
+            "INSERT IGNORE INTO x_permissions (pe_group_fk, pe_module_fk) VALUES (:g, :m)"
+        );
+        $ins->execute([':g' => $gid, ':m' => $mid]);
+    }
+}
+
+// ── 4. Columnas de delegación en x_accounts ──────────────────────────────────
+// ac_api_allowed_in     : el nivel superior concede acceso. 0 = denegado.
+// ac_api_self_in        : el propio usuario activa/desactiva su acceso. 1 = activo.
+// ac_api_revoked_in     : 1 = revocado administrativamente (prioridad máxima). 0 = normal.
+// ac_api_revoked_by     : ID del actor que impuso la revocación (para cascada).
+// ac_api_revoked_by_gid : grupo del revocador (1=admin, 2=reseller).
+try { $zdbh->exec("ALTER TABLE x_accounts ADD COLUMN IF NOT EXISTS ac_api_allowed_in     TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_accounts ADD COLUMN IF NOT EXISTS ac_api_self_in        TINYINT(1) NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_accounts ADD COLUMN IF NOT EXISTS ac_api_revoked_in     TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_accounts ADD COLUMN IF NOT EXISTS ac_api_revoked_by     INT        NULL DEFAULT NULL"); }  catch (Exception $e) {}
+try { $zdbh->exec("ALTER TABLE x_accounts ADD COLUMN IF NOT EXISTS ac_api_revoked_by_gid TINYINT(1) NULL DEFAULT NULL"); }  catch (Exception $e) {}
+
+// ── 5. Tabla de auditoría de acciones del panel ───────────────────────────────
+// Registra acciones administrativas (activar/desactivar API global, autorizar/revocar cuentas,
+// crear/eliminar/rotar tokens, etc.). Separada de x_api_log (que registra requests al endpoint).
+$zdbh->exec("
+    CREATE TABLE IF NOT EXISTS x_api_audit (
+        aa_id_pk     INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+        aa_actor_vc  VARCHAR(64)   NOT NULL DEFAULT '',
+        aa_action_vc VARCHAR(128)  NOT NULL DEFAULT '',
+        aa_target_vc VARCHAR(128)  NOT NULL DEFAULT '',
+        aa_detail_tx TEXT          NULL,
+        aa_ip_vc     VARCHAR(45)   NOT NULL DEFAULT '',
+        aa_ts        DATETIME      NOT NULL,
+        PRIMARY KEY (aa_id_pk),
+        KEY idx_ts     (aa_ts),
+        KEY idx_actor  (aa_actor_vc)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+");

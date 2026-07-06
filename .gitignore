@@ -1,0 +1,18 @@
+# Documentos de trabajo / logs de sesión (no forman parte del producto)
+/SOLUCIONES.md
+/GUIA_DESARROLLADOR.md
+/informe_*.md
+
+# Copias de seguridad / basura
+*.bak
+*.bak_v5
+*.bak_*/
+etc/lib/PHPMailer.bak_v5/
+etc/styles/Sentora_Default/global-css/bootstrap.min.css.bak
+
+# Cachés y datos específicos del servidor (no deben versionarse)
+etc/tmp/storage/
+etc/zppy-cache/
+
+# Nota: cnf/db.php se mantiene como plantilla (YOUR_ROOT_MYSQL_PASSWORD);
+# el instalador lo rellena con la contraseña real generada en cada despliegue.

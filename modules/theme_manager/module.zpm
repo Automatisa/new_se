@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -16,7 +16,7 @@
     <div class="zform_wrapper">
         <h2><: Select a theme :></h2>
         <form action="./?module=theme_manager&action=SaveTheme" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Theme name :>:</th>
                     <td><select name = "inTheme" id="inTheme">
@@ -25,10 +25,11 @@
                 </tr>
                 <tr>
                     <th colspan="2" align="right">
-                        <button class="button-loader btn btn-primary" type="submit" ><: Save :></button>
+                        <button class="button-loader btn btn-primary" type="submit" ><i class="bi bi-floppy me-1"></i><: Save :></button>
                     </th>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -37,7 +38,7 @@
     <div class="zform_wrapper">
         <h2><: Theme variation :></h2>
         <form action="./?module=theme_manager&action=SaveCSS" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Theme variation :>:</th>
                     <td><select name = "inCSS" id="inCSS">
@@ -46,10 +47,11 @@
                 </tr>
                 <tr>
                     <th colspan="2" align="right">
-                        <button class="button-loader btn btn-primary" type="submit" ><: Update :></button>
+                        <button class="button-loader btn btn-primary" type="submit" ><i class="bi bi-floppy me-1"></i><: Update :></button>
                     </th>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>

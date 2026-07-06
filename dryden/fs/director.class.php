@@ -126,7 +126,7 @@ class fs_director {
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @param string $path The full path of the file or folder on which to set the permissions on.
      * @param int $mode The UNIX permissions octal (eg. 0777 or 777)
-     * @return boolean 
+     * @return boolean
      */
     static function SetFileSystemPermissions($path, $mode) {
         if (file_exists($path)) {
@@ -138,6 +138,25 @@ class fs_director {
             $retval = false;
         }
         return $retval;
+    }
+
+    /**
+     * Sets the owner (and optionally group) of a file or directory.
+     * Requires that PHP is running as root or as the current owner of the path.
+     * @param string $path The full path of the file or folder.
+     * @param string|int $user Username or UID to assign as owner.
+     * @param string|int|null $group Group name or GID to assign (null = skip).
+     * @return boolean
+     */
+    static function SetFileOwnership($path, $user, $group = null) {
+        if (!file_exists($path)) {
+            return false;
+        }
+        $ok = @chown($path, $user);
+        if ($group !== null) {
+            $ok = @chgrp($path, $group) && $ok;
+        }
+        return (bool)$ok;
     }
 
     /**

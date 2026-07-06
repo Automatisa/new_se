@@ -64,7 +64,7 @@ input[type=submit] {
 </style>
 
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -86,11 +86,12 @@ input[type=submit] {
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ EditCurrentMailboxID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=mailboxes';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=mailboxes';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -100,7 +101,7 @@ input[type=submit] {
     <div class="zform_wrapper">
         <h2><: Edit mailbox :>: <@ EditCurrentMailboxName @></h2>
         <form action="./?module=mailboxes&action=UpdateMailbox" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <% loop CurrentMailboxList %>
                 <tr>
                     <th><: Email Address :>:</th>
@@ -120,6 +121,7 @@ input[type=submit] {
                 </tr>
 				
 				</table>
+</div><!-- /table-responsive -->
 						
 				<div class="check_container">
 					<div id="message">
@@ -131,7 +133,7 @@ input[type=submit] {
 					</div>
 				</div>
 						
-				<table class="table table-striped">
+				<div class="table-responsive"><table class="table table-striped">
 				
                 <tr>
                     <th><: Enabled :>:</th>
@@ -139,12 +141,13 @@ input[type=submit] {
                 </tr>
                 <tr>
                     <th>
-                        <button class="button-nonloader btn btn-primary" type="submit" id="button-nonloader" name="inSave" id="inSave" value="<& id &>"><: Save :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=mailboxes';return false;"><: Cancel :></button>
+                        <button class="button-nonloader btn btn-primary" type="submit" id="button-nonloader" name="inSave" id="inSave" value="<& id &>"><i class="bi bi-floppy me-1"></i><: Save :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=mailboxes';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </th>
                     <td></td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -154,7 +157,7 @@ input[type=submit] {
         <h2><: Current mailboxes :></h2>
         <% if MailboxList %>
         <form action="./?module=mailboxes&action=EditMailbox" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Address :></th>
                     <th><: Date created :></th>
@@ -166,12 +169,13 @@ input[type=submit] {
                 <tr>
                     <td><& address &></td>
                     <td><& created &></td>
-                    <td><& status &></td>
-                    <td><button class="button-loader btn btn-default" type="submit" id="button" name="inEdit_<& id &>" id="inEdit_<& id &>" value="inEdit_<& id &>"><: Edit :></button></td>
-                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><: Delete :></button></td>
+                    <td>{! status !}</td>
+                    <td><button class="button-loader btn btn-secondary" type="submit" id="button" name="inEdit_<& id &>" id="inEdit_<& id &>" value="inEdit_<& id &>"><i class="bi bi-pencil me-1"></i><: Edit :></button></td>
+                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><i class="bi bi-trash me-1"></i><: Delete :></button></td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %><!-- ELSE MailboxList -->
@@ -187,7 +191,7 @@ input[type=submit] {
                     <h2><: Create a new mailbox :></h2>
                     <% if QuotaLimit %>
                     <form action="./?module=mailboxes&action=AddMailbox" method="post">
-                        <table class="table table-striped">
+                        <div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th nowrap="nowrap"><: Email Address :>:</th>
                                 <td><input type="text" name="inAddress" id="inAddress" /></td>
@@ -214,6 +218,7 @@ input[type=submit] {
 							</tr>
 							
 						</table>
+</div><!-- /table-responsive -->
 						
 						<div class="check_container">
 							<div id="message">
@@ -225,14 +230,15 @@ input[type=submit] {
 							</div>
 						</div>
 						
-						<table class="table table-striped">
+						<div class="table-responsive"><table class="table table-striped">
 							
                             <tr>
-                                <th><button class="button-nonloader btn btn-primary" type="submit" id="button-nonloader" name="inCreate" id="inCreate" value="inCreate"><: Create :></button></th>
+                                <th><button class="button-nonloader btn btn-primary" type="submit" id="button-nonloader" name="inCreate" id="inCreate" value="inCreate"><i class="bi bi-plus-circle me-1"></i><: Create :></button></th>
                                 <td></td>
                                 <td></td>
                             </tr>
                         </table>
+</div><!-- /table-responsive -->
                         <@ CSFR_Tag @>
                     </form>
                     <% else %><!-- ELSE QuotaLimit -->
@@ -242,6 +248,7 @@ input[type=submit] {
                 <td align="right"><@ EmailUsagepChart @></td>
             </tr>
         </table>
+</div><!-- /table-responsive -->
     </div>
     <% endif %>
 

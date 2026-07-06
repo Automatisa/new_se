@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
 
         <div class="zmodule_title">
             <@ ModuleName @>

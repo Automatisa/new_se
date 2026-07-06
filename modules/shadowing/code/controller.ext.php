@@ -35,47 +35,44 @@ class module_controller extends ctrl_module
         global $zdbh;
         global $controller;
         $currentuser = ctrl_users::GetUserDetail();
-        if ($currentuser['username'] == 'zadmin') {
+        if ($currentuser["username"] == "zadmin") {
             $sql = "SELECT * FROM x_accounts WHERE ac_deleted_ts IS NULL ORDER BY ac_user_vc";
             $numrows = $zdbh->prepare($sql);
             $numrows->execute();
         } else {
             $sql = "SELECT * FROM x_accounts WHERE ac_reseller_fk = :userid AND ac_deleted_ts IS NULL ORDER BY ac_user_vc";
             $numrows = $zdbh->prepare($sql);
-            $numrows->bindParam(':userid', $currentuser['userid']);
+            $numrows->bindParam(":userid", $currentuser["userid"]);
             $numrows->execute();
         }
 
-        //$numrows = $zdbh->query($sql);
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
-            if ($currentuser['username'] == 'zadmin') {
+            if ($currentuser["username"] == "zadmin") {
                 // no bind needed
             } else {
-                //bind the username
-                $sql->bindParam(':userid', $currentuser['userid']);
+                $sql->bindParam(":userid", $currentuser["userid"]);
             }
             $res = array();
             $sql->execute();
             while ($rowclients = $sql->fetch()) {
-                if ($rowclients['ac_id_pk'] != $currentuser['userid']) {
-                    # tg - added code to get reseller's name
+                if ($rowclients["ac_id_pk"] != $currentuser["userid"]) {
                     $grn_sql = "SELECT ac_user_vc FROM x_accounts WHERE ac_id_pk=:resellerid AND ac_deleted_ts IS NULL";
                     $grn = $zdbh->prepare($grn_sql);
-                    $grn->bindParam(':resellerid', $rowclients['ac_reseller_fk']);
+                    $grn->bindParam(":resellerid", $rowclients["ac_reseller_fk"]);
                     $grn->execute();
                     $rn = $grn->fetch();
-                    $resellerName = $rn['ac_user_vc'];
-					
-                    $clientdetail = ctrl_users::GetUserDetail($rowclients['ac_id_pk']);
-                    array_push($res, array('clientusername' => $clientdetail['username'],
-                        'clientid' => $rowclients['ac_id_pk'],
-                        'packagename' => $clientdetail['packagename'],
-                        'usergroup' => $clientdetail['usergroup'],
-                        'currentdisk' => fs_director::ShowHumanFileSize(ctrl_users::GetQuotaUsages('diskspace', $rowclients['ac_id_pk'])),
-                        'currentbandwidth' => fs_director::ShowHumanFileSize(ctrl_users::GetQuotaUsages('bandwidth', $rowclients['ac_id_pk'])),
-                        'resellerid' => $rowclients['ac_reseller_fk'],
-                        'resellername' => $resellerName)); # tg - added code to get reseller's name
+                    $resellerName = $rn["ac_user_vc"];
+
+                    $clientdetail = ctrl_users::GetUserDetail($rowclients["ac_id_pk"]);
+                    array_push($res, array("clientusername" => $clientdetail["username"],
+                        "clientid" => $rowclients["ac_id_pk"],
+                        "packagename" => $clientdetail["packagename"],
+                        "usergroup" => $clientdetail["usergroup"],
+                        "currentdisk" => fs_director::ShowHumanFileSize(ctrl_users::GetQuotaUsages("diskspace", $rowclients["ac_id_pk"])),
+                        "currentbandwidth" => fs_director::ShowHumanFileSize(ctrl_users::GetQuotaUsages("bandwidth", $rowclients["ac_id_pk"])),
+                        "resellerid" => $rowclients["ac_reseller_fk"],
+                        "resellername" => $resellerName));
                 }
             }
             return $res;
@@ -90,29 +87,31 @@ class module_controller extends ctrl_module
         global $controller;
         runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
-        if ($currentuser['username'] == 'zadmin') {
+        if ($currentuser["username"] == "zadmin") {
             $sql = "SELECT * FROM x_accounts WHERE ac_deleted_ts IS NULL ORDER BY ac_user_vc";
             $numrows = $zdbh->prepare($sql);
         } else {
             $sql = "SELECT * FROM x_accounts WHERE ac_reseller_fk = :userid AND ac_deleted_ts IS NULL";
             $numrows = $zdbh->prepare($sql);
-            $numrows->bindParam(':userid', $currentuser['userid']);
+            $numrows->bindParam(":userid", $currentuser["userid"]);
         }
         if ($numrows->execute()) {
             if ($numrows->fetchColumn() <> 0) {
                 $sql = $zdbh->prepare($sql);
-                if ($currentuser['username'] == 'zadmin') {
+                if ($currentuser["username"] == "zadmin") {
                     //no bind needed
                 } else {
-                    //bind the username
-                    $sql->bindParam(':userid', $currentuser['userid']);
+                    $sql->bindParam(":userid", $currentuser["userid"]);
                 }
                 $sql->execute();
                 while ($rowclients = $sql->fetch()) {
-                    if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inShadow_' . $rowclients['ac_id_pk']))) {
+                    if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest("FORM", "inShadow_" . $rowclients["ac_id_pk"]))) {
                         ctrl_auth::KillCookies();
-                        ctrl_auth::SetSession('ruid', $currentuser['userid']);
-                        ctrl_auth::SetUserSession($rowclients['ac_id_pk'], runtime_sessionsecurity::getSessionSecurityEnabled());
+                        if (!isset($_SESSION["ruid_stack"]) || !is_array($_SESSION["ruid_stack"])) {
+                            $_SESSION["ruid_stack"] = [];
+                        }
+                        array_push($_SESSION["ruid_stack"], $currentuser["userid"]);
+                        ctrl_auth::SetUserSession($rowclients["ac_id_pk"], runtime_sessionsecurity::getSessionSecurityEnabled());
                         header("location: /");
                         exit;
                     }

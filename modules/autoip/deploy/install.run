@@ -1,9 +1,6 @@
 <?php
 /**
- * Upgrade script for AutoIP Module for ZPanel 10.X
- * Version : 102
- * Author :  RusTus (RusTus @ ZPanel Forums)
- * Email : rustus@zpanelcp.com
+ * Install script for AutoIP Module.
  */
 
 require_once('cnf/db.php');
@@ -19,23 +16,100 @@ require_once('inc/dbc.inc.php');
 
 installModule();
 
-function installModule(){
+function installModule() {
     global $zdbh;
-    $sql = $zdbh->prepare("DROP TABLE IF EXISTS `x_autoip`;
-						   CREATE TABLE `x_autoip` (
-  								`ai_id_pk` int(6) NOT NULL DEFAULT '0',
-								`ai_script_vc` varchar(255) DEFAULT NULL,
-								`ai_email_vc` varchar(255) DEFAULT NULL,
-								`ai_command_vc` varchar(255) DEFAULT NULL,
-								`ai_newip_vc` varchar(50) DEFAULT NULL,
-								`ai_oldip_vc` varchar(50) DEFAULT NULL,
-								`ai_enabled_in` int(1) DEFAULT '1',
-								`ai_lastupdate_ts` varchar(50) DEFAULT NULL,
-								PRIMARY KEY (`ai_id_pk`)
-								);");
-    $sql->execute();
-	$sql = $zdbh->prepare("INSERT INTO `x_autoip` VALUES ('1', null, null, 'http://myip.dnsomatic.com/', null, null, '1', null)");
-    $sql->execute();
+
+    $zdbh->exec("DROP TABLE IF EXISTS `x_autoip`");
+    $zdbh->exec("CREATE TABLE `x_autoip` (
+        `ai_id_pk`         int(6)       NOT NULL DEFAULT '0',
+        `ai_script_vc`     varchar(255)          DEFAULT NULL,
+        `ai_email_vc`      varchar(255)          DEFAULT NULL,
+        `ai_command_vc`    varchar(255)          DEFAULT NULL,
+        `ai_newip_vc`      varchar(50)           DEFAULT NULL,
+        `ai_oldip_vc`      varchar(50)           DEFAULT NULL,
+        `ai_enabled_in`    int(1)                DEFAULT '1',
+        `ai_lastupdate_ts` varchar(50)           DEFAULT NULL,
+        PRIMARY KEY (`ai_id_pk`)
+    )");
+
+    // ai_command_vc is intentionally empty: IP is detected from the local
+    // routing table on each daemon cycle. Set it to an absolute path to a
+    // local script only when the server is behind NAT and needs a custom
+    // public-IP resolver.
+    $zdbh->exec("INSERT INTO `x_autoip` VALUES ('1', null, null, null, null, null, '0', null)");
+
+    // Try to detect the public IP now and seed server_ip if it is currently
+    // empty.  This ensures DNS zones created before the first daemon run use
+    // the correct address.  On NAT servers where only a private IP is visible
+    // on the interface this step is skipped; the admin must set the IP
+    // manually via the AutoIP module after installation.
+    $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='server_ip'")->fetch();
+    if ($row && $row['so_value_tx'] === '') {
+        $detected = autoip_install_detectIP();
+        if ($detected !== null) {
+            $stmt = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:ip WHERE so_name_vc='server_ip'");
+            $stmt->execute([':ip' => $detected]);
+        }
+    }
 }
 
+/**
+ * Detect the server's public outbound IP at install time.
+ * Returns the IP string if it is a routable public address, or null if the
+ * server is behind NAT or the IP cannot be determined.
+ * No external service is contacted.
+ */
+function autoip_install_detectIP() {
+    $ip = null;
+
+    // Method 1: UDP socket trick (requires php-sockets extension).
+    if (function_exists('socket_create')) {
+        $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if ($sock !== false) {
+            @socket_connect($sock, '8.8.8.8', 53);
+            $addr = '';
+            @socket_getsockname($sock, $addr);
+            @socket_close($sock);
+            if (filter_var($addr, FILTER_VALIDATE_IP)) {
+                $ip = $addr;
+            }
+        }
+    }
+
+    // Method 2: routing table + ifconfig (FreeBSD / Linux).
+    if ($ip === null) {
+        $iface = null;
+        $out = [];
+        @exec('route -n get default 2>/dev/null', $out);
+        foreach ($out as $line) {
+            if (preg_match('/^\s*interface:\s*(\S+)/', $line, $m)) { $iface = $m[1]; break; }
+        }
+        if ($iface === null) {
+            $out = [];
+            @exec('ip route show default 2>/dev/null', $out);
+            foreach ($out as $line) {
+                if (preg_match('/dev\s+(\S+)/', $line, $m)) { $iface = $m[1]; break; }
+            }
+        }
+        if ($iface !== null && preg_match('/^[a-zA-Z0-9_]+$/', $iface)) {
+            $out = [];
+            @exec('ifconfig ' . escapeshellarg($iface) . ' 2>/dev/null', $out);
+            foreach ($out as $line) {
+                if (preg_match('/inet\s+([\d.]+)/', $line, $m)
+                        && filter_var($m[1], FILTER_VALIDATE_IP)) {
+                    $ip = $m[1];
+                    break;
+                }
+            }
+        }
+    }
+
+    if ($ip === null) return null;
+
+    // Only return the IP if it is publicly routable.
+    return filter_var($ip, FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false
+        ? $ip
+        : null;
+}
 ?>

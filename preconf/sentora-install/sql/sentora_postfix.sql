@@ -1,115 +1,110 @@
--- save current setting of sql_mode
-SET @old_sql_mode := @@sql_mode ;
+-- sentora_postfix schema dump 2026-06-30
 
--- derive a new value by removing NO_ZERO_DATE and NO_ZERO_IN_DATE
-SET @new_sql_mode := @old_sql_mode ;
-SET @new_sql_mode := TRIM(BOTH ',' FROM REPLACE(CONCAT(',',@new_sql_mode,','),',NO_ZERO_DATE,'  ,','));
-SET @new_sql_mode := TRIM(BOTH ',' FROM REPLACE(CONCAT(',',@new_sql_mode,','),',NO_ZERO_IN_DATE,',','));
-SET @@sql_mode := @new_sql_mode ;
-
-
-CREATE DATABASE `sentora_postfix` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
-
+CREATE DATABASE IF NOT EXISTS `sentora_postfix` DEFAULT CHARACTER SET utf8mb3;
 USE `sentora_postfix`;
 
--- CREATE USER postfix@localhost IDENTIFIED BY 'postfix';
--- GRANT ALL PRIVILEGES ON sentora_postfix . * TO postfix@localhost;
-
+DROP TABLE IF EXISTS `admin`;
 CREATE TABLE `admin` (
   `username` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `created` datetime DEFAULT NULL,
   `modified` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Admins';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Admins';
 
+DROP TABLE IF EXISTS `alias`;
 CREATE TABLE `alias` (
   `address` varchar(255) NOT NULL,
   `goto` text NOT NULL,
   `domain` varchar(255) NOT NULL,
   `created` datetime DEFAULT NULL,
   `modified` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`address`),
   KEY `domain` (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Aliases';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Aliases';
 
+DROP TABLE IF EXISTS `alias_domain`;
 CREATE TABLE `alias_domain` (
   `alias_domain` varchar(255) NOT NULL,
   `target_domain` varchar(255) NOT NULL,
   `created` datetime DEFAULT NULL,
   `modified` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`alias_domain`),
   KEY `active` (`active`),
   KEY `target_domain` (`target_domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Domain Aliases';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Domain Aliases';
 
+DROP TABLE IF EXISTS `config`;
 CREATE TABLE `config` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(20) NOT NULL DEFAULT '',
   `value` varchar(20) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COMMENT='PostfixAdmin settings';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='PostfixAdmin settings';
 
+DROP TABLE IF EXISTS `domain`;
 CREATE TABLE `domain` (
   `domain` varchar(255) NOT NULL,
-  `description` varchar(255) CHARACTER SET utf8 NOT NULL,
-  `aliases` int(10) NOT NULL DEFAULT '0',
-  `mailboxes` int(10) NOT NULL DEFAULT '0',
-  `maxquota` bigint(20) NOT NULL DEFAULT '0',
-  `quota` bigint(20) NOT NULL DEFAULT '0',
+  `description` varchar(255) NOT NULL,
+  `aliases` int(10) NOT NULL DEFAULT 0,
+  `mailboxes` int(10) NOT NULL DEFAULT 0,
+  `maxquota` bigint(20) NOT NULL DEFAULT 0,
+  `quota` bigint(20) NOT NULL DEFAULT 0,
   `transport` varchar(255) NOT NULL,
-  `backupmx` tinyint(1) NOT NULL DEFAULT '0',
+  `backupmx` tinyint(1) NOT NULL DEFAULT 0,
   `created` datetime DEFAULT NULL,
   `modified` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Domains';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Domains';
 
-
+DROP TABLE IF EXISTS `mailbox`;
 CREATE TABLE `mailbox` (
   `username` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `name` varchar(255) CHARACTER SET utf8 NOT NULL,
+  `name` varchar(255) NOT NULL,
   `maildir` varchar(255) NOT NULL,
-  `quota` bigint(20) NOT NULL DEFAULT '0',
+  `quota` bigint(20) NOT NULL DEFAULT 0,
   `local_part` varchar(255) NOT NULL,
   `domain` varchar(255) NOT NULL,
   `created` datetime DEFAULT NULL,
   `modified` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`username`),
   KEY `domain` (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Mailboxes';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Mailboxes';
 
+DROP TABLE IF EXISTS `quota2`;
 CREATE TABLE `quota2` (
   `username` varchar(100) NOT NULL,
-  `bytes` bigint(20) NOT NULL DEFAULT '0',
-  `messages` int(11) NOT NULL DEFAULT '0',
+  `bytes` bigint(20) NOT NULL DEFAULT 0,
+  `messages` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS `vacation`;
 CREATE TABLE `vacation` (
   `email` varchar(255) NOT NULL,
-  `subject` varchar(255) CHARACTER SET utf8 NOT NULL,
-  `body` text CHARACTER SET utf8 NOT NULL,
+  `subject` varchar(255) NOT NULL,
+  `body` text NOT NULL,
   `cache` text NOT NULL,
   `domain` varchar(255) NOT NULL,
   `created` datetime DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`email`),
   KEY `email` (`email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Vacation';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Vacation';
 
+DROP TABLE IF EXISTS `vacation_notification`;
 CREATE TABLE `vacation_notification` (
   `on_vacation` varchar(255) NOT NULL,
-  `notified` varchar(255) CHARACTER SET latin1 NOT NULL,
-  `notified_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `notified` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `notified_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`on_vacation`,`notified`),
   CONSTRAINT `vacation_notification_pkey` FOREIGN KEY (`on_vacation`) REFERENCES `vacation` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix Admin - Virtual Vacation Notifications';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Postfix Admin - Virtual Vacation Notifications';
 
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

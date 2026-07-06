@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+    <name>Antispam Admin</name>
+    <version>100</version>
+    <defaultcat>Mail</defaultcat>
+    <desc>Global antispam administration. Configure rspamd thresholds, view statistics and manage global whitelist/blacklist.</desc>
+    <authorname>Sentora Project</authorname>
+    <authoremail>info@sentora.org</authoremail>
+    <authorurl>http://sentora.org/</authorurl>
+</module>

@@ -13,7 +13,11 @@
  * @link http://www.zpanelcp.com/
  * @license GPL (http://www.gnu.org/licenses/gpl.html)
  */
-require './etc/lib/PHPMailer/class.phpmailer.php';
+require './etc/lib/PHPMailer/src/Exception.php';
+require './etc/lib/PHPMailer/src/PHPMailer.php';
+require './etc/lib/PHPMailer/src/SMTP.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
 
 class sys_email extends PHPMailer {
 
@@ -22,12 +26,30 @@ class sys_email extends PHPMailer {
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @return boolean 
      */
+    private static function isValidSMTPHost($host) {
+        if (empty($host)) return false;
+        // If it looks like an IP, reject private/reserved ranges
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $flags = FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE;
+            return filter_var($host, FILTER_VALIDATE_IP, $flags) !== false;
+        }
+        // For hostnames, reject localhost and cloud metadata hostnames
+        $lower = strtolower($host);
+        $blocked = ['localhost', 'metadata.internal', 'metadata.google.internal',
+                    '169.254.169.254', 'fd00::ec2', 'instance-data'];
+        foreach ($blocked as $b) {
+            if ($lower === $b || str_ends_with($lower, '.' . $b)) return false;
+        }
+        // Must be a valid hostname
+        return (bool) filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME);
+    }
+
     public function SendEmail() {
         $this->Mailer = ctrl_options::GetSystemOption('mailer_type');
         $this->From = ctrl_options::GetSystemOption('email_from_address');
         $this->FromName = ctrl_options::GetSystemOption('email_from_name');
         if (ctrl_options::GetSystemOption('email_smtp') <> 'false') {
-            $this->IsSMTP();
+            $this->isSMTP();
             if (ctrl_options::GetSystemOption('smtp_auth') <> 'false') {
                 $this->SMTPAuth = true;
                 $this->Username = ctrl_options::GetSystemOption('smtp_username');
@@ -36,12 +58,18 @@ class sys_email extends PHPMailer {
             if (ctrl_options::GetSystemOption('smtp_secure') <> 'false') {
                 $this->SMTPSecure = ctrl_options::GetSystemOption('smtp_secure');
             }
-            $this->Host = ctrl_options::GetSystemOption('smtp_server');
-            $this->Port = ctrl_options::GetSystemOption('smtp_port');
+            $smtp_host = ctrl_options::GetSystemOption('smtp_server');
+            $smtp_port = intval(ctrl_options::GetSystemOption('smtp_port'));
+            if (!self::isValidSMTPHost($smtp_host) || $smtp_port < 1 || $smtp_port > 65535) {
+                return false;
+            }
+            $this->Host = $smtp_host;
+            $this->Port = $smtp_port;
         }
 
+        $this->CharSet = 'utf-8';
         ob_start();
-        $send_resault = $this->Send();
+        $send_resault = $this->send();
         $error = ob_get_contents();
         ob_clean();
         if ($send_resault) {

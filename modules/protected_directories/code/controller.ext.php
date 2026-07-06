@@ -544,6 +544,8 @@ class module_controller extends ctrl_module
     }
     
     static function buildHtaccessLink($message, $htpasswdFile) {
+        // MED-2 FIX: strip characters that would break .htaccess AuthName or allow injection
+        $message = str_replace(['"', "\r", "\n"], ['', '', ''], $message);
         $htaccessString = 'AuthName "' . $message . '"' . PHP_EOL .
                           'AuthType Basic' . PHP_EOL .
                           'AuthUserFile ' . $htpasswdFile . PHP_EOL .
@@ -690,11 +692,24 @@ class module_controller extends ctrl_module
     {
         global $controller;
         runtime_csfr::Protect();
-        
-        $file = $controller->GetControllerRequest('FORM', 'file');
+
+        $domain  = (string) $controller->GetControllerRequest('FORM', 'inDomain');
+        $subpath = (string) $controller->GetControllerRequest('FORM', 'inSubpath');
         $message = $controller->GetControllerRequest('FORM', 'message');
-        
-        
+
+        // El dominio debe pertenecer al usuario
+        if ( !self::domainBelongsToUser($domain) ) {
+            self::setFlashMessage('error', ui_language::translate('Please select a valid domain.'));
+        }
+        // Sanitizar subcarpeta (relativa a public_html, sin salir con ..)
+        $subpath = trim( str_replace('\\', '/', $subpath), '/' );
+        if ( strpos($subpath, '..') !== false ) {
+            self::setFlashMessage('error', ui_language::translate('Invalid folder path.'));
+        }
+
+        // Ruta relativa al home: web/<dominio>/public_html[/<subcarpeta>]
+        $file = 'web/' . $domain . '/public_html' . ( $subpath !== '' ? '/' . $subpath : '' );
+
         // Check File path security check
         if(!self::hasFlashErrors()) { $fileTarget = self::fileInPathCheck($file); }
         
@@ -820,9 +835,10 @@ class module_controller extends ctrl_module
 
         $username = $controller->GetControllerRequest('FORM', 'username');
         $password = $controller->GetControllerRequest('FORM', 'password');
-        
-        $encryptedPassword = crypt($password, base64_encode($password));
-        
+
+        // MED-3 FIX: replace weak DES crypt() with bcrypt
+        $encryptedPassword = password_hash($password, PASSWORD_BCRYPT);
+
         $userId = self::createUser(array(
             'x_htpasswd_user_username'  => $username,
             'x_htpasswd_user_password'  => $encryptedPassword,
@@ -845,9 +861,10 @@ class module_controller extends ctrl_module
 
         $username = $controller->GetControllerRequest('FORM', 'username');
         $password = $controller->GetControllerRequest('FORM', 'password');
-        
-        $encryptedPassword = crypt($password, base64_encode($password));
-        
+
+        // MED-3 FIX: replace weak DES crypt() with bcrypt
+        $encryptedPassword = password_hash($password, PASSWORD_BCRYPT);
+
         self::updateUser(array(
             'x_htpasswd_user_username'  => $username,
             'x_htpasswd_user_password'  => $encryptedPassword,
@@ -974,6 +991,46 @@ class module_controller extends ctrl_module
     static function getModuleMode()
     {
         return self::$mode;
+    }
+
+    /**
+     * Opciones <option> con los dominios del usuario (para el desplegable).
+     * La protección .htaccess solo funciona dentro de web/<dominio>/public_html.
+     */
+    static function getDomainOptions()
+    {
+        global $zdbh;
+        $sqlString = "SELECT vh_name_vc, vh_directory_vc FROM x_vhosts
+                      WHERE vh_acc_fk=:uid AND vh_deleted_ts IS NULL
+                      ORDER BY vh_name_vc ASC";
+        $bindArray = array( ':uid' => self::getCurrentUserId() );
+        $zdbh->bindQuery( $sqlString, $bindArray );
+        $rows = $zdbh->returnRows();
+        if ( !$rows ) {
+            return '<option value="">' . ui_language::translate('No domains available') . '</option>';
+        }
+        $opts = '';
+        foreach ( $rows as $r ) {
+            $dir  = htmlspecialchars( $r['vh_directory_vc'], ENT_QUOTES );
+            $name = htmlspecialchars( $r['vh_name_vc'], ENT_QUOTES );
+            $opts .= '<option value="' . $dir . '">' . $name . '</option>';
+        }
+        return $opts;
+    }
+
+    /**
+     * Valida que el vh_directory pertenece a un dominio del usuario actual.
+     */
+    private static function domainBelongsToUser( $dir )
+    {
+        global $zdbh;
+        if ( $dir === '' || !preg_match( '/^[a-zA-Z0-9._\-]+$/', $dir ) ) { return false; }
+        $sqlString = "SELECT COUNT(*) AS c FROM x_vhosts
+                      WHERE vh_acc_fk=:uid AND vh_directory_vc=:dir AND vh_deleted_ts IS NULL";
+        $bindArray = array( ':uid' => self::getCurrentUserId(), ':dir' => $dir );
+        $zdbh->bindQuery( $sqlString, $bindArray );
+        $row = $zdbh->returnRow();
+        return $row && (int) $row['c'] > 0;
     }
 
     private static function getCurrentUserId()

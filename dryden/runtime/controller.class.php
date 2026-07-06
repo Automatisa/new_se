@@ -58,17 +58,94 @@ class runtime_controller
 
         if (isset($this->vars_get[0]['module'])) {
             ui_module::getModule($this->GetCurrentModule());
+            // PRG: en GET tras redirección, restaurar el flash de sesión en las
+            // propiedades estáticas del módulo para que getResult() lo muestre.
+            self::prgInjectFlash();
         }
         if (isset($this->vars_get[0]['action'])) {
             if (ctrl_groups::CheckGroupModulePermissions($user['usergroupid'], ui_module::GetModuleID())) {
                 if ((class_exists('module_controller', FALSE)) && (method_exists('module_controller', 'do' . $this->vars_get[0]['action']))) {
                     call_user_func(array('module_controller', 'do' . $this->vars_get[0]['action']));
+                    // PRG: tras un POST, guardar flash en sesión y redirigir sin
+                    // el parámetro action para evitar el reenvío del formulario.
+                    self::prgRedirect();
                 } else {
                     echo ui_sysmessage::shout("No 'do" . runtime_xss::xssClean($this->vars_get[0]['action']) . "' class exists - Please create it to enable controller actions and runtime placeholders within your module.");
                 }
             }
         }
         return;
+    }
+
+    /**
+     * Nombres de propiedades estáticas de mensaje usadas por los módulos.
+     * Se prueban en orden; el primero que exista en module_controller gana.
+     */
+    private static array $PRG_OK_PROPS  = ['ok_msg', 'ok', 'okletsencrypt', 'deleteok'];
+    private static array $PRG_ERR_PROPS = ['err_msg', 'error', 'error_message', 'emailerror'];
+
+    /**
+     * Lee el mensaje flash de sesión e inyecta en la propiedad estática del
+     * módulo activo. Soporta propiedades privadas vía Reflection.
+     */
+    private static function prgInjectFlash(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') return;
+        if (empty($_SESSION['_sentora_prg'])) return;
+        if (!class_exists('module_controller', false)) return;
+
+        $flash   = $_SESSION['_sentora_prg'];
+        unset($_SESSION['_sentora_prg']);
+        $targets = ($flash['type'] === 'ok') ? self::$PRG_OK_PROPS : self::$PRG_ERR_PROPS;
+
+        foreach ($targets as $p) {
+            try {
+                $ref = new ReflectionProperty('module_controller', $p);
+                $ref->setAccessible(true);
+                $ref->setValue(null, $flash['msg']);
+                return;
+            } catch (ReflectionException $e) { /* propiedad no existe, probar la siguiente */ }
+        }
+    }
+
+    /**
+     * Tras ejecutar un do*() por POST: captura el mensaje del módulo, lo guarda
+     * en sesión y redirige a la misma URL sin el parámetro action.
+     * Si el módulo ya llamó exit() (descarga, PRG propio), este método no se ejecuta.
+     */
+    private static function prgRedirect(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return;
+        if (headers_sent()) return;
+
+        $flash = null;
+        if (class_exists('module_controller', false)) {
+            foreach (self::$PRG_OK_PROPS as $p) {
+                try {
+                    $ref = new ReflectionProperty('module_controller', $p);
+                    $ref->setAccessible(true);
+                    $val = $ref->getValue(null);
+                    if (!empty($val)) { $flash = ['type' => 'ok', 'msg' => $val]; break; }
+                } catch (ReflectionException $e) {}
+            }
+            if ($flash === null) {
+                foreach (self::$PRG_ERR_PROPS as $p) {
+                    try {
+                        $ref = new ReflectionProperty('module_controller', $p);
+                        $ref->setAccessible(true);
+                        $val = $ref->getValue(null);
+                        if (!empty($val)) { $flash = ['type' => 'err', 'msg' => $val]; break; }
+                    } catch (ReflectionException $e) {}
+                }
+            }
+        }
+        if ($flash !== null) {
+            $_SESSION['_sentora_prg'] = $flash;
+        }
+        $qs = $_GET;
+        unset($qs['action']);
+        header('Location: ./?' . http_build_query($qs));
+        exit;
     }
 
     /**

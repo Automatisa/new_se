@@ -38,7 +38,9 @@ class module_controller extends ctrl_module
 	static $badpasswordlength;
     static $rootabuse;
     static $badIP;
+    static $accessConflict;
     static $ok;
+    static $newPassword = null;
 
     /**
      * The 'worker' methods.
@@ -107,23 +109,30 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
-                //$numrowdb = $zdbh->query("SELECT COUNT(*) FROM x_mysql_dbmap WHERE mm_user_fk=" . $rowmysql['mu_id_pk'] . "")->fetch();
-                $numrows = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_dbmap WHERE mm_user_fk=:mysql");
-                $numrows->bindParam(':mysql', $rowmysql['mu_id_pk']);
-                $numrows->execute();
-                $numrowdb = $numrows->fetch();
+                // Fetch linked database names instead of just the count.
+                $dbq = $zdbh->prepare(
+                    "SELECT d.my_name_vc FROM x_mysql_databases d
+                     JOIN x_mysql_dbmap m ON d.my_id_pk = m.mm_database_fk
+                     WHERE m.mm_user_fk=:mysql AND d.my_deleted_ts IS NULL"
+                );
+                $dbq->bindParam(':mysql', $rowmysql['mu_id_pk']);
+                $dbq->execute();
+                $dbnames = $dbq->fetchAll(PDO::FETCH_COLUMN, 0);
 
                 if ($rowmysql['mu_access_vc'] == "%") {
                     $access = "ANY";
                 } else {
                     $access = $rowmysql['mu_access_vc'];
                 }
-                array_push($res, array('userid' => $rowmysql['mu_id_pk'],
-                    'username' => $rowmysql['mu_name_vc'],
+                array_push($res, array(
+                    'userid'     => $rowmysql['mu_id_pk'],
+                    'username'   => $rowmysql['mu_name_vc'],
                     'dbpassword' => $rowmysql['mu_pass_vc'],
-                    'totaldb' => $numrowdb[0],
+                    'totaldb'    => count($dbnames),
+                    'dbnames'    => !empty($dbnames) ? implode(', ', array_map('htmlspecialchars', $dbnames)) : '&mdash;',
                     'accesshtml' => $access,
-                    'access' => $rowmysql['mu_access_vc']));
+                    'access'     => $rowmysql['mu_access_vc'],
+                ));
             }
             return $res;
         } else {
@@ -199,8 +208,11 @@ class module_controller extends ctrl_module
             $sql->bindParam(':mid', $mid);
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
-                array_push($res, array('userid' => $rowmysql['mu_id_pk'],
-                    'username' => $rowmysql['mu_name_vc']));
+                array_push($res, array(
+                    'userid'   => $rowmysql['mu_id_pk'],
+                    'username' => $rowmysql['mu_name_vc'],
+                    'access'   => $rowmysql['mu_access_vc'],
+                ));
             }
             return $res;
         } else {
@@ -223,23 +235,17 @@ class module_controller extends ctrl_module
         }
         runtime_hook::Execute('OnBeforeCreateDatabaseUser');
         $password = fs_director::GenerateRandomPassword(16, 4);
+        self::$newPassword = $password; // displayed once in success message, never stored plain
+        $hashedPw = password_hash($password, PASSWORD_BCRYPT);
         // Create user in MySQL
         $sql = $zdbh->prepare("CREATE USER :username@:access;");
         $sql->bindParam(':username', $username);
         $sql->bindParam(':access', $access);
         $sql->execute();
-        // Set MySQL password for new user...
-		if (sys_versions::ShowMySQLVersion() <= "5.7.5") {
-			// MySQL 5.7 or OLDER
-			$sql = $zdbh->prepare("SET PASSWORD FOR :username@:access=PASSWORD(:password)");
-        } else {
-			// MySQL 5.7 + 
-			$sql = $zdbh->prepare("ALTER USER :username@:access IDENTIFIED BY :password");
-		}
-        $sql->bindParam(':username', $username);
-        $sql->bindParam(':access', $access);
-        $sql->bindParam(':password', $password);
-        $sql->execute();
+        // Set MySQL password for new user — same exec() pattern as ExecuteResetPassword.
+        $usernameEscC = str_replace("'", "''", (string)$username);
+        $accessEscC   = str_replace("'", "''", (string)$access);
+        $zdbh->exec("ALTER USER '$usernameEscC'@'$accessEscC' IDENTIFIED BY " . $zdbh->quote($password));
         // Get the database name from the ID...
         $numrows = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_id_pk=:database AND my_deleted_ts IS NULL");
         $numrows->bindParam(':database', $database);
@@ -280,16 +286,18 @@ class module_controller extends ctrl_module
         $sql->bindParam(':userid', $uid);
         $sql->bindParam(':username', $username);
         $sql->bindParam(':database', $database);
-        $sql->bindParam(':password', $password);
+        $sql->bindParam(':password', $hashedPw); // bcrypt hash — never plain text
         $sql->bindParam(':access', $access);
         $time = time();
         $sql->bindParam(':time', $time);
         $sql->execute();
         // Get the new users id...
         //$rowuser = $zdbh->query("SELECT * FROM x_mysql_users WHERE mu_name_vc='" . $username . "' AND mu_acc_fk=" . $uid . " AND mu_deleted_ts IS NULL")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_name_vc=:username AND mu_acc_fk=:userid AND mu_deleted_ts IS NULL");
+        // Must filter by access too: same username can have multiple host entries.
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_name_vc=:username AND mu_acc_fk=:userid AND mu_access_vc=:access AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':username', $username);
         $numrows->bindParam(':userid', $uid);
+        $numrows->bindParam(':access', $access);
         $numrows->execute();
         $rowuser = $numrows->fetch();
         // Add database to Sentora user account...
@@ -317,20 +325,23 @@ class module_controller extends ctrl_module
             self::$blank = true;
             return false;
         }
-        // Check to make sure the user name is not a duplicate...
-        $sql = "SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_deleted_ts IS NULL";
+        // Duplicate check: username+host pair (same username with a different host is valid
+        // in MySQL — each user@host is a separate account, e.g. user@% and user@192.168.1.1).
+        $sql = "SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc=:access AND mu_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':username', $username);
+        $numrows->bindParam(':access', $access);
         if ($numrows->execute()) {
             if ($numrows->fetchColumn() <> 0) {
                 self::$alreadyexists = true;
                 return false;
             }
         }
-        // Check to make sure the user name is not a duplicate (checks actual mysql table)...
-        $sql = "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = :username)";
+        // Check actual MySQL server for the same username+host pair.
+        $sql = "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = :username AND host = :access)";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':username', $username);
+        $numrows->bindParam(':access', $access);
         if ($numrows->execute()) {
             if ($numrows->fetchColumn() <> 0) {
                 self::$alreadyexists = true;
@@ -341,6 +352,27 @@ class module_controller extends ctrl_module
         if (!self::IsValidUserName($username)) {
             self::$badname = true;
             return false;
+        }
+        // Prevent ANY(%) + specific-IP contradiction for the same username.
+        // In MariaDB, if user@% exists, specific-IP entries are reachable from any IP
+        // anyway (% wins on connectivity). Mixed entries create password confusion
+        // because each account has its own password.
+        if ($access === '%') {
+            $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc != '%' AND mu_deleted_ts IS NULL");
+            $chk->bindParam(':username', $username);
+            $chk->execute();
+            if ($chk->fetchColumn() > 0) {
+                self::$accessConflict = true;
+                return false;
+            }
+        } else {
+            $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc='%' AND mu_deleted_ts IS NULL");
+            $chk->bindParam(':username', $username);
+            $chk->execute();
+            if ($chk->fetchColumn() > 0) {
+                self::$accessConflict = true;
+                return false;
+            }
         }
         // Check for invalid access host (security fix, June 2026).
         // Whitelist-validate mu_access_vc to block SQL injection in
@@ -547,22 +579,16 @@ class module_controller extends ctrl_module
         $numrows->bindParam(':mu_name_vc', $rowuser['mu_name_vc']);
         if ($numrows->execute()) {
             if ($numrows->fetchColumn() <> 0) {
-                // Set MySQL password for new user...
-				if (sys_versions::ShowMySQLVersion() <= "5.7.5") {
-					// MySQL 5.7 or OLDER
-					$sql = $zdbh->prepare("SET PASSWORD FOR :mu_name_vc@:mu_access_vc=PASSWORD(:password)");
-				} else {
-					// MySQL 5.7 + 
-					$sql = $zdbh->prepare("ALTER USER :mu_name_vc@:mu_access_vc IDENTIFIED BY :password");
-				}
-                $sql->bindParam(':mu_name_vc', $rowuser['mu_name_vc']);
-                $sql->bindParam(':mu_access_vc', $rowuser['mu_access_vc']);
-                $sql->bindParam(':password', $password);
-                $sql->execute();
-                $sql = $zdbh->prepare("FLUSH PRIVILEGES");
-                $sql->execute();
+                // ALTER USER with exec() + proper escaping — avoids broken string
+                // version comparison ("12.x" <= "5.7" is TRUE in PHP) that
+                // previously routed to the removed SET PASSWORD syntax.
+                $usernameEsc = str_replace("'", "''", (string)$rowuser['mu_name_vc']);
+                $accessEsc   = str_replace("'", "''", (string)$rowuser['mu_access_vc']);
+                $zdbh->exec("ALTER USER '$usernameEsc'@'$accessEsc' IDENTIFIED BY " . $zdbh->quote($password));
+                $zdbh->exec("FLUSH PRIVILEGES");
+                $resetHashedPw = password_hash($password, PASSWORD_BCRYPT);
                 $sql = $zdbh->prepare("UPDATE x_mysql_users SET mu_pass_vc=:password WHERE mu_id_pk=:myuserid");
-                $sql->bindParam(':password', $password);
+                $sql->bindParam(':password', $resetHashedPw);
                 $sql->bindParam(':myuserid', $myuserid);
                 $sql->execute();
             }
@@ -783,6 +809,29 @@ class module_controller extends ctrl_module
         return self::ListDatabases($currentuser['userid']);
     }
 
+    static function getEditDatabaseList()
+    {
+        global $controller, $zdbh;
+        $currentuser = ctrl_users::GetUserDetail();
+        $myuserid = $controller->GetControllerRequest('URL', 'other');
+        if (!$myuserid) return false;
+        $sql = "SELECT d.my_id_pk, d.my_name_vc FROM x_mysql_databases d
+                WHERE d.my_acc_fk=:userid AND d.my_deleted_ts IS NULL
+                AND d.my_id_pk NOT IN (
+                    SELECT mm_database_fk FROM x_mysql_dbmap WHERE mm_user_fk=:myuserid
+                )
+                ORDER BY d.my_name_vc";
+        $numrows = $zdbh->prepare($sql);
+        $numrows->bindParam(':userid', $currentuser['userid']);
+        $numrows->bindParam(':myuserid', $myuserid);
+        $numrows->execute();
+        $res = array();
+        while ($row = $numrows->fetch()) {
+            array_push($res, array('mysqlid' => $row['my_id_pk'], 'mysqlname' => $row['my_name_vc']));
+        }
+        return !empty($res) ? $res : false;
+    }
+
     static function getUserDatabaseList()
     {
         global $controller;
@@ -880,6 +929,93 @@ class module_controller extends ctrl_module
         }
     }
 
+    static function ExecuteEditAccess($myuserid, $newAccess)
+    {
+        global $zdbh;
+        if (!self::IsValidAccessHost($newAccess)) {
+            self::$badIP = true;
+            return false;
+        }
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_deleted_ts IS NULL");
+        $numrows->bindParam(':myuserid', $myuserid);
+        $numrows->execute();
+        $rowuser = $numrows->fetch();
+        if (!$rowuser) return false;
+
+        $oldAccess = $rowuser['mu_access_vc'];
+        $username  = $rowuser['mu_name_vc'];
+
+        if ($oldAccess === $newAccess) {
+            self::$ok = true;
+            return true;
+        }
+        // Prevent ANY/specific-IP contradiction when changing access.
+        if ($newAccess === '%') {
+            $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc != '%' AND mu_id_pk != :myuserid AND mu_deleted_ts IS NULL");
+            $chk->bindParam(':username', $username);
+            $chk->bindParam(':myuserid', $myuserid);
+            $chk->execute();
+            if ($chk->fetchColumn() > 0) {
+                self::$accessConflict = true;
+                return false;
+            }
+        } else {
+            $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc='%' AND mu_id_pk != :myuserid AND mu_deleted_ts IS NULL");
+            $chk->bindParam(':username', $username);
+            $chk->bindParam(':myuserid', $myuserid);
+            $chk->execute();
+            if ($chk->fetchColumn() > 0) {
+                self::$accessConflict = true;
+                return false;
+            }
+        }
+        // Reject if the target username+host already exists
+        $check = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_users WHERE mu_name_vc=:username AND mu_access_vc=:access AND mu_id_pk != :myuserid AND mu_deleted_ts IS NULL");
+        $check->bindParam(':username', $username);
+        $check->bindParam(':access', $newAccess);
+        $check->bindParam(':myuserid', $myuserid);
+        $check->execute();
+        if ($check->fetchColumn() > 0) {
+            self::$alreadyexists = true;
+            return false;
+        }
+        // RENAME USER keeps all MySQL privileges intact
+        $usernameEsc  = str_replace("'", "''", $username);
+        $oldAccessEsc = str_replace("'", "''", $oldAccess);
+        $newAccessEsc = str_replace("'", "''", $newAccess);
+        $zdbh->exec("RENAME USER '$usernameEsc'@'$oldAccessEsc' TO '$usernameEsc'@'$newAccessEsc'");
+        $zdbh->exec("FLUSH PRIVILEGES");
+        $sql = $zdbh->prepare("UPDATE x_mysql_users SET mu_access_vc=:newAccess WHERE mu_id_pk=:myuserid");
+        $sql->bindParam(':newAccess', $newAccess);
+        $sql->bindParam(':myuserid', $myuserid);
+        $sql->execute();
+        self::$ok = true;
+        return true;
+    }
+
+    static function doEditAccess()
+    {
+        global $controller;
+        runtime_csfr::Protect();
+        $formvars = $controller->GetAllControllerRequests('FORM');
+        $newAccess = ($formvars['inNewAccess'] == 1) ? '%' : $formvars['inNewAccessIP'];
+        if (self::ExecuteEditAccess($formvars['inUser'], $newAccess))
+            return true;
+        return false;
+    }
+
+    static function getEditCurrentUserAccess()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentUser($controller->GetControllerRequest('URL', 'other'));
+            if ($current && isset($current[0]['access'])) {
+                return $current[0]['access'] === '%' ? 'ANY (%)' : htmlspecialchars($current[0]['access'], ENT_QUOTES, 'UTF-8');
+            }
+        }
+        return '';
+    }
+
     static function getMysqlUsagepChart()
     {
         return '<img src="' . ui_tpl_assetfolderpath::Template() . 'img/misc/unlimited.png" alt="' . ui_language::translate('Unlimited') . '"/>';
@@ -923,10 +1059,22 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue(self::$badIP)) {
             return ui_sysmessage::shout(ui_language::translate("The IP address is not valid. Please enter a valid IP address."), "zannounceerror");
         }
+        if (!fs_director::CheckForEmptyValue(self::$accessConflict)) {
+            return ui_sysmessage::shout(ui_language::translate("Access conflict: you cannot mix 'Any IP' (%) with specific IPs for the same MySQL username. Delete the specific-IP entries first before setting Any, or do not add Any if you want to restrict to specific IPs."), "zannounceerror");
+        }
         if (!fs_director::CheckForEmptyValue(self::$dbalreadyadded)) {
             return ui_sysmessage::shout(ui_language::translate("That database has already been added to this user."), "zannounceerror");
         }
         if (!fs_director::CheckForEmptyValue(self::$ok)) {
+            if (self::$newPassword !== null) {
+                $pw = htmlspecialchars(self::$newPassword, ENT_QUOTES, 'UTF-8');
+                return ui_sysmessage::shout(
+                    ui_language::translate("MySQL user created successfully.") .
+                    " <strong>" . ui_language::translate("Password") . ": " . $pw . "</strong> &mdash; " .
+                    ui_language::translate("Save it now, it will not be shown again."),
+                    "zannounceok"
+                );
+            }
             return ui_sysmessage::shout(ui_language::translate("Changes to your MySQL users have been saved successfully!"), "zannounceok");
         }
         return;

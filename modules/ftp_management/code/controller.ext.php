@@ -68,8 +68,7 @@ class module_controller extends ctrl_module
             while ($rowclients = $sql->fetch()) {
                 $res[] = array('id' => $rowclients['ft_id_pk'],
                     'directory' => runtime_xss::xssClean($rowclients['ft_directory_vc']),
-                    'access' => runtime_xss::xssClean($rowclients['ft_access_vc']),	
-					'password' => runtime_xss::xssClean($rowclients['ft_password_vc']),			
+                    'access' => runtime_xss::xssClean($rowclients['ft_access_vc']),
                     'username' => runtime_xss::xssClean($rowclients['ft_user_vc']));
             }
             return $res;
@@ -81,21 +80,23 @@ class module_controller extends ctrl_module
     static function ListCurrentClient($uid)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_ftpaccounts WHERE ft_id_pk=:userid AND ft_deleted_ts IS NULL";
+        $currentuser = ctrl_users::GetUserDetail();
+        $sql = "SELECT * FROM x_ftpaccounts WHERE ft_id_pk=:ftid AND ft_acc_fk=:ownerid AND ft_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
-        $numrows->bindParam(':userid', $uid);
+        $numrows->bindParam(':ftid', $uid);
+        $numrows->bindParam(':ownerid', $currentuser['userid']);
         $numrows->execute();
 
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
-            $sql->bindParam(':userid', $uid);
+            $sql->bindParam(':ftid', $uid);
+            $sql->bindParam(':ownerid', $currentuser['userid']);
             $res = array();
             $sql->execute();
             while ($rowclients = $sql->fetch()) {
                 $res[] = array('id' => $rowclients['ft_id_pk'],
                     'directory' => runtime_xss::xssClean($rowclients['ft_directory_vc']),
                     'access' => runtime_xss::xssClean($rowclients['ft_access_vc']),
-					'password' => runtime_xss::xssClean($rowclients['ft_password_vc']),
                     'username' => runtime_xss::xssClean($rowclients['ft_user_vc']));
             }
             return $res;
@@ -129,7 +130,8 @@ class module_controller extends ctrl_module
     {
         $currentuser = ctrl_users::GetUserDetail($uid);
         $res = array();
-        $base = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/') . '/' . $currentuser['username'];
+        // Los dominios viven bajo <home>/web/<dominio>/public_html
+        $base = rtrim(ctrl_options::GetSystemOption('hosted_dir'), '/') . '/' . $currentuser['username'] . '/' . ctrl_options::DOMAINS_SUBDIR;
         $handle = @opendir($base);
         if (!$handle) {
             // Log an error as the folder cannot be opened...
@@ -153,8 +155,8 @@ class module_controller extends ctrl_module
 
 		if (fs_director::CheckForEmptyValue(self::CheckPasswordForErrors($password))) {
 
-			// Verify if Current user can Edit FTP Account.
-			$currentuser = ctrl_users::GetUserDetail($uid);
+			// MED-5 FIX: $uid was undefined — get the current authenticated user
+			$currentuser = ctrl_users::GetUserDetail();
 	
 			$sql = "SELECT * FROM x_ftpaccounts WHERE ft_acc_fk=:userid AND ft_id_pk=:editedUsrID AND ft_deleted_ts IS NULL";
 			$numrows = $zdbh->prepare($sql);
@@ -174,14 +176,15 @@ class module_controller extends ctrl_module
 			$rowftpfind->execute();
 			$rowftp = $rowftpfind->fetch();
 	
+			$ftpResetHashedPw = password_hash($password, PASSWORD_BCRYPT);
 			$sql = $zdbh->prepare("UPDATE x_ftpaccounts SET ft_password_vc=:password WHERE ft_id_pk=:ftpid");
-			$sql->bindParam(':password', $password);
+			$sql->bindParam(':password', $ftpResetHashedPw); // bcrypt — never plain text
 			$sql->bindParam(':ftpid', $ft_id_pk);
 			$sql->execute();
 	
 			self::$reset = true;
 			// Include FTP server specific file here.
-			$FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('ftp_php');
+			$FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . basename(ctrl_options::GetSystemOption('ftp_php'));
 			if (file_exists($FtpModuleFile)) {
 				include($FtpModuleFile);
 			}
@@ -197,7 +200,6 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         global $controller;
-		global $fullPath;
 		global $sanitizedDirPath;
 		
         $currentuser = ctrl_users::GetUserDetail($uid);
@@ -214,11 +216,12 @@ class module_controller extends ctrl_module
                 $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . $homedirectory_to_use . '/';
                 // Create the new home directory... (If it doesnt already exist.)
                 if (!file_exists($full_path)) {
-                    @mkdir($full_path, 777);
-                    @chmod($full_path, 0777);
+                    @mkdir($full_path, 0755);
+                    @chmod($full_path, 0755);
                 }
             } else if ($home == 3) {
-                $homedirectory_to_use = '/' . $domainDestination;
+                // Dominio/subdominio: ahora viven bajo <home>/web/<dominio>
+                $homedirectory_to_use = '/' . ctrl_options::DOMAINS_SUBDIR . '/' . $domainDestination;
             } else {
                 $homedirectory_to_use = '/' . $destination;
             }
@@ -228,27 +231,24 @@ class module_controller extends ctrl_module
             $baseDir       = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'];
             $realPath      = realpath($full_homeDir);
 			
-			# Fail if invaild folder
-            if( 0 !== strpos($realPath, $baseDir)) {
+			# Fail if invalid folder or path escapes user base dir
+            if ($realPath === false || strpos($realPath . '/', $baseDir . '/') !== 0) {
                 self::$invalidPath = true;
                 return false;
             }
 			
-			# Check and sanitize $homedirectory_to_use. If it fails. Die and show error..
-			self::validateAndSanitizePath($homedirectory_to_use, $basedir);
-			$homedirectory_to_use = $sanitizedDirPath;
-
+            $ftpHashedPw = password_hash($password, PASSWORD_BCRYPT);
             $sql = $zdbh->prepare("INSERT INTO x_ftpaccounts (ft_acc_fk, ft_user_vc, ft_directory_vc, ft_access_vc, ft_password_vc, ft_created_ts) VALUES (:userid, :username, :homedir, :accesstype, :password, :time)");
             $sql->bindParam(':userid', $currentuser['userid']);
             $sql->bindParam(':username', $username);
 			$sql->bindParam(':homedir', $homedirectory_to_use);
             $sql->bindParam(':accesstype', $access_type);
-            $sql->bindParam(':password', $password);
+            $sql->bindParam(':password', $ftpHashedPw); // bcrypt — never plain text
             $sql->bindParam(':time', time());
             $sql->execute();
             self::$create = true;
             // Include FTP server specific file here.
-            $FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('ftp_php');
+            $FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . basename(ctrl_options::GetSystemOption('ftp_php'));
             if (file_exists($FtpModuleFile)) {
                 include($FtpModuleFile);
             }
@@ -259,36 +259,40 @@ class module_controller extends ctrl_module
     }
 
 	static function validateAndSanitizePath($path, $basedir) {
-		global $zdbh;
-		global $fullPath;
 		global $sanitizedDirPath;
-		
-		// Remove any null bytes
-        $path = str_replace(chr(0), '', $path);
-    
-        // Normalize directory separators
-        $path = str_replace('\\', '/', $path);
-    
-        // Remove any trailing ../.. then / slashes for security
-		//$path = str_replace('../..', '', $path);
-		$path = str_replace('/../..', '', $path);
-		
-        // Validate each path component (add stricter rules here)
-        $pathComponents = explode('/', $path);
-        foreach ($pathComponents as $component) {
-            if (preg_match('/[^a-zA-Z0-9_-/]/', $component)) { // Example: Allow only alphanumeric, underscores, hyphens, and forward slashes
-				self::$invalidPath = true;
-                return false;
-            }
-       	}
-    
-        // Reconstruct the path
-        $sanitizedPath = implode('/', $pathComponents);
-    
-		# Sanitized Path return value
-		$sanitizedDirPath = $sanitizedPath;
 
-        // Return the sanitized path relative to the base directory	
+		// HIGH-5 FIX: use realpath() to resolve the canonical path and verify
+		// it stays inside basedir — blocks single /../ traversal that the old
+		// str_replace('/../..') approach missed entirely.
+		$basedir = rtrim(realpath($basedir), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+		if ($basedir === DIRECTORY_SEPARATOR) {
+			self::$invalidPath = true;
+			return false;
+		}
+
+		// Build candidate path (strip null bytes first)
+		$path = str_replace(chr(0), '', $path);
+		$candidate = $basedir . ltrim(str_replace('\\', '/', $path), '/');
+
+		// realpath() requires the path to exist; use dirname chain if not yet created
+		$resolved = realpath($candidate);
+		if ($resolved === false) {
+			// Directory doesn't exist yet — resolve the nearest existing parent
+			$resolved = realpath(dirname($candidate));
+			if ($resolved === false) {
+				self::$invalidPath = true;
+				return false;
+			}
+			$resolved .= DIRECTORY_SEPARATOR . basename($candidate);
+		}
+
+		// Enforce containment
+		if (strpos($resolved, $basedir) !== 0) {
+			self::$invalidPath = true;
+			return false;
+		}
+
+		$sanitizedDirPath = $resolved;
 		return $sanitizedDirPath;
     }
 
@@ -327,7 +331,7 @@ class module_controller extends ctrl_module
 	
     static function IsValidUserName($username)
     {
-        return preg_match('/^[a-z\d_][a-z\d_-]{0,62}$/i', $username) || preg_match('/-$/', $username) == 1;
+        return (bool) preg_match('/^[a-z\d_][a-z\d_-]{0,62}$/i', $username);
     }
 
 	static function CheckPasswordForErrors($password)
@@ -387,11 +391,13 @@ class module_controller extends ctrl_module
 
         $sql = $zdbh->prepare("UPDATE x_ftpaccounts SET ft_deleted_ts=:time WHERE ft_id_pk=:ftpid");
         $sql->bindParam(':ftpid', $ft_id_pk);
-        $sql->bindParam(':time', $ft_id_pk);
+        // MED-4 FIX: was incorrectly binding $ft_id_pk to :time instead of time()
+        $deleteTime = time();
+        $sql->bindParam(':time', $deleteTime);
         $sql->execute();
         self::$delete = true;
         // Include FTP server specific file here.
-        $FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('ftp_php');
+        $FtpModuleFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . basename(ctrl_options::GetSystemOption('ftp_php'));
         if (file_exists($FtpModuleFile)) {
             include($FtpModuleFile);
         }
@@ -581,9 +587,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('ftpaccounts', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }
@@ -618,13 +623,13 @@ class module_controller extends ctrl_module
             return ui_sysmessage::shout(ui_language::translate("Your ftp account name is not valid. Please enter a valid ftp account name."), "zannounceerror");
         }
 		if (!fs_director::CheckForEmptyValue(self::$badpass)) {
-            return ui_sysmessage::shout(ui_language::translate("Your MySQL password is not valid. Valid characters are A-Z, a-z, 0-9."), "zannounceerror");
+            return ui_sysmessage::shout(ui_language::translate("Your FTP password is not valid. Valid characters are A-Z, a-z, 0-9."), "zannounceerror");
         }
 		if (!fs_director::CheckForEmptyValue(self::$badpasswordlength)) {
             return ui_sysmessage::shout(ui_language::translate("Your password did not meet the minimun length requirements. Characters needed for password length") . ": " . ctrl_options::GetSystemOption('password_minlength'), "zannounceerror");
         }
         if (!fs_director::CheckForEmptyValue(self::$invalidPath)) {
-            return ui_sysmessage::shout(ui_language::translate("Invalid Folder."), "zannounceok");
+            return ui_sysmessage::shout(ui_language::translate("Invalid Folder."), "zannounceerror");
         }
         if (!fs_director::CheckForEmptyValue(self::$ok)) {
             return ui_sysmessage::shout(ui_language::translate("FTP accounts updated successfully."), "zannounceok");

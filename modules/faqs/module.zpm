@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -21,8 +21,8 @@
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ EditCurrentFAQID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=faqs';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=faqs';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
@@ -38,7 +38,7 @@
             <table class="none">
                 <% loop UserFAQS %>
                 <tr valign="top">
-                    <td><& allowdelete &></td>
+                    <td>{! allowdelete !}</td>
                     <td><img src="<@ ModulePath @>assets/item.png" width="16" height="16"></td>
                     <td><a href="#" id="faq_<& id &>_a" onclick="toggle_visibility('<& id &>')"><strong><& question &></strong></a>
                         <div id="faq_<& id &>" style="display:none;"><& answer &><br><br></div></td>
@@ -82,7 +82,7 @@
                     <th>Answer:</th><td><textarea rows="5" cols="45" name="answer"id="answer"></textarea></td>
                 </tr>
                 <tr valign="top">
-                    <th></th><td><@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" id="button" name="inAdd" value="1"><: Add :></button></td>
+                    <th></th><td><@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" id="button" name="inAdd" value="1"><i class="bi bi-plus-circle me-1"></i><: Add :></button></td>
                 </tr>
             </table>
         </form>

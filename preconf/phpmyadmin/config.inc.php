@@ -2,28 +2,28 @@
 
 ###############################################
 # PHPMyAdmin Configuration for Sentora        #
-# Last updated: 4/28/2024                    #
-# Author: Bobby Allen (ballen@sentora.io)     #
 ###############################################
 
 /*
- * This is needed for cookie based authentication to encrypt password in
- * cookie
+ * Secret used to encrypt cookies — must be a random string of 32+ chars.
+ * Generated during Sentora install: openssl rand -base64 32
  */
-$cfg['blowfish_secret'] = 'SENTORA';
+$cfg['blowfish_secret'] = '!PHPMYADMIN_SECRET!';
 
 /*
  * Servers configuration
  */
 $i = 0;
 $i++;
+
 /* Authentication type */
 $cfg['Servers'][$i]['auth_type'] = 'cookie';
-/* Server parameters */
+
+/* Server parameters — use Unix socket for localhost (faster, no TCP overhead) */
 $cfg['Servers'][$i]['host'] = 'localhost';
-$cfg['Servers'][$i]['connect_type'] = 'tcp';
+$cfg['Servers'][$i]['connect_type'] = 'socket';
 $cfg['Servers'][$i]['compress'] = false;
-$cfg['Servers'][$i]['extension'] = 'mysqli';
+$cfg['Servers'][$i]['AllowNoPassword'] = false;
 
 /*
  * Directories for saving/loading files from server
@@ -31,25 +31,13 @@ $cfg['Servers'][$i]['extension'] = 'mysqli';
 $cfg['UploadDir'] = '/var/sentora/temp/';
 $cfg['SaveDir'] = '/var/sentora/temp/';
 
-/* rajk - for blobstreaming */
-$cfg['Servers'][$i]['bs_garbage_threshold'] = 50;
-$cfg['Servers'][$i]['bs_repository_threshold'] = '32M';
-$cfg['Servers'][$i]['bs_temp_blob_timeout'] = 600;
-$cfg['Servers'][$i]['bs_temp_log_threshold'] = '32M';
-
 /*
- * Sentora specific changes
+ * Sentora-specific restrictions
  */
 $cfg['ShowCreateDb'] = false;
 $cfg['ShowChgPassword'] = false;
 $cfg['AllowUserDropDatabase'] = false;
-$cfg['SuhosinDisableWarning'] = true;
 $cfg['PmaNoRelation_DisableWarning'] = true;
 $cfg['Servers'][$i]['hide_db'] = '^(information_schema|sys|performance_schema)$';
 $cfg['ShowServerInfo'] = false;
-
-/*
- * You can find more configuration options in Documentation.html
- * or here: http://wiki.phpmyadmin.net/pma/Config
- */
-?>
+$cfg['LoginCookieValidity'] = 1800;

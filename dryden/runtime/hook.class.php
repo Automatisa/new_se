@@ -27,13 +27,21 @@ class runtime_hook {
         $hook_log->logcode = "861";
         foreach (glob($mod_folder, GLOB_BRACE) as $hook_file) {
             if (file_exists($hook_file)) {
+                // Extraer el módulo de la ruta (modules/<modulo>/hooks/...)
+                $hook_log->module = (preg_match('#modules/([^/]+)/#', $hook_file, $mm)) ? $mm[1] : 'NA';
                 $hook_log->detail = "Execute hook file (" . $hook_file . ")";
+                $failed = false;
                 try {
                   include $hook_file;
-                } catch (Exception $e) {
+                } catch (\Throwable $e) {
                   $hook_log->detail .= ' -> Exception(' . $e->getMessage() . ') :(';
+                  $failed = true;
                 }
-                $hook_log->writeLog();
+                // Solo se registra si el hook falla: evita inundar x_logs con la
+                // actividad rutinaria del daemon (antes se anotaba cada ejecución).
+                if ($failed) {
+                    $hook_log->writeLog();
+                }
             }
         }
     }

@@ -1,7 +1,7 @@
 <@ Init @>
 
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -23,8 +23,8 @@
 	<@ Result @>
 
 <div class="tab">
-	<button class="tablinks <@ ShowViewCerts @>" onclick="openTABS(event, 'ViewCerts')"><b><u>View Your Certificates</u></b></button>
-	<button class="tablinks <@ ShowCreateCerts @>" onclick="openTABS(event, 'CreateCerts')"><b><u>Create or Manage Certificates</u></b></button>
+	<button class="tablinks <@ ShowViewCerts @>" onclick="openTABS(event, 'ViewCerts')"><i class="bi bi-eye me-1"></i><b><u>View Your Certificates</u></b></button>
+	<button class="tablinks <@ ShowCreateCerts @>" onclick="openTABS(event, 'CreateCerts')"><i class="bi bi-shield-lock me-1"></i><b><u>Create or Manage Certificates</u></b></button>
 </div>
 
 <div style="display: <@ ShowViewCerts @>;" id="ViewCerts" class="tabcontent">
@@ -52,15 +52,12 @@
 							<& Active_Panel_Days &>
 						</td> 
 						<td>
-							<& Active_Panel_Button &>
+							{! Active_Panel_Button !}
 						</td>
 						<td>
-							<& Active_Panel_Revoke &>
+							{! Active_Panel_Revoke !}
 						</td>
 					</tr>
-					
-					<@ CSFR_Tag @> 
-
 				<% endloop %>
 			</table>
 		</div>	
@@ -89,11 +86,11 @@
 							<& Days_AC &>
 						</td>
 						<td>
-							<& Button_AC &>
+							{! Button_AC !}
 						</td>
 						<td>
-							<& Download_AC &>
-							<& Revoke_AC &>
+							{! Download_AC !}
+							{! Revoke_AC !}
 						</td
 					</tr>
 				<% endloop %>
@@ -108,9 +105,9 @@
 	<p>(<: Select a tab that best suits your needs below to get started :>)</p>
 
 	<div class="tab">
-		<button class="tablinks <@ ShowLetsencryptActive @>" onclick="openTABS(event, 'Letsencrypt')"><img src="modules/sencrypt/assets/icon.png">Let's Encrypt<br>Free with Auto-renew</button>
-		<button class="tablinks <@ ShowThird_partyActive @>" onclick="openTABS(event, 'Third-party')"><img src="modules/sencrypt/assets/third_party.png">Third-Party<br>Self-signed or purchased certificates</button>
-		<!--<button style="display:block;float:right;" class="tablinks" onclick="openTABS(event, 'Settings')"><img src="modules/sencrypt/assets/settings.png">Settings</button>-->
+		<button class="tablinks <@ ShowLetsencryptActive @>" onclick="openTABS(event, 'Letsencrypt')"><i class="bi bi-lock me-1"></i><img src="modules/sencrypt/assets/icon.png">Let's Encrypt<br>Free with Auto-renew</button>
+		<button class="tablinks <@ ShowThird_partyActive @>" onclick="openTABS(event, 'Third-party')"><i class="bi bi-file-earmark-lock me-1"></i><img src="modules/sencrypt/assets/third_party.png">Third-Party<br>Self-signed or purchased certificates</button>
+		<!--<button style="display:block;float:right;" class="tablinks" onclick="openTABS(event, 'Settings')"><i class="bi bi-gear me-1"></i><img src="modules/sencrypt/assets/settings.png">Settings</button>-->
 	</div>
 </div>
 	<div style="display: <@ ShowLetsencryptTab @>;" id="Letsencrypt" class="tabcontent">
@@ -119,7 +116,7 @@
 		<div>
 			(<: Learn more about :> Let's Encrypt <b><a target='blank' href='https://letsencrypt.org/'><: HERE :></a></b>)
 
-			<a href="/?module=sencrypt" class="button-loader btn btn-warning pull-right"><: Cancel :></a>
+			<a href="/?module=sencrypt" class="button-loader btn btn-warning float-end"><: Cancel :></a>
 		</div>
   	<% if Admin %>
 		<% if List_of_Panel_Domains %>
@@ -138,7 +135,7 @@
 								<& Panel_Domain &>
 							</td>
 							<td>
-								<& Panel_Button &>
+								{! Panel_Button !}
 							</td>
 						</tr>
 					<% endloop %>
@@ -163,7 +160,7 @@
 						<& Vh_Domain &>
 					</td> 
 					<td>
-						<& Vh_Button &>
+						{! Vh_Button !}
 					</td>
 				</tr>
 			<% endloop %>
@@ -179,9 +176,9 @@
 		<hr></hr>
 
 			<form action="./?module=sencrypt&ShowPanel=third-party&action=select" method="post">
-				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLself" id="inSSLself" value="inSSLself"><: Self-signed :></button> 
-				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLCSR" id="inSSLCSR" value="inSSLCSR"><: Certificate Signing Request :></button> 
-				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLbought" id="inSSLbought" value="inSSLbought"><: Install Signed Certificate :></button>
+				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLself" id="inSSLself" value="inSSLself"><i class="bi bi-file-earmark-lock me-1"></i><: Self-signed :></button> 
+				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLCSR" id="inSSLCSR" value="inSSLCSR"><i class="bi bi-file-earmark-text me-1"></i><: Certificate Signing Request :></button> 
+				<button class="button-loader btn btn-primary" type="submit" id="button" name="inSSLbought" id="inSSLbought" value="inSSLbought"><i class="bi bi-download me-1"></i><: Install Signed Certificate :></button>
 				<a href="/?module=sencrypt" class="button-loader btn btn-warning"><: Cancel :></a>
 				<@ CSFR_Tag @> 
 			</form>
@@ -243,7 +240,7 @@
 					</td>
 				</tr>
 				<tr>
-					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inSave" id="inSave"><: Save :></button></th>
+					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inSave" id="inSave"><i class="bi bi-floppy me-1"></i><: Save :></button></th>
 					<td></td>
 				</tr>
 			</table>
@@ -303,7 +300,7 @@
 					</td>
 				</tr>
 				<tr>
-					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inSave" id="inSave"><: Save :></button></th>
+					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inSave" id="inSave"><i class="bi bi-floppy me-1"></i><: Save :></button></th>
 					<td></td>
 				</tr>
 			</table>
@@ -348,7 +345,7 @@
 					</td>
 				</tr>
 				<tr>
-					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inCreateSSL" id="inCreateSSL"><: Save :></button></th>
+					<th nowrap="nowrap"><button class="button-loader btn btn-primary" type="submit" id="button" name="inCreateSSL" id="inCreateSSL"><i class="bi bi-floppy me-1"></i><: Save :></button></th>
 					<td></td>
 				</tr>
 			</table>

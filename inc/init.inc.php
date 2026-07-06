@@ -32,9 +32,9 @@ if (isset($_GET['logout'])) {
 }
 
 if (isset($_GET['returnsession'])) {
-    if (isset($_SESSION['ruid'])) {
-        ctrl_auth::SetUserSession($_SESSION['ruid'], runtime_sessionsecurity::getSessionSecurityEnabled());
-        $_SESSION['ruid'] = null;
+    if (!empty($_SESSION['ruid_stack'])) {
+        $returnuid = array_pop($_SESSION['ruid_stack']);
+        ctrl_auth::SetUserSession($returnuid, runtime_sessionsecurity::getSessionSecurityEnabled());
     }
     header("location: ./");
     exit;
@@ -42,7 +42,8 @@ if (isset($_GET['returnsession'])) {
 
 if (isset($_POST['inForgotPassword'])) {
     runtime_csfr::Protect();
-    $randomkey = runtime_randomstring::randomHash();
+    // Token criptográficamente seguro (reemplaza mt_rand)
+    $randomkey = bin2hex(random_bytes(32));
     $forgotPass = runtime_xss::xssClean($_POST['inForgotPassword']);
     $sth = $zdbh->prepare("SELECT ac_id_pk, ac_user_vc, ac_email_vc FROM x_accounts WHERE ac_email_vc = :forgotPass AND ac_deleted_ts IS NULL");
     $sth->bindParam(':forgotPass', $forgotPass);
@@ -50,7 +51,9 @@ if (isset($_POST['inForgotPassword'])) {
     $rows = $sth->fetchAll();
     if ($rows) {
         $result = $rows['0'];
-        $zdbh->exec("UPDATE x_accounts SET ac_resethash_tx = '" . $randomkey . "' WHERE ac_id_pk=" . $result['ac_id_pk'] . "");
+        // Fix SQL injection: prepared statement en lugar de concatenación
+        $upd = $zdbh->prepare("UPDATE x_accounts SET ac_resethash_tx = :hash WHERE ac_id_pk = :id");
+        $upd->execute([':hash' => $randomkey, ':id' => (int)$result['ac_id_pk']]);
         if (isset($_SERVER['HTTPS'])) {
             $protocol = 'https://';
         } else {
@@ -75,7 +78,7 @@ If you wish to proceed with the password reset on your account, please use the l
 
 
                 ";
-        $phpmailer->AddAddress($result['ac_email_vc']);
+        $phpmailer->addAddress($result['ac_email_vc']);
         $phpmailer->SendEmail();
         runtime_hook::Execute('OnRequestForgotPassword');
     }
@@ -126,6 +129,60 @@ if (isset($_POST['inUsername'])) {
     $secure_password = $crypto->CryptParts($crypto->Crypt())->Hash;
 
     if (!ctrl_auth::Authenticate($_POST['inUsername'], $secure_password, $rememberdetails, false, $inSessionSecuirty)) {
+        // ── Brute-force tracking ────────────────────────────────────────────
+        $bfIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP)
+                ? $_SERVER['REMOTE_ADDR'] : '';
+        if ($bfIP !== '') {
+            try {
+                // No bloquear IPs en lista blanca
+                $bfWl = $zdbh->prepare(
+                    "SELECT fw_id_pk FROM x_fw_whitelist
+                     WHERE fw_ip_vc=:ip AND fw_deleted_ts IS NULL LIMIT 1"
+                );
+                $bfWl->bindValue(':ip', $bfIP);
+                $bfWl->execute();
+
+                if (!$bfWl->fetchColumn()) {
+                    // Registrar intento
+                    $zdbh->prepare(
+                        "INSERT INTO x_fw_login_attempts (la_ip_vc, la_user_vc, la_ts_in)
+                         VALUES (:ip, :usr, :ts)"
+                    )->execute([
+                        ':ip'  => $bfIP,
+                        ':usr' => substr((string)($_POST['inUsername'] ?? ''), 0, 64),
+                        ':ts'  => time(),
+                    ]);
+
+                    // Comprobar umbral
+                    $bfMax    = max(1, (int)(ctrl_options::GetSystemOption('fw_login_max')    ?: 5));
+                    $bfWindow = max(60, (int)(ctrl_options::GetSystemOption('fw_login_window') ?: 600));
+
+                    $bfCnt = $zdbh->prepare(
+                        "SELECT COUNT(*) FROM x_fw_login_attempts
+                         WHERE la_ip_vc=:ip AND la_ts_in >= :since"
+                    );
+                    $bfCnt->execute([':ip' => $bfIP, ':since' => time() - $bfWindow]);
+
+                    if ((int)$bfCnt->fetchColumn() >= $bfMax) {
+                        // Auto-bloquear: INSERT IGNORE para no duplicar
+                        $zdbh->prepare(
+                            "INSERT IGNORE INTO x_fw_blocked
+                                (fb_ip_vc, fb_reason_vc, fb_added_by, fb_added_ts, fb_active_in)
+                             VALUES (:ip, 'Brute force panel (auto)', 0, :ts, 1)"
+                        )->execute([':ip' => $bfIP, ':ts' => time()]);
+
+                        // Aplicar a pf inmediatamente sin esperar al daemon
+                        if (class_exists('privilege')) {
+                            try { privilege::run('fw_block_apply'); } catch (\Throwable $ignored) {}
+                        }
+                    }
+                }
+            } catch (\Throwable $bfEx) {
+                // No interrumpir el flujo de login si la tabla no existe aún
+                error_log('fw_admin brute-force tracking: ' . $bfEx->getMessage());
+            }
+        }
+        // ── Fin brute-force tracking ────────────────────────────────────────
         header("location: ./?invalidlogin");
         exit();
     }
@@ -134,7 +191,7 @@ if (isset($_POST['inUsername'])) {
 if (isset($_COOKIE['zUser'])) {
 
     if (isset($_COOKIE['zSec'])) {
-        if ($_COOKIE['zSec'] == false) {
+        if ($_COOKIE['zSec'] === '0' || $_COOKIE['zSec'] === false) {
             $secure = false;
         } else {
             $secure = true;

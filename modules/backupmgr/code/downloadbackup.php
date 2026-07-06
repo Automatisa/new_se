@@ -17,70 +17,63 @@ try {
     exit();
 }
 
-if (isset($_GET['id'])) {
-    $userid = $_GET['id'];
-} else {
-    $userid = NULL;
-}
-
 session_start();
-if ($_SESSION['zpuid'] == $userid) {
 
-	# Get username from Logged in userID
-	$currentuser = ctrl_users::GetUserDetail($userid);
-    $username = $currentuser['username'];
-	
-	# Get username from file name.  
-	$input = $_GET["file"];
-	$result = explode('_',$input);
+// CRIT-1 FIX: cast to int to prevent type-juggling on session comparison
+$userid = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-	# Check if backup file belongs to user
-	if ($username == $result[0]) {
-
-		# Check file name is set
-		if (isset($_GET["file"])){
-				
-			$temp_dir = $_SERVER["DOCUMENT_ROOT"] . "etc/tmp/";
-			$backupname = urldecode($_GET["file"]); // Decode URL-encoded string
-			$filepath = $temp_dir . $backupname;
-			
-			# Check file name exists then download
-			if(file_exists($filepath)) {
-							
-				header('Content-Description: File Transfer');
-				header('Content-Type: application/octet-stream');
-				header('Content-Disposition: attachment; filename="'.basename($filepath).'"');
-				header('Expires: 0');
-				header('Cache-Control: must-revalidate');
-				header('Pragma: public');
-				header('Content-Length: ' . filesize($filepath));
-				flush(); // Flush system output buffer
-				readfile($filepath);
-				//header('Location: ' . $_SERVER['HTTP_REFERER']); # DONT NEED THIS
-				
-				# Exit code
-				exit;
-				die();
-			} else {
-				echo '<h2>ERROR: </h2>' . '<br>';
-				echo 'Something went wrong. File does not exist. Check with your administrator for help.';
-			}
-			
-		} else {
-			echo '<h2>ERROR: </h2>' . '<br>';
-			echo 'Something went wrong. Missing file info. Please try again or contact you administrator for help.';	
-		}
-
-	} else {
-		echo '<h2>Unauthorized Access!</h2>' . '<br>';
-		echo 'You have no permission to download this file.';	
-	}
-	
-} else {
-	
-	echo '<h2>Unauthorized Access!</h2>';
-	echo 'You have no permission to view this module.';
-	
+if ($userid === 0 || (int)$_SESSION['zpuid'] !== $userid) {
+    echo '<h2>Unauthorized Access!</h2>You have no permission to view this module.';
+    exit;
 }
 
-?>
+if (!isset($_GET['file']) || $_GET['file'] === '') {
+    echo '<h2>ERROR:</h2>Missing file parameter.';
+    exit;
+}
+
+$currentuser = ctrl_users::GetUserDetail($userid);
+$username    = $currentuser['username'];
+
+// CRIT-1 FIX: strip any directory components BEFORE ownership check and BEFORE urldecode
+// This prevents path traversal via encoded sequences like %2e%2e%2f or double-encoding
+$backupname = basename(urldecode($_GET['file']));
+
+// Ownership: filename must start with the authenticated username followed by '_'
+$parts = explode('_', $backupname);
+if (!isset($parts[0]) || $parts[0] !== $username) {
+    echo '<h2>Unauthorized Access!</h2>You have no permission to download this file.';
+    exit;
+}
+
+$temp_dir = realpath($_SERVER['DOCUMENT_ROOT'] . 'etc/tmp');
+if ($temp_dir === false) {
+    echo '<h2>ERROR:</h2>Backup directory not found.';
+    exit;
+}
+$temp_dir .= DIRECTORY_SEPARATOR;
+
+// Resolve final path and verify it stays inside temp_dir (blocks symlink attacks)
+$filepath = $temp_dir . $backupname;
+$resolved = realpath($filepath);
+
+if ($resolved === false || strpos($resolved, $temp_dir) !== 0) {
+    echo '<h2>Unauthorized Access!</h2>Invalid file path.';
+    exit;
+}
+
+if (!file_exists($resolved)) {
+    echo '<h2>ERROR:</h2>File does not exist. Check with your administrator.';
+    exit;
+}
+
+header('Content-Description: File Transfer');
+header('Content-Type: application/octet-stream');
+header('Content-Disposition: attachment; filename="' . basename($resolved) . '"');
+header('Expires: 0');
+header('Cache-Control: must-revalidate');
+header('Pragma: public');
+header('Content-Length: ' . filesize($resolved));
+flush();
+readfile($resolved);
+exit;

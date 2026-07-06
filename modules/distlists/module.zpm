@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -22,11 +22,12 @@
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ CurrentDistListID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=distlists';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=distlists';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -36,13 +37,13 @@
     <div class="zgrid_wrapper">
         <h2><: Edit Distribution List :>: <@ CurrentDistList @></h2>
         <form action="./?module=distlists&action=UpdateDistList" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <% if DistListUsers %>
                 <% loop DistListUsers %>
                 <tr>
                     <th><: Email Address :>:</th>
                     <td><& address &></td>
-                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDeleteUser_<& id &>" id="inDeleteUser_<& id &>" value="<& id &>"><: Delete :></button></td>
+                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDeleteUser_<& id &>" id="inDeleteUser_<& id &>" value="<& id &>"><i class="bi bi-trash me-1"></i><: Delete :></button></td>
                 </tr>
                 <% endloop %>
                 <tr>
@@ -59,11 +60,12 @@
                         <input type="hidden" name="inDLAD" id="inDLAD" value="<@ CurrentDistList @>" />
                     </td>
                     <td>
-                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inAdd" id="inAdd" value="inAdd"><: Add Mailbox :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=distlists';return false;"><: Cancel :></button>
+                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inAdd" id="inAdd" value="inAdd"><i class="bi bi-plus-circle me-1"></i><: Add Mailbox :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=distlists';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -74,7 +76,7 @@
         <h2><: Current Distribution Lists :></h2>
         <% if DistList %>
         <form action="./?module=distlists&action=EditDistList" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Address :></th>
                     <th><: Mailboxes :></th>
@@ -85,12 +87,13 @@
                     <td><& address &></td>
                     <td><& totalmb &></td>
                     <td>
-                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inEdit_<& id &>" id="inEdit_<& id &>" value="inEdit_<& id &>"><: Edit :></button>
-                        <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><: Delete :></button>
+                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inEdit_<& id &>" id="inEdit_<& id &>" value="inEdit_<& id &>"><i class="bi bi-pencil me-1"></i><: Edit :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><i class="bi bi-trash me-1"></i><: Delete :></button>
                     </td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %><!-- ELSE DistList -->
@@ -106,7 +109,7 @@
                     <h2><: Create a new Distribution List :></h2>
                     <% if QuotaLimit %>
                     <form action="./?module=distlists&action=AddDistList" method="post">
-                        <table class="table table-striped">
+                        <div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th><: Email Address :>:</th>
                                 <td>
@@ -120,10 +123,11 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th><button class="button-loader btn btn-primary" type="submit" id="button" name="inCreate" id="inCreate" value="inCreate"><: Create :></button></th>
+                                <th><button class="button-loader btn btn-primary" type="submit" id="button" name="inCreate" id="inCreate" value="inCreate"><i class="bi bi-plus-circle me-1"></i><: Create :></button></th>
                                 <td></td>
                             </tr>
                         </table>
+</div><!-- /table-responsive -->
                         <@ CSFR_Tag @>
                     </form>
                     <% else %>
@@ -133,6 +137,7 @@
                 <td align="right"><@ DistListUsagepChart @></td>
             </tr>
         </table>
+</div><!-- /table-responsive -->
     </div>
     <% endif %>
 

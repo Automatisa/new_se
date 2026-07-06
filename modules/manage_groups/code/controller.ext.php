@@ -71,8 +71,9 @@ class module_controller extends ctrl_module
                 if ($rowgroups['ug_name_vc'] != "Administrators" &&
                         $rowgroups['ug_name_vc'] != "Resellers" &&
                         $rowgroups['ug_name_vc'] != "Users") {
-                    $noaccs = "SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=" . $rowgroups['ug_id_pk'] . "";
-                    $totalnoaccs = $zdbh->query($noaccs)->fetch();
+                    $stmt = $zdbh->prepare("SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=:gid");
+                    $stmt->execute([':gid' => $rowgroups['ug_id_pk']]);
+                    $totalnoaccs = $stmt->fetch();
                     array_push($res, array('groupid' => $rowgroups['ug_id_pk'], 'groupname' => ui_language::translate(runtime_xss::xssClean($rowgroups['ug_name_vc'])), 'groupdesc' => ui_language::translate(runtime_xss::xssClean($rowgroups['ug_notes_tx'])), 'usersingroup' => runtime_xss::xssClean($totalnoaccs['total'])));
                 }
             }
@@ -99,8 +100,9 @@ class module_controller extends ctrl_module
                 if ($rowgroups['ug_name_vc'] == "Administrators" ||
                         $rowgroups['ug_name_vc'] == "Resellers" ||
                         $rowgroups['ug_name_vc'] == "Users") {
-                    $noaccs = "SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=" . $rowgroups['ug_id_pk'] . "";
-                    $totalnoaccs = $zdbh->query($noaccs)->fetch();
+                    $stmt = $zdbh->prepare("SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=:gid");
+                    $stmt->execute([':gid' => $rowgroups['ug_id_pk']]);
+                    $totalnoaccs = $stmt->fetch();
                     array_push($res, array('groupid' => $rowgroups['ug_id_pk'], 'groupname' => ui_language::translate(runtime_xss::xssClean($rowgroups['ug_name_vc'])), 'groupdesc' => ui_language::translate(runtime_xss::xssClean($rowgroups['ug_notes_tx'])), 'usersingroup' => runtime_xss::xssClean($totalnoaccs['total'])));
                 }
             }

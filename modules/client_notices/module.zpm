@@ -1,6 +1,6 @@
 <@ Init @>
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -30,7 +30,7 @@
 				</tr>
                 <tr>
                     <th colspan="2" align="right">
-                        <button class="button-loader add-row btn btn-primary" type="submit" ><: Save changes :></button>
+                        <button class="button-loader add-row btn btn-primary" type="submit" ><i class="bi bi-floppy me-1"></i><: Save changes :></button>
                     </th>
                 </tr>
             </table>

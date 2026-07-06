@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -21,8 +21,8 @@
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ EditCurrentAliasID @>">
-                        <button class="delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="btn btn-default" type="button" onclick="window.location.href='./?module=aliases';return false;"><: Cancel :></button>
+                        <button class="delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="btn btn-secondary" type="button" onclick="window.location.href='./?module=aliases';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
@@ -45,7 +45,7 @@
                 <tr>
                     <td><& address &></td>
                     <td><& destination &></td>
-                    <td><button class="delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><: Delete :></button></td>
+                    <td><button class="delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><i class="bi bi-trash me-1"></i><: Delete :></button></td>
                 </tr>
                 <% endloop %>
             </table>
@@ -94,7 +94,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th><button class="btn btn-primary" type="submit" id="button" name="inCreate" id="inCreate" value="inCreate"><: Create :></button></th>
+                                <th><button class="btn btn-primary" type="submit" id="button" name="inCreate" id="inCreate" value="inCreate"><i class="bi bi-plus-circle me-1"></i><: Create :></button></th>
                                 <td></td>
                             </tr>
                         </table>

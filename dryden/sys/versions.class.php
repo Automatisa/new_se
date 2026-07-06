@@ -21,17 +21,46 @@ class sys_versions {
      * @return string Apache Server version number.
      */
     static function ShowApacheVersion() {
-        
-        $version = runtime_outputbuffer::Capture(function() {
-                    ctrl_system::systemCommand(ctrl_options::GetSystemOption('apache_sn'), '-v');
-                });
-                
-        if (preg_match('|Apache\/(\d+)\.(\d+)\.(\d+)|', $version, $apachever)) {
-            $retval = str_replace("Apache/", "", $apachever[0]);
-        } else {
-            $retval = "Not found";
+        // Detección sin comandos externos (respeta la norma de no usar exec).
+
+        // 1) PHP como módulo de Apache (mod_php)
+        if (function_exists('apache_get_version')
+            && preg_match('|Apache/(\d+\.\d+\.\d+)|i', (string) apache_get_version(), $m)) {
+            return $m[1];
         }
-        return $retval;
+
+        // 2) SERVER_SOFTWARE (solo si ServerTokens expone la versión)
+        if (!empty($_SERVER['SERVER_SOFTWARE'])
+            && preg_match('|Apache/(\d+\.\d+\.\d+)|i', $_SERVER['SERVER_SOFTWARE'], $m)) {
+            return $m[1];
+        }
+
+        // 3) Leer la cadena de versión embebida en el binario httpd (solo lectura)
+        $candidates = [];
+        $sn = (string) ctrl_options::GetSystemOption('apache_sn');
+        if ($sn !== '') {
+            if ($sn[0] === '/') {
+                $candidates[] = $sn;
+            } else {
+                foreach (['/usr/local/sbin/', '/usr/sbin/', '/usr/local/bin/', '/usr/bin/'] as $d) {
+                    $candidates[] = $d . $sn;
+                }
+            }
+        }
+        $candidates = array_merge($candidates, [
+            '/usr/local/sbin/httpd', '/usr/sbin/httpd',
+            '/usr/sbin/apache2', '/usr/local/sbin/apache2',
+        ]);
+        foreach ($candidates as $bin) {
+            if (@is_readable($bin)) {
+                $data = @file_get_contents($bin);
+                if ($data !== false && preg_match('|Apache/(\d+\.\d+\.\d+)|', $data, $m)) {
+                    return $m[1];
+                }
+            }
+        }
+
+        return "Not found";
     }
 
     /**
@@ -96,16 +125,46 @@ class sys_versions {
      * @return string The OS/Distrib name.
      */
     static function ShowOSName() {
-        $os = runtime_outputbuffer::Capture(
-            function() {
-                ctrl_system::systemCommand('lsb_release', '-si');
+        // Detección sin comandos externos (php_uname no usa exec).
+        // El valor devuelto debe coincidir con un icono de img/os_icons/<name>.png
+        $sys = (string) php_uname('s'); // "FreeBSD", "Linux", "Darwin", "NetBSD"...
+
+        $direct = ['FreeBSD', 'NetBSD', 'OpenBSD', 'DragonFly', 'Darwin', 'SunOS'];
+        foreach ($direct as $name) {
+            if (stripos($sys, $name) !== false) {
+                return $name;
             }
-        );
-        if (!empty($os)) {
-            return $os;
         }
-           
-        return "Unknown";
+        if (stripos($sys, 'Windows') !== false) {
+            return 'Windows';
+        }
+
+        if (stripos($sys, 'Linux') !== false) {
+            // Nombre de distribución vía /etc/os-release (estándar, sin ejecutar nada)
+            $id = '';
+            if (is_readable('/etc/os-release')) {
+                foreach (file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $ln) {
+                    if (strpos($ln, 'ID=') === 0) {
+                        $id = strtolower(trim(substr($ln, 3), " \"'"));
+                        break;
+                    }
+                }
+            }
+            $distros = [
+                'ubuntu' => 'Ubuntu', 'debian' => 'Debian', 'centos' => 'CentOS',
+                'fedora' => 'Fedora', 'rhel' => 'Redhat', 'redhat' => 'Redhat',
+                'arch' => 'Arch', 'gentoo' => 'Gentoo', 'slackware' => 'Slackware',
+                'opensuse' => 'Suse', 'suse' => 'Suse', 'mandrake' => 'Mandrake',
+            ];
+            foreach ($distros as $k => $name) {
+                if ($id !== '' && strpos($id, $k) !== false) {
+                    return $name;
+                }
+            }
+            return 'Unix'; // Linux genérico (icono existente)
+        }
+
+        return 'Unix';
     }
 
     /**

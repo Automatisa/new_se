@@ -40,12 +40,14 @@ class runtime_csfr {
 
     /**
      * Verfies that the submitted form has a valid CSFR token.
+     * Token is PER-SESSION (no rotation per-request): rotar en cada POST rompe
+     * flujos multi-form y el botón "atrás" del navegador en SSR sin fetch.
+     * El token se regenera solo en login/logout (ctrl_auth).
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @return bool
      */
     static function Protect() {
-        if (isset($_POST['csfr_token']) && ($_POST['csfr_token'] == $_SESSION['zpcsfr'])) {
-            self::Tokeniser();
+        if (isset($_POST['csfr_token']) && hash_equals((string)$_SESSION['zpcsfr'], (string)$_POST['csfr_token'])) {
             return true;
         }
         $error_html = "<style type=\"text/css\"><!--

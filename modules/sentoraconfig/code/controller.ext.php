@@ -169,6 +169,112 @@ class module_controller extends ctrl_module
         self::$ok = true;
     }
 
+    // -----------------------------------------------------------------------
+    // Panel domain management
+    // -----------------------------------------------------------------------
+
+    // Prefijos reservados para infraestructura — no válidos como panel
+    private static $reservedPrefixes = array(
+        'ns1','ns2','ns3','ns4','mail','smtp','pop','pop3','imap',
+        'ftp','www','webmail','autodiscover','autoconfig','vpn','ssh',
+        'mx','mx1','mx2','api',
+    );
+
+    static function getCurrentSentoraDomain()
+    {
+        return ctrl_options::GetSystemOption('sentora_domain');
+    }
+
+    static function getSentoraPort()
+    {
+        return ctrl_options::GetSystemOption('sentora_port') ?: '80';
+    }
+
+    // Devuelve solo dominios raíz de x_vhosts pertenecientes a cuentas administradoras (grupo 1)
+    private static function getRootDomains()
+    {
+        global $zdbh;
+        $st = $zdbh->query(
+            "SELECT v.vh_name_vc, v.vh_enabled_in
+             FROM x_vhosts v
+             INNER JOIN x_accounts a ON v.vh_acc_fk = a.ac_id_pk
+             WHERE v.vh_deleted_ts IS NULL
+               AND a.ac_group_fk = 1
+             ORDER BY v.vh_name_vc"
+        );
+        $domains = array();
+        while ($row = $st->fetch()) {
+            $domains[] = array(
+                'name'    => $row['vh_name_vc'],
+                'enabled' => (int)$row['vh_enabled_in'] === 1,
+            );
+        }
+        return $domains;
+    }
+
+    static function getRootDomainOptions()
+    {
+        $roots = self::getRootDomains();
+        if (empty($roots)) return false;
+
+        $current = self::getCurrentSentoraDomain();
+        $parts       = explode('.', $current);
+        $currentRoot = count($parts) > 2
+            ? implode('.', array_slice($parts, 1))
+            : $current;
+
+        $res = array();
+        foreach ($roots as $entry) {
+            $d       = $entry['name'];
+            $enabled = $entry['enabled'];
+            $label   = $d . ($enabled ? '' : ' (desactivado)');
+            $res[] = array(
+                'domain'   => $d,
+                'label'    => $label,
+                'selected' => ($d === $currentRoot || $d === $current)
+                              ? 'selected="selected"' : '',
+            );
+        }
+        return $res;
+    }
+
+    // Extrae el prefijo del dominio actual para pre-rellenar el campo
+    static function getCurrentPrefix()
+    {
+        $current = self::getCurrentSentoraDomain();
+        $parts   = explode('.', $current);
+        return count($parts) > 2 ? $parts[0] : '';
+    }
+
+    static function doUpdateSentoraDomain()
+    {
+        global $zdbh, $controller;
+        runtime_csfr::Protect();
+
+        $prefix = strtolower(trim($controller->GetControllerRequest('FORM', 'inPanelPrefix')));
+        $root   = trim($controller->GetControllerRequest('FORM', 'inRootDomain'));
+
+        // Validar dominio raíz contra whitelist server-side
+        $allowed = array_column(self::getRootDomains(), 'name');
+        if (!in_array($root, $allowed, true)) return;
+
+        // Construir el FQDN final
+        if ($prefix === '') {
+            $fqdn = $root;
+        } else {
+            // Prefijo: solo letras, números y guiones; no reservado; max 63 chars
+            if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $prefix)) return;
+            if (in_array($prefix, self::$reservedPrefixes, true)) return;
+            $fqdn = $prefix . '.' . $root;
+        }
+
+        $st = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='sentora_domain'");
+        $st->bindValue(':v', $fqdn);
+        $st->execute();
+
+        self::$ok = true;
+    }
+
     static function getResult()
     {
         if (!fs_director::CheckForEmptyValue(self::$ok)) {

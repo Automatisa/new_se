@@ -1,37 +1,253 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
-
-        <div class="zmodule_title">
-            <@ ModuleName @>
-        </div>
-
+        <div class="zmodule_title"><@ ModuleName @></div>
         <div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ ModuleDesc @></div>
-
     </div>
 
     <@ Result @>
 
     <div class="zgrid_wrapper">
+        <h2>Estado del servicio</h2>
+        <div class="table-responsive"><table class="table table-striped">
+            <tr>
+                <th style="width:220px;">Estado ProFTPD (puerto 21)</th>
+                <td><@ FtpStatusBadge @></td>
+            </tr>
+            <tr>
+                <th>Cuentas FTP activas</th>
+                <td><@ FtpAccountCount @></td>
+            </tr>
+            <tr>
+                <th>Puerto de escucha</th>
+                <td><@ FtpPort @></td>
+            </tr>
+            <tr>
+                <th>TLS/FTPS</th>
+                <td><@ FtpTlsEnabled @></td>
+            </tr>
+        </table>
+</div><!-- /table-responsive -->
+    </div>
+
+    <div class="zgrid_wrapper">
+        <h2>Certificado TLS</h2>
+        <div class="table-responsive"><table class="table table-striped">
+            <tr>
+                <th style="width:220px;">Certificado activo</th>
+                <td><code><@ FtpCertPath @></code></td>
+            </tr>
+            <tr>
+                <th>Clave privada activa</th>
+                <td><code><@ FtpKeyPath @></code></td>
+            </tr>
+            <tr>
+                <th>Estado / caducidad</th>
+                <td><@ FtpCertInfo @></td>
+            </tr>
+        </table>
+</div><!-- /table-responsive -->
+
+        <h4 style="margin-top:18px;">Cambiar certificado TLS</h4>
+        <p class="text-muted" style="font-size:12px;">
+            Selecciona el tipo de certificado que quieres usar. Después de guardar, reinicia ProFTPD para aplicarlo.
+        </p>
+
+        <ul class="nav nav-tabs" style="margin-bottom:0;">
+            <li class="nav-item"><a class="nav-link active" href="#tab-selfsigned" data-bs-toggle="tab">Autofirmado</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-letsencrypt" data-bs-toggle="tab">Let's Encrypt / SSL comercial</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-custom" data-bs-toggle="tab">Ruta personalizada</a></li>
+        </ul>
+
+        <div class="tab-content" style="border:1px solid #ddd;border-top:none;padding:18px;margin-bottom:10px;">
+
+            <!-- TAB: Autofirmado -->
+            <div class="tab-pane active show" id="tab-selfsigned">
+                <p>Genera un certificado RSA 2048 autofirmado válido por 10 años con el hostname del servidor.</p>
+                <form action="./?module=ftp_admin&action=GenerateCert" method="post"
+                      onsubmit="return confirm('¿Regenerar el certificado autofirmado? El certificado actual se perderá. Deberás reiniciar ProFTPD para aplicarlo.');">
+                    <@ CSFR_Tag @>
+                    <button type="submit" class="btn btn-warning">
+                        <span class="bi bi-award"></span> Regenerar certificado autofirmado
+                    </button>
+                </form>
+            </div>
+
+            <!-- TAB: Let's Encrypt / SSL comercial -->
+            <div class="tab-pane" id="tab-letsencrypt">
+
+                <% if FtpSencryptCerts %>
+                <h5>Certificados detectados en el servidor</h5>
+                <p class="text-muted" style="font-size:12px;">Certs Let's Encrypt y SSL comerciales ya instalados en Sentora. Selecciona uno para usarlo en ProFTPD.</p>
+                <div class="table-responsive"><table class="table table-striped table-sm">
+                    <thead><tr><th>Dominio</th><th>Tipo</th><th>Caduca</th><th></th></tr></thead>
+                    <tbody>
+                    <% loop FtpSencryptCerts %>
+                    <tr>
+                        <td><strong>{! domain !}</strong></td>
+                        <td>{! type !}</td>
+                        <td>{! expiry !}</td>
+                        <td>
+                            <form action="./?module=ftp_admin&action=UpdateCertPaths" method="post"
+                                  onsubmit="return confirm('¿Usar el certificado de {! domain !} para ProFTPD? Se actualizará la configuración de ProFTPD y deberás reiniciar el servicio.');">
+                                <@ CSFR_Tag @>
+                                <input type="hidden" name="inCertPath" value="{! certfile !}">
+                                <input type="hidden" name="inKeyPath"  value="{! keyfile !}">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <span class="bi bi-check-lg"></span> Usar este certificado
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <% endloop %>
+                    </tbody>
+                </table>
+</div><!-- /table-responsive -->
+                <hr>
+                <% endif %>
+
+                <h5>Subir certificado SSL comercial</h5>
+                <p class="text-muted" style="font-size:12px;">
+                    Sube el certificado y su clave privada en formato PEM. El sistema los validará criptográficamente
+                    (verifica que cert y clave coinciden) antes de instalarlos. La clave privada se almacena con
+                    permisos <code>600 root:wheel</code>, inaccesible desde el web.
+                    Si tienes un certificado intermedio (chain), inclúyelo concatenado en el fichero de certificado.
+                </p>
+                <form action="./?module=ftp_admin&action=UploadCert" method="post" enctype="multipart/form-data">
+                    <@ CSFR_Tag @>
+                    <div class="mb-3">
+                        <label>Certificado (<code>.pem</code> / <code>.crt</code>)</label>
+                        <input type="file" name="inCertFile" class="form-control" accept=".pem,.crt,.cer">
+                        <span class="help-block" style="font-size:11px;">Fichero con <code>-----BEGIN CERTIFICATE-----</code>. Incluye el chain si lo tienes.</span>
+                    </div>
+                    <div class="mb-3">
+                        <label>Clave privada (<code>privkey.pem</code> / <code>.key</code>)</label>
+                        <input type="file" name="inKeyFile" class="form-control" accept=".pem,.key">
+                        <span class="help-block" style="font-size:11px;">Fichero con <code>-----BEGIN PRIVATE KEY-----</code> o <code>-----BEGIN RSA PRIVATE KEY-----</code></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                            onclick="return confirm('¿Subir e instalar el certificado SSL? Deberás reiniciar ProFTPD para aplicarlo.');">
+                        <span class="bi bi-upload"></span> Subir e instalar certificado
+                    </button>
+                </form>
+
+                <% if FtpSencryptCerts %>
+                <% else %>
+                <div class="alert alert-info" style="margin-top:18px;">
+                    <strong>Let's Encrypt gratuito:</strong> usa el módulo <strong>SSL Certificates</strong>
+                    de Sentora para generar un cert para tu dominio. Una vez emitido aparecerá en la lista de arriba.
+                </div>
+                <% endif %>
+
+            </div>
+
+            <!-- TAB: Ruta personalizada -->
+            <div class="tab-pane" id="tab-custom">
+                <p class="text-muted" style="font-size:12px;">
+                    Especifica la ruta absoluta al certificado y clave privada que quieres usar.
+                    El sistema validará que el certificado es válido y que cert y clave coinciden antes de aplicar.
+                </p>
+                <form action="./?module=ftp_admin&action=UpdateCertPaths" method="post">
+                    <@ CSFR_Tag @>
+                    <div class="mb-3">
+                        <label>Ruta del certificado (<code>cert.pem</code> / <code>.crt</code>)</label>
+                        <input type="text" name="inCertPath" class="form-control"
+                               placeholder="/ruta/al/certificado.pem"
+                               value="<@ FtpCertPath @>">
+                    </div>
+                    <div class="mb-3">
+                        <label>Ruta de la clave privada (<code>privkey.pem</code> / <code>.key</code>)</label>
+                        <input type="text" name="inKeyPath" class="form-control"
+                               placeholder="/ruta/a/la/clave_privada.pem"
+                               value="<@ FtpKeyPath @>">
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                            onclick="return confirm('¿Actualizar las rutas del certificado TLS de ProFTPD?');">
+                        <span class="bi bi-floppy"></span> Guardar rutas
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="zgrid_wrapper">
+        <h2>Control del servicio</h2>
+        <div class="row">
+            <div class="col-sm-6">
+                <form action="./?module=ftp_admin&action=ReloadFtp" method="post">
+                    <@ CSFR_Tag @>
+                    <button type="submit" class="btn btn-warning w-100">
+                        <span class="bi bi-arrow-clockwise"></span>
+                        Recargar configuración
+                    </button>
+                </form>
+                <p class="text-muted" style="margin-top:6px;font-size:12px;">
+                    Aplica cambios en la configuración sin interrumpir conexiones activas (SIGHUP).
+                </p>
+            </div>
+            <div class="col-sm-6">
+                <form action="./?module=ftp_admin&action=RestartFtp" method="post"
+                      onsubmit="return confirm('¿Reiniciar ProFTPD? Se interrumpirán las conexiones FTP activas.');">
+                    <@ CSFR_Tag @>
+                    <button type="submit" class="btn btn-danger w-100">
+                        <span class="bi bi-power"></span>
+                        Reiniciar servicio
+                    </button>
+                </form>
+                <p class="text-muted" style="margin-top:6px;font-size:12px;">
+                    Reinicio completo. Interrumpe transferencias en curso.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <% if Config %>
+    <div class="zgrid_wrapper">
         <h2><: Configure your FTP Settings :></h2>
         <form action="./?module=ftp_admin&action=UpdateConfig" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <% loop Config %>
                 <tr valign="top">
                     <th nowrap="nowrap"><& cleanname &></th>
-                    <td><& fieldhtml &></td>
+                    <td>{! fieldhtml !}</td>
                     <td><& description &></td>
                 </tr>
                 <% endloop %>
                 <tr>
                     <th colspan="3">
-                        <button class="button-loader btn btn-primary" type="submit" id="button" name="inSaveSystem"><: Save Changes :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=moduleadmin';return false;"><: Cancel :></button>
+                        <button class="btn btn-primary" type="submit" name="inSaveSystem"><i class="bi bi-floppy me-1"></i><: Save Changes :></button>
+                        <button class="btn btn-secondary" type="button" onclick="window.location.href='./?module=moduleadmin';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </th>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
+    <% endif %>
+
+    <% if FtpConfigContent %>
+    <div class="zgrid_wrapper">
+        <h2>Configuración de ProFTPD</h2>
+        <p class="text-muted" style="font-size:12px;">
+            Los cambios se validan con <code>proftpd -t</code> antes de guardarse. Si la sintaxis es incorrecta el fichero original no se modifica.
+            Después de guardar usa <strong>Recargar configuración</strong> para aplicar sin cortar conexiones.
+        </p>
+        <form action="./?module=ftp_admin&action=SaveConfig" method="post">
+            <@ CSFR_Tag @>
+            <textarea name="inFtpConfig" class="form-control"
+                style="font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;height:420px;border-radius:4px;resize:vertical;"><@ FtpConfigContent @></textarea>
+            <div style="margin-top:10px;">
+                <button type="submit" class="btn btn-primary">
+                    <span class="bi bi-floppy"></span> Guardar configuración
+                </button>
+                <span class="text-muted" style="margin-left:10px;font-size:12px;">
+                    Guarda el fichero y valida la sintaxis — no reinicia el servicio.
+                </span>
+            </div>
+        </form>
+    </div>
+    <% endif %>
 
 </div>

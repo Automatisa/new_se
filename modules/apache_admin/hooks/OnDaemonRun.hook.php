@@ -1,11 +1,17 @@
 <?php
 if (!class_exists('privilege')) {
         require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
-    }	
+    }
+if (!class_exists('fpm_pool_manager')) {
+        require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+    }
 echo fs_filehandler::NewLine() . "START Apache Config Hook." . fs_filehandler::NewLine();
 if (ui_module::CheckModuleEnabled('Apache Config')) {
     echo "Apache Admin module ENABLED..." . fs_filehandler::NewLine();
     TriggerApacheQuotaUsage();
+    // Regenerar pools PHP-FPM en cada ciclo del daemon
+    $fpmCount = fpm_pool_manager::Regenerate();
+    echo "PHP-FPM pools: " . $fpmCount . " activos." . fs_filehandler::NewLine();
     if (ctrl_options::GetSystemOption('apache_changed') == strtolower("true")) {
         echo "Apache Config has changed..." . fs_filehandler::NewLine();
 		
@@ -75,6 +81,31 @@ function BuildVhostReWriteSSL($vhostName, $userEmail) {
 	$line .= fs_filehandler::NewLine();
 		
     return $line;
+}
+
+/**
+ * Sanitiza el campo vh_custom_tx antes de incluirlo en el fichero de vhosts.
+ *
+ * vh_custom_tx es editable por el admin/reseller y se inserta dentro de un
+ * bloque <VirtualHost>. Sin este filtro, un valor como:
+ *   </VirtualHost>\nAlias / /etc/passwd
+ * permitiría inyectar directivas Apache globales (fuera del bloque del dominio).
+ *
+ * Política: se eliminan líneas que contengan </VirtualHost (case-insensitive)
+ * o que abran un nuevo <VirtualHost. El resto de directivas se pasa tal cual.
+ */
+function sanitizeVhCustom(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') return '';
+    $lines  = explode("\n", str_replace("\r\n", "\n", $raw));
+    $clean  = [];
+    foreach ($lines as $line) {
+        $t = strtolower(trim($line));
+        if (strpos($t, '</virtualhost') !== false) continue;
+        if (preg_match('/^<virtualhost\b/i', $t))  continue;
+        $clean[] = $line;
+    }
+    return implode("\n", $clean);
 }
 
 function WriteVhostConfigFile() {
@@ -152,31 +183,16 @@ function WriteVhostConfigFile() {
 				. "/var/sentora/" . ctrl_options::GetSystemOption('openbase_seperator')
 				. "/var/spool/" . '"' . fs_filehandler::NewLine(); 
 				
-		# Set Function Blacklist 
-		// php_admin_value sp.configuration_file not supported with PHP-FPM
-				
 		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
 		
 		$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-error.log" ' . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
 		
-		// Error documents:- Error pages are added automatically if they are found in the /etc/static/errorpages
-		// directory and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-		$errorpages = ctrl_options::GetSystemOption('sentora_root') . "/etc/static/errorpages";
-		if (is_dir($errorpages)) {
-			if ($handle = opendir($errorpages)) {
-				while (($file = readdir($handle)) !== false) {
-					if ($file != "." && $file != "..") {
-						$page = explode(".", $file);
-						if (!fs_director::CheckForEmptyValue(CheckErrorDocument($page[0]))) {
-							$line .= "ErrorDocument " . $page[0] . " /etc/static/errorpages/" . $page[0] . ".html" . fs_filehandler::NewLine();
-						}
-					}
-				}
-				closedir($handle);
-			}
-		}
+		$line .= AppendErrorPageDirectives(
+			ctrl_options::GetSystemOption('sentora_root') . '/etc/static/errorpages',
+			'/etc/static/errorpages/'
+		);
 		$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
 		$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
 		$line .= "    AllowOverride All" . fs_filehandler::NewLine();
@@ -200,11 +216,40 @@ function WriteVhostConfigFile() {
 	# If vhost SSL_TX not null create spearate <virtualhost>
 	# Build Vhost SSL section
     } elseif (ctrl_options::GetSystemOption('panel_ssl_tx') != null) {
-		
+
+		$panelSslTx   = ctrl_options::GetSystemOption('panel_ssl_tx');
+		$panelSslPort = ctrl_options::GetSystemOption('sentora_port');
+		$panelCert    = '';
+		$panelKey     = '';
+		if (preg_match('/^SSLCertificateFile\s+(\S+)/m',    $panelSslTx, $m)) $panelCert = $m[1];
+		if (preg_match('/^SSLCertificateKeyFile\s+(\S+)/m', $panelSslTx, $m)) $panelKey  = $m[1];
+
+		# Fallback vhost: captura acceso por IP usando el mismo cert del panel.
+		# El navegador avisa una vez (el cert es del dominio, no la IP) pero la conexión queda cifrada.
+		# Debe ir ANTES del vhost del dominio para ser el default cuando no hay SNI.
+		if ($panelCert && $panelKey) {
+			$line .= "# FALLBACK SSL: acceso por IP usa el cert del panel (aviso de navegador esperado)" . fs_filehandler::NewLine();
+			$line .= "<VirtualHost _default_:" . $panelSslPort . ">" . fs_filehandler::NewLine();
+			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
+			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
+			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+			$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
+			$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
+			$line .= "    AllowOverride All" . fs_filehandler::NewLine();
+			$line .= "    Require all granted" . fs_filehandler::NewLine();
+			$line .= "</Directory>" . fs_filehandler::NewLine();
+			$line .= "SSLEngine On" . fs_filehandler::NewLine();
+			$line .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1" . fs_filehandler::NewLine();
+			$line .= "SSLCertificateFile " . $panelCert . fs_filehandler::NewLine();
+			$line .= "SSLCertificateKeyFile " . $panelKey . fs_filehandler::NewLine();
+			$line .= "</VirtualHost>" . fs_filehandler::NewLine();
+			$line .= fs_filehandler::NewLine();
+		}
+
 		# Build HTTP to HTTPS Redirect
 		$line .= BuildVhostReWriteSSL(ctrl_options::GetSystemOption('sentora_domain'), $serveremail);
 		$line .= "# PANEL HAS SSL ENABLED" . fs_filehandler::NewLine();
-		$line .= "<VirtualHost *:" . ctrl_options::GetSystemOption('sentora_port') . ">" . fs_filehandler::NewLine();
+		$line .= "<VirtualHost *:" . $panelSslPort . ">" . fs_filehandler::NewLine();
 		$line .= "ServerAdmin " . $serveremail . fs_filehandler::NewLine();
 		$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 		$line .= "ServerName " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
@@ -224,22 +269,10 @@ function WriteVhostConfigFile() {
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
 	
-		// Error documents:- Error pages are added automatically if they are found in the /etc/static/errorpages
-		// directory and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-		$errorpages = ctrl_options::GetSystemOption('sentora_root') . "/etc/static/errorpages";
-		if (is_dir($errorpages)) {
-			if ($handle = opendir($errorpages)) {
-				while (($file = readdir($handle)) !== false) {
-					if ($file != "." && $file != "..") {
-						$page = explode(".", $file);
-						if (!fs_director::CheckForEmptyValue(CheckErrorDocument($page[0]))) {
-							$line .= "ErrorDocument " . $page[0] . " /etc/static/errorpages/" . $page[0] . ".html" . fs_filehandler::NewLine();
-						}
-					}
-				}
-				closedir($handle);
-			}
-		}
+		$line .= AppendErrorPageDirectives(
+			ctrl_options::GetSystemOption('sentora_root') . '/etc/static/errorpages',
+			'/etc/static/errorpages/'
+		);
 		$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
 		$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
 		$line .= "    AllowOverride All" . fs_filehandler::NewLine();
@@ -309,117 +342,29 @@ function WriteVhostConfigFile() {
 	$vhostIp = ( fs_director::CheckForEmptyValue($rowvhost['vh_custom_ip_vc']) ) ? "*" : $rowvhost['vh_custom_ip_vc'];
 	
 	# Get Package php and cgi enabled options
-	$rows = $zdbh->prepare("SELECT * FROM x_packages WHERE pk_id_pk=:packageid AND pk_deleted_ts IS NULL");
-	$rows->bindParam(':packageid', $vhostuser['packageid']);
-	$rows->execute();
-	$packageinfo = $rows->fetch();
 	#*************************************************
 	# Nueva estructura: hosted_dir/username/vh_directory_vc/public_html/
-	$_vhpaths = ctrl_options::GetVhostPaths($vhostuser['username'], $rowvhost['vh_directory_vc']);
-	$RootDir  = $_vhpaths['public_html'];
-	$vh_snuff_path = "/etc/sentora/configs/php/sp/";
-	$vh_vhostuser = $vhostuser['username'];
-	
-	##
-	### Start Snuff Protection managemenet HERE. ------- DO NOT EDIT THIS CODE BELOW!!!!!
-	##
-	
-	##
-	# If Snuff protection for SYSTEM is ENABLED continue here...
-	##
-	if ( ctrl_options::GetSystemOption('use_suhosin') == "true" ) {
-
-		##
-		# If Snuff protection for VHOST is ENABLED and custom SP code continue here...
-		##	
-	
-		# Snuff vhost Custom code is enabled continue here...
-		if ( $rowvhost['vh_suhosin_in'] == 1 && $rowvhost['vh_custom_sp_tx'] != null ) {
-			$linesp = "################################################################" . fs_filehandler::NewLine();
-			$linesp .= "# Sentora VHOST custom Snuff SP configuration" . fs_filehandler::NewLine();
-			$linesp .= "# Automatically generated by Sentora " . sys_versions::ShowSentoraVersion() . fs_filehandler::NewLine();
-			$linesp .= "# Generated on: " . date(ctrl_options::GetSystemOption('sentora_df'), time()) . fs_filehandler::NewLine();
-			$linesp .= "#==== YOU MUST NOT EDIT THIS FILE : IT WILL BE OVERWRITTEN ====" . fs_filehandler::NewLine();
-			$linesp .= "################################################################" . fs_filehandler::NewLine();				;
-			$linesp .= fs_filehandler::NewLine();
-			$linesp .= "# Appling Sentora Default SP ENABLE.rules..." . fs_filehandler::NewLine();
-			$linesp .= fs_filehandler::NewLine();
-			
-			# Include default enable.rules file as the base
-			$linesp .= file_get_contents( $vh_snuff_path . 'enable.rules' ) . fs_filehandler::NewLine();
-					
-			$linesp .= "Start VHOST custom snuff SP CODE HERE.." . fs_filehandler::NewLine();
-			
-			# If custom Snuff rules. Create vhost rule file here.	
-			if($rowvhost['vh_custom_sp_tx'] != null) {			
-				$linesp .= $rowvhost['vh_custom_sp_tx'] . fs_filehandler::NewLine();
-			}
-			$linesp .= "Stop VHOST custom snuff SP CODE HERE.." . fs_filehandler::NewLine();
-			$linesp .= fs_filehandler::NewLine();
-			
-			# Check if SP user VH folder exists. If not make folder for SP user VH configs			
-			if ( !is_dir( $vh_snuff_path . $vh_vhostuser ) ) {
-				fs_director::CreateDirectory( $vh_snuff_path . $vh_vhostuser );
-				# Set permissions here if needed in future. #644
-				
-			}
-			#*********Write to file
-			WriteDataToFile($vh_snuff_path . $vh_vhostuser . "/" . $rowvhost['vh_name_vc'] . '.rules'  , $linesp);
-			#***********
-			
-			# Set function blacklist path to file
-			$func_blklist_sys = 'php_admin_value sp.configuration_file "' . $vh_snuff_path . $vh_vhostuser . "/" . $rowvhost['vh_name_vc'];
-		
-		##
-		# If Snuff protection for VHOST is ENABLED and custom SP code is NULL continue here...
-		##				
-		} elseif ( $rowvhost['vh_suhosin_in'] == 1 && $rowvhost['vh_custom_sp_tx'] == null ) {	
-			##
-			# If Snuff protection for VHOST is ENABLED continue here by disabling Functions......
-			##	
-			
-			# Snuff Default enbale.rules
-			$func_blklist_sys = 'php_admin_value sp.configuration_file "' . $vh_snuff_path . 'enable.rules"';
-			
-			# Clean up SP vh custom files if not used...
-			# If not using SP VH custom rules. Delete any VH custom snuff rules if they exist. 			
-			#if ( file_exists( $vh_snuff_path . $vh_vhostuser . "/" . $rowvhost['vh_name_vc'] . '.rules' ) ) {
-			if ( is_dir( $vh_snuff_path . $vh_vhostuser . "/" ) ) {
-			
-				# Clear/Delete VHOST snuff custom rules file
-				if ( file_exists( $vh_snuff_path . $vh_vhostuser . "/" . $rowvhost['vh_name_vc'] . '.rules' )) {
-					unlink ( $vh_snuff_path . $vh_vhostuser . "/" . $rowvhost['vh_name_vc'] . '.rules' );
-				}
-		
-				# Delete/Clean up VHOST custom SP folders
-				# Deleting folders
-				rmdir( $vh_snuff_path . $vh_vhostuser . "/" );
-
-			}			
-		##
-		# If Snuff protection for VHOST is DISABLED continue here...
-		##	
-		} else  {
-			# If Snuff protection for VHOST is DISABLED do this
-			$func_blklist_sys = 'php_admin_value sp.configuration_file "' . $vh_snuff_path . 'disable.rules"';
-		}
-	##
-	# If Snuff protection for SYSTEM is DISABLED do this
-	##	
-	} else {
-		# Disable rules
-		$func_blklist_sys = 'php_admin_value sp.configuration_file "' . $vh_snuff_path . 'disable.rules"';
+	$_vhpaths  = ctrl_options::GetVhostPaths($vhostuser['username'], $rowvhost['vh_directory_vc']);
+	$RootDir   = $_vhpaths['public_html'];
+	$_bwlogdir = '/var/sentora/logs/bandwidth/' . $vhostuser['username'] . '/' . $rowvhost['vh_directory_vc'];
+	if (!is_dir($_bwlogdir)) {
+		mkdir($_bwlogdir, 0750, true);
+		chgrp($_bwlogdir, 'www');
 	}
-	
 	##
 	### Stop Snuff Protection managemenet HERE. ------- DO NOT EDIT THIS CODE ABOVE!!!!!
 	##
 
 	# Domain is enabled
-	# Line1: Domain enabled & Client also is enabled.
-	# Line2: Domain enabled & Client may be disabled, but 'Allow Disabled' = 'true' in apache settings.
-	if ($rowvhost['vh_enabled_in'] == 1 && ctrl_users::CheckUserEnabled($rowvhost['vh_acc_fk']) ||
-		$rowvhost['vh_enabled_in'] == 1 && ctrl_options::GetSystemOption('apache_allow_disabled') == strtolower("true")) {
+	# Effective state considers reseller cascade: disabled reseller → client disabled, etc.
+	$effectiveState = ctrl_users::GetEffectiveAccountState($rowvhost['vh_acc_fk']);
+	# Pre-compute static dir: parking = domain manually suspended but account active
+	if ($effectiveState === 'suspended')        $staticDir = 'suspended';
+	elseif ($effectiveState === 'active')        $staticDir = 'parking';
+	else                                         $staticDir = 'disabled';
+	if ($rowvhost['vh_enabled_in'] == 1 && (
+		$effectiveState === 'active' ||
+		ctrl_options::GetSystemOption('apache_allow_disabled') == strtolower("true"))) {
 		/*
 		 * ##################################################
 		 * #
@@ -448,7 +393,7 @@ function WriteVhostConfigFile() {
 				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
 				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= fs_filehandler::NewLine();
@@ -483,7 +428,7 @@ function WriteVhostConfigFile() {
 				$line .= fs_filehandler::NewLine();
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();	
 				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= fs_filehandler::NewLine();
@@ -518,7 +463,7 @@ function WriteVhostConfigFile() {
 				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
 				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= fs_filehandler::NewLine();
@@ -554,7 +499,7 @@ function WriteVhostConfigFile() {
 				$line .= fs_filehandler::NewLine();
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
 							
 				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
@@ -593,7 +538,7 @@ function WriteVhostConfigFile() {
 				$line .= ctrl_options::GetSystemOption('global_vhcustom') . fs_filehandler::NewLine();
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
 							
 				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
@@ -610,37 +555,12 @@ function WriteVhostConfigFile() {
 				$line .= BuildVhostReWriteSSL($rowvhost['vh_name_vc'], $useremail);
 				# Build Vhost SSL section
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= "# THIS DOMAIN IS PARKED & HAS SSL ENABLED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $rowvhost['vh_ssl_port_in'] . ">" . fs_filehandler::NewLine();
-				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				if (!empty($serveralias))
-					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
-				$line .= "ServerAdmin " . $useremail . fs_filehandler::NewLine();
-				$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('parking_path') . '"' . fs_filehandler::NewLine();
-				$line .= '<Directory "' . ctrl_options::GetSystemOption('parking_path') . '">' . fs_filehandler::NewLine();
-				$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
-				$line .= "    AllowOverride All" . fs_filehandler::NewLine();
-				$line .= "    Require all granted" . fs_filehandler::NewLine();
-				$line .= "</Directory>" . fs_filehandler::NewLine();
-				$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
-				
-				# SSL Settings
-				$line .= "# SSL settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_ssl_tx'] . fs_filehandler::NewLine();
-				$line .= fs_filehandler::NewLine();
-				
-				// Global custom global vh entry
-				$line .= "# Custom Global Settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= ctrl_options::GetSystemOption('global_vhcustom') . fs_filehandler::NewLine();
-				// Client custom vh entry
-				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
-				$line .= "</virtualhost>" . fs_filehandler::NewLine();
-								
-				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= fs_filehandler::NewLine();
-				$line .= "################################################################" . fs_filehandler::NewLine();
+			$line .= BuildStaticVhostBlock(
+			    $vhostIp, $rowvhost['vh_ssl_port_in'], $rowvhost, $serveralias, $useremail,
+			    ctrl_options::GetSystemOption('parking_path'),
+			    'IS PARKED & HAS SSL ENABLED',
+			    true, true, $rowvhost['vh_ssl_tx']
+			);
 			}
 			$line .= fs_filehandler::NewLine();					
 		/*
@@ -662,8 +582,8 @@ function WriteVhostConfigFile() {
 					fs_director::CreateDirectory( $_vhpaths['tmp'] );
 				}
 				# Logs
-				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
-					fs_director::CreateDirectory(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/");
+				if (!is_dir($_vhpaths['logs'])) {
+					fs_director::CreateDirectory($_vhpaths['logs']);
 				}
 				###
 				#START HERE
@@ -683,70 +603,34 @@ function WriteVhostConfigFile() {
 					}
 				}
 				
-				# Set Function Blacklist 
-				// func_blklist_sys (Suhosin/Snuff) not supported with PHP-FPM
-				
-				# PHP_admin_values
-				$line .= 'SetEnv PHP_VALUE "upload_tmp_dir=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-				$line .= 'SetEnv PHP_VALUE "session.save_path=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-				
+
 				// Logs
-				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
-					fs_director::CreateDirectory(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/");
+				if (!is_dir($_vhpaths['logs'])) {
+					fs_director::CreateDirectory($_vhpaths['logs']);
 				}
-				$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-error.log" ' . fs_filehandler::NewLine();
-				$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
-				$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
-		
+				$line .= 'ErrorLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-error.log" ' . fs_filehandler::NewLine();
+				$line .= 'CustomLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
+				$line .= 'CustomLog "' . $_bwlogdir . '/' . $rowvhost['vh_name_vc'] . '-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
+
 				// Directory options
 				$line .= '<Directory ' . $RootDir . '>' . fs_filehandler::NewLine();
 				$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
-				$line .= "    AllowOverride All" . fs_filehandler::NewLine();
+				// FileInfo: RewriteEngine, AddType (CMS). AuthConfig: .htpasswd. Limit: <Limit>.
+				// Se excluye "Options" para bloquear +ExecCGI, +SymLinks, etc. desde .htaccess de cliente.
+				$line .= "    AllowOverride FileInfo AuthConfig Limit" . fs_filehandler::NewLine();
 				$line .= "    Require all granted" . fs_filehandler::NewLine();
 				$line .= "</Directory>" . fs_filehandler::NewLine();
-				
-				# Vhost PHP settings. For future use ( PHP-Mod/FPM/Fcgi ) Coming soon!!!! :-)
-				//if ($packageinfo['pk_enablephp_in'] <> 0) {
-					# Build PHP handler
-					//$line .= BuildVhostPHPHandler($packageinfo['pk_enablephp_in'], $rowchost['vh_phphandler_id']);
-				//} else {
-					$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-				//}
-		
+
+				// Pool PHP-FPM dedicado por dominio (socket individual con su php.ini)
+				$line .= BuildFPMHandler($rowvhost['vh_directory_vc']) . fs_filehandler::NewLine();
+
 				// Enable Gzip until we set this as an option , we might commenbt this too and allow manual switch
 				$line .= "AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript" . fs_filehandler::NewLine();
 				
-				// Get Package php and cgi enabled options
-				$rows = $zdbh->prepare("SELECT * FROM x_packages WHERE pk_id_pk=:packageid AND pk_deleted_ts IS NULL");
-				$rows->bindParam(':packageid', $vhostuser['packageid']);
-				$rows->execute();
-				$packageinfo = $rows->fetch();
-				
-				# curently disabled because un secure
-				# need correct cleaning in interface for full removal or in comment here until restoration
-				#                if ( $packageinfo[ 'pk_enablecgi_in' ] <> 0 ) {
-				#                     $line .= ctrl_options::GetSystemOption( 'cgi_handler' ) . fs_filehandler::NewLine();
-				#                     if ( !is_dir( ctrl_options::GetSystemOption( 'hosted_dir' ) . $vhostuser[ 'username' ] . "/public_html" . $rowvhost[ 'vh_directory_vc' ] . "/_cgi-bin" ) ) {
-				#                         fs_director::CreateDirectory( ctrl_options::GetSystemOption( 'hosted_dir' ) . $vhostuser[ 'username' ] . "/public_html" . $rowvhost[ 'vh_directory_vc' ] . "/_cgi-bin" );
-				#                     }
-				#                 }
 				
 				// Error documents:- Error pages are added automatically if they are found in the _errorpages directory
 				// and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-				$errorpages = $_vhpaths['errorpages'];  # no-SSL block
-				if (is_dir($errorpages)) {
-					if ($handle = opendir($errorpages)) {
-						while (($file = readdir($handle)) !== false) {
-							if ($file != "." && $file != "..") {
-								$page = explode(".", $file);
-								if (!fs_director::CheckForEmptyValue(CheckErrorDocument($page[0]))) {
-									$line .= "ErrorDocument " . $page[0] . " /_errorpages/" . $page[0] . ".html" . fs_filehandler::NewLine();
-								}
-							}
-						}
-						closedir($handle);
-					}
-				}
+				$line .= AppendErrorPageDirectives($_vhpaths['errorpages'], '/_errorpages/');
 				// Directory indexes
 				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
 		
@@ -756,7 +640,7 @@ function WriteVhostConfigFile() {
 		
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 		
 				// End Virtual Host Settings
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
@@ -797,70 +681,31 @@ function WriteVhostConfigFile() {
 					}
 				}
 				
-				# Set Function Blacklist 
-				// func_blklist_sys (Suhosin/Snuff) not supported with PHP-FPM
-				
-				# PHP_admin_values
-				$line .= 'SetEnv PHP_VALUE "upload_tmp_dir=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-				$line .= 'SetEnv PHP_VALUE "session.save_path=' . $_vhpaths['tmp'] . '/"' . fs_filehandler::NewLine();
-							
+
 				// Logs
-				if (!is_dir(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/")) {
-					fs_director::CreateDirectory(ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/");
+				if (!is_dir($_vhpaths['logs'])) {
+					fs_director::CreateDirectory($_vhpaths['logs']);
 				}
-				$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-error.log" ' . fs_filehandler::NewLine();
-				$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
-				$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . "domains/" . $vhostuser['username'] . "/" . $rowvhost['vh_name_vc'] . '-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
-		
+				$line .= 'ErrorLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-error.log" ' . fs_filehandler::NewLine();
+				$line .= 'CustomLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
+				$line .= 'CustomLog "' . $_bwlogdir . '/' . $rowvhost['vh_name_vc'] . '-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
+
 				// Directory options
 				$line .= '<Directory ' . $RootDir . '>' . fs_filehandler::NewLine();
 				$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
-				$line .= "    AllowOverride All" . fs_filehandler::NewLine();
+				// FileInfo: RewriteEngine, AddType (CMS). AuthConfig: .htpasswd. Limit: <Limit>.
+				// Se excluye "Options" para bloquear +ExecCGI, +SymLinks, etc. desde .htaccess de cliente.
+				$line .= "    AllowOverride FileInfo AuthConfig Limit" . fs_filehandler::NewLine();
 				$line .= "    Require all granted" . fs_filehandler::NewLine();
 				$line .= "</Directory>" . fs_filehandler::NewLine();
-		
-				# Vhost PHP settings. For future use ( PHP-Mod/FPM/Fcgi ) Coming soon!!!! :-)
-				//if ($packageinfo['pk_enablephp_in'] <> 0) {
-					# Build PHP handler
-					//$line .= BuildVhostPHPHandler($packageinfo['pk_enablephp_in'], $rowchost['vh_phphandler_id']);
-				//} else {
-					$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-				//}
-		
-		
+
+				// Pool PHP-FPM dedicado por dominio (socket individual con su php.ini)
+				$line .= BuildFPMHandler($rowvhost['vh_directory_vc']) . fs_filehandler::NewLine();
+
 				// Enable Gzip until we set this as an option , we might commenbt this too and allow manual switch
 				$line .= "AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript" . fs_filehandler::NewLine();
-				// Get Package php and cgi enabled options
-				$rows = $zdbh->prepare("SELECT * FROM x_packages WHERE pk_id_pk=:packageid AND pk_deleted_ts IS NULL");
-				$rows->bindParam(':packageid', $vhostuser['packageid']);
-				$rows->execute();
-				$packageinfo = $rows->fetch();
-			
-				# curently disabled because un secure
-				# need correct cleaning in interface for full removal or in comment here until restoration
-				#                if ( $packageinfo[ 'pk_enablecgi_in' ] <> 0 ) {
-				#                     $line .= ctrl_options::GetSystemOption( 'cgi_handler' ) . fs_filehandler::NewLine();
-				#                     if ( !is_dir( ctrl_options::GetSystemOption( 'hosted_dir' ) . $vhostuser[ 'username' ] . "/public_html" . $rowvhost[ 'vh_directory_vc' ] . "/_cgi-bin" ) ) {
-				#                         fs_director::CreateDirectory( ctrl_options::GetSystemOption( 'hosted_dir' ) . $vhostuser[ 'username' ] . "/public_html" . $rowvhost[ 'vh_directory_vc' ] . "/_cgi-bin" );
-				#                     }
-				#                 }
 		
-				// Error documents:- Error pages are added automatically if they are found in the _errorpages directory
-				// and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-				$errorpages = $_vhpaths['errorpages'];  # SSL block
-				if (is_dir($errorpages)) {
-					if ($handle = opendir($errorpages)) {
-						while (($file = readdir($handle)) !== false) {
-							if ($file != "." && $file != "..") {
-								$page = explode(".", $file);
-								if (!fs_director::CheckForEmptyValue(CheckErrorDocument($page[0]))) {
-									$line .= "ErrorDocument " . $page[0] . " /_errorpages/" . $page[0] . ".html" . fs_filehandler::NewLine();
-								}
-							}
-						}
-						closedir($handle);
-					}
-				}
+				$line .= AppendErrorPageDirectives($_vhpaths['errorpages'], '/_errorpages/');
 		
 				// Directory indexes
 				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
@@ -876,7 +721,7 @@ function WriteVhostConfigFile() {
 		
 				// Client custom vh entry
 				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
+				$line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
 		
 				// End Virtual Host Settings
 				$line .= "</virtualhost>" . fs_filehandler::NewLine();
@@ -897,33 +742,18 @@ function WriteVhostConfigFile() {
 		 * ##################################################
 		 */
 		} else {
-		# Domain is NOT enabled
-		
+		# Domain not served: parking (domain suspended), suspended (account suspended), disabled (account disabled)
+
 			if ($rowvhost['vh_ssl_tx'] == null) {
-		
+
 				# Load template file into vhost cofig to save
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= "# THIS DOMAIN HAS BEEN DISABLED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
-				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				if (!empty($serveralias))
-					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
-				$line .= "ServerAdmin " . $useremail . fs_filehandler::NewLine();
-				$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('static_dir') . 'disabled"' . fs_filehandler::NewLine();
-				$line .= '<Directory "' . ctrl_options::GetSystemOption('static_dir') . 'disabled">' . fs_filehandler::NewLine();
-				$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
-				$line .= "    AllowOverride All" . fs_filehandler::NewLine();
-				$line .= "    Require all granted" . fs_filehandler::NewLine();
-				$line .= "</Directory>" . fs_filehandler::NewLine();
-				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
-				// Client custom vh entry
-				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
-				$line .= "</virtualhost>" . fs_filehandler::NewLine();
-								
-				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= fs_filehandler::NewLine();
-				$line .= "################################################################" . fs_filehandler::NewLine();
+		$line .= BuildStaticVhostBlock(
+		    $vhostIp, $vhostPort, $rowvhost, $serveralias, $useremail,
+		    ctrl_options::GetSystemOption('static_dir') . $staticDir,
+		    'HAS BEEN ' . strtoupper($staticDir),
+		    false, false
+		);
 				$line .= fs_filehandler::NewLine();
 			
 			# If vhost SSL_TX not null create spearate <virtualhost>
@@ -934,34 +764,12 @@ function WriteVhostConfigFile() {
 				
 				# Build Vhost SSL section
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= "# THIS DOMAIN HAS BEEN DISABLED & HAS SSL ENABLED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $rowvhost['vh_ssl_port_in'] . ">" . fs_filehandler::NewLine();
-				
-				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				if (!empty($serveralias))
-					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
-				$line .= "ServerAdmin " . $useremail . fs_filehandler::NewLine();
-				$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('static_dir') . 'disabled"' . fs_filehandler::NewLine();
-				$line .= '<Directory "' . ctrl_options::GetSystemOption('static_dir') . 'disabled">' . fs_filehandler::NewLine();
-				$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
-				$line .= "    AllowOverride All" . fs_filehandler::NewLine();
-				$line .= "    Require all granted" . fs_filehandler::NewLine();
-				$line .= "</Directory>" . fs_filehandler::NewLine();
-				$line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
-				
-				# SSL Settings
-				$line .= "# SSL settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_ssl_tx'] . fs_filehandler::NewLine();
-				$line .= fs_filehandler::NewLine();
-				
-				// Client custom vh entry
-				$line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
-				$line .= $rowvhost['vh_custom_tx'] . fs_filehandler::NewLine();
-				$line .= "</virtualhost>" . fs_filehandler::NewLine();
-								
-				$line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= fs_filehandler::NewLine();
-				$line .= "################################################################" . fs_filehandler::NewLine();
+		$line .= BuildStaticVhostBlock(
+		    $vhostIp, $rowvhost['vh_ssl_port_in'], $rowvhost, $serveralias, $useremail,
+		    ctrl_options::GetSystemOption('static_dir') . $staticDir,
+		    'HAS BEEN ' . strtoupper($staticDir) . ' & HAS SSL ENABLED',
+		    false, false, $rowvhost['vh_ssl_tx']
+		);
 				$line .= fs_filehandler::NewLine();
 			}
 		}
@@ -989,14 +797,7 @@ function WriteVhostConfigFile() {
 
         $returnValue = 0;
 
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            system("" . ctrl_options::GetSystemOption('httpd_exe') . " " . ctrl_options::GetSystemOption('apache_restart') . "", $returnValue);
-        } else {
-            // Security fix (June 2026): replace zsudo with privilege::run()
-            // (action key maps to a fixed `service apache24 restart` in
-            // privilege.class.php; the installer sets the sudoers rule).
-            $returnValue = privilege::run('apache_restart');
-        }
+        $returnValue = privilege::run('apache_reload');
 
         echo "Apache reload " . ((0 === $returnValue ) ? "suceeded" : "failed") . "." . fs_filehandler::NewLine();
     } else {
@@ -1054,6 +855,70 @@ function WriteVhostConfigFile() {
 	RestartHttpdServices();	
 }
 
+function AppendErrorPageDirectives(string $errorpages, string $urlPrefix): string {
+    $out = '';
+    if (is_dir($errorpages)) {
+        if ($handle = opendir($errorpages)) {
+            while (($file = readdir($handle)) !== false) {
+                if ($file != "." && $file != "..") {
+                    $page = explode(".", $file);
+                    if (!fs_director::CheckForEmptyValue(CheckErrorDocument($page[0]))) {
+                        $out .= "ErrorDocument " . $page[0] . " " . $urlPrefix . $page[0] . ".html" . fs_filehandler::NewLine();
+                    }
+                }
+            }
+            closedir($handle);
+        }
+    }
+    return $out;
+}
+
+function BuildStaticVhostBlock(
+    string $vhostIp,
+    $port,
+    array $rowvhost,
+    string $serveralias,
+    string $useremail,
+    string $docRoot,
+    string $label,
+    bool $withPhpHandler = true,
+    bool $withGlobalCustom = false,
+    ?string $sslTx = null
+): string {
+    $b  = "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    $b .= "# THIS DOMAIN " . $label . fs_filehandler::NewLine();
+    $b .= "<virtualhost " . $vhostIp . ":" . $port . ">" . fs_filehandler::NewLine();
+    $b .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    if (!empty($serveralias))
+        $b .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
+    $b .= "ServerAdmin " . $useremail . fs_filehandler::NewLine();
+    $b .= 'DocumentRoot "' . $docRoot . '"' . fs_filehandler::NewLine();
+    $b .= '<Directory "' . $docRoot . '">' . fs_filehandler::NewLine();
+    $b .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
+    $b .= "    AllowOverride All" . fs_filehandler::NewLine();
+    $b .= "    Require all granted" . fs_filehandler::NewLine();
+    $b .= "</Directory>" . fs_filehandler::NewLine();
+    if ($withPhpHandler)
+        $b .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
+    $b .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
+    if ($sslTx !== null) {
+        $b .= "# SSL settings (if any exist)" . fs_filehandler::NewLine();
+        $b .= $sslTx . fs_filehandler::NewLine();
+        $b .= fs_filehandler::NewLine();
+    }
+    if ($withGlobalCustom) {
+        $b .= "# Custom Global Settings (if any exist)" . fs_filehandler::NewLine();
+        $b .= ctrl_options::GetSystemOption('global_vhcustom') . fs_filehandler::NewLine();
+    }
+    $b .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
+    $b .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
+    $b .= "</virtualhost>" . fs_filehandler::NewLine();
+    $b .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    $b .= fs_filehandler::NewLine();
+    $b .= "################################################################" . fs_filehandler::NewLine();
+    return $b;
+}
+
 function RestartHttpdServices() {
     global $zdbh;
 
@@ -1068,14 +933,8 @@ function RestartHttpdServices() {
 
 	$returnValue = 0;
 
-	if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-		system("" . ctrl_options::GetSystemOption('httpd_exe') . " " . ctrl_options::GetSystemOption('apache_restart') . "", $returnValue);
-	} else {
-		// Security fix (June 2026): replace zsudo with privilege::run().
-		// privilege::run() returns array($exitCode, $stdout, $stderr)
-		$result = privilege::run('apache_restart');
-		$returnValue = $result[0];
-	}
+	$result = privilege::run('apache_reload');
+	$returnValue = $result[0];
 
 	echo "Apache reload " . ((0 === $returnValue ) ? "suceeded" : "failed") . "." . fs_filehandler::NewLine();
 
@@ -1087,19 +946,12 @@ function WriteDataToFile($panel, $line) {
 }
 
 function CheckApacheVhostConfig() {
-	# Check Apache vhost.conf for errors
-	if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-		system("httpd -t " , $ConfigReturnValue); # NEEDS MORE TESTING
-		
-	} else { # Linux systems
-		$command = "apachectl";
-		$args = "configtest";
+	$command = "apachectl";
+	$args = "configtest";
+	$ConfigReturnValue = ctrl_system::systemCommand($command, $args);
 
-		$ConfigReturnValue = ctrl_system::systemCommand($command, $args);
-	}
-	
 	echo "   Apache vhost Config test " . (( 0 === $ConfigReturnValue ) ? "SUCEEDED" : "FAILED") . "." . fs_filehandler::NewLine();
-	
+
 	return $ConfigReturnValue;
 }
 
@@ -1139,10 +991,6 @@ function BackupVhostConfigFile() {
             while (false !== ($file = readdir($handle))) {
                 if ($file != "." && $file != "..") {
                     $filetime = @filemtime(ctrl_options::GetSystemOption('apache_budir') . $file);
-
-                    if ($filetime == NULL) {
-                        $filetime = @filemtime(utf8_decode(ctrl_options::GetSystemOption('apache_budir') . $file));
-                    }
                     $filetime = floor((time() - $filetime) / 86400);
                     echo $file . " - " . $purge_date . " - " . $filetime . "";
                     if ($purge_date < $filetime) {
@@ -1160,14 +1008,28 @@ function BackupVhostConfigFile() {
     echo "Apache backups complete..." . fs_filehandler::NewLine();
 }
 	
+/**
+ * Genera el bloque SetHandler Apache para el pool PHP-FPM del dominio.
+ * Cada dominio tiene su propio socket → php.ini independiente via pool.
+ */
+function BuildFPMHandler($vh_directory_vc) {
+    $pool   = 'sentora_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $vh_directory_vc);
+    $socket = '/var/run/php-fpm/' . $pool . '.sock';
+    $nl     = fs_filehandler::NewLine();
+    return '<FilesMatch "\.php$">' . $nl
+         . '    SetHandler "proxy:unix:' . $socket . '|fcgi://localhost/"' . $nl
+         . '</FilesMatch>';
+}
+
 function TriggerApacheQuotaUsage() {
     global $zdbh;
     global $controller;
     $sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_deleted_ts IS NULL");
     $sql->execute();
     while ($rowvhost = $sql->fetch()) {
-        if ($rowvhost['vh_enabled_in'] == 1 && ctrl_users::CheckUserEnabled($rowvhost['vh_acc_fk']) ||
-            $rowvhost['vh_enabled_in'] == 1 && ctrl_options::GetSystemOption('apache_allow_disabled') == strtolower("true")) {
+        if ($rowvhost['vh_enabled_in'] == 1 && (
+            ctrl_users::CheckUserEnabled($rowvhost['vh_acc_fk']) ||
+            ctrl_options::GetSystemOption('apache_allow_disabled') == strtolower("true"))) {
 
             //$checksize = $zdbh->query("SELECT * FROM x_bandwidth WHERE bd_month_in = " . date("Ym") . " AND bd_acc_fk = " . $rowvhost['vh_acc_fk'] . "")->fetch();
 

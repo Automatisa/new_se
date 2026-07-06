@@ -143,6 +143,7 @@ class module_controller extends ctrl_module
 
     static function doBackup()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         $userid = $controller->GetControllerRequest('FORM', 'inBackUp');
@@ -153,21 +154,26 @@ class module_controller extends ctrl_module
 
     static function doDeleteBackup()
     {
-        global $zdbh;
         global $controller;
         runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
         $userid = $currentuser['userid'];
         $username = $currentuser['username'];
         $files = self::ListBackUps($userid);
-        //print_r($_POST);
+        $deleted = false;
         foreach ($files as $file) {
             if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inDelete_' . $file['backupfile'] . '')) ||
                     !fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inDelete_' . $file['backupfile'] . '_x')) ||
                     !fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inDelete_' . $file['backupfile'] . '_y'))) {
                 self::ExecuteDeleteBackup($username, $file['backupfile']);
-                self::$deleteok = true;
+                $deleted = true;
             }
+        }
+        // PRG: evita reenvío del POST al refrescar o dar "atrás"
+        if (!headers_sent()) {
+            $suffix = $deleted ? '&deleted=1' : '';
+            header('Location: ./?module=backupmgr' . $suffix);
+            exit();
         }
     }
 

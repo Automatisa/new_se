@@ -1,113 +1,44 @@
-.disabled {
-    /* for IE */
-    filter:alpha(opacity=40);
-    opacity: 0.40;
+/* === Barra de título y acciones DNS === */
+.dnsTitle {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    padding: 10px 16px;
 }
-/* @account */
-div.account > div.content > div > div.actions {
-    position: absolute;
-    top: 0;
-    right: 0;
-    vertical-align: top;
+.dnsTitle .content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
-div.account > div.content > div > div.actions > a {
-    display: inline-block;
-    width: 68px;
-    min-height: 38px;
-    background-position: 50% 4px;
-    background-repeat: no-repeat;
-    padding-top: 28px;
-    font-size: 12px;
-    font-weight: bold;
-    text-align: center;
-    vertical-align: top;
+.dnsTitle .content h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
 }
-div.account > div.content > div > div.actions > a.disabled:hover {
-    background-color: inherit;
+.dnsTitle .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Botones de acción apagados (sin cambios pendientes) */
+.dnsTitle .actions a.disabled,
+.dnsTitle .actions a.undo.disabled,
+.dnsTitle .actions a.save.disabled {
+    opacity: 0.45;
+    pointer-events: none;
     cursor: default;
-    color: #005297;
 }
-div.account > div.content > div > div.actions > a.hidden {
-    display: none;
-}
-div.account > div.content > div > div.actions > a.back {
-    background-image: url(./domains.png);
+
+/* Estado activo (el JS quita .disabled) */
+.dnsTitle .actions a:not(.disabled) {
+    opacity: 1;
+    pointer-events: auto;
     cursor: pointer;
-}
-div.account > div.content > div > div.actions > a.undo {
-    background-image: url(./undo.png);
-    cursor: pointer;
-}
-div.account > div.content > div > div.actions > a.save {
-    background-image: url(./data_into.png);
-    cursor: pointer;
-}
-/* @end */
-
-/* @accountTitle */
-div.accountTitle > div.content {
-    position: relative;
-}
-div.accountTitle > div.content > div > strong,
-div.accountTitle > div.content > div > a {
-    display: inline-block;
-    font-size: 16px;
-    font-weight: bold;
-    margin: 12px 6px 6px 14px;
-    /* color: black; */
-}
-div.accountTitle > div.content > div > a {
-    border-bottom: 1px dotted gray;
-    text-decoration: none;
-}
-div.accountTitle > div.content > div > a:hover {
-    border-bottom: 1px solid gray;
-    cursor: pointer;
-}
-/* @end */
-
-
-
-#dnsAddDomain input.text {
-    border: 1px solid silver;
-    width: 22em;
-    margin-right: 30px;
-}
-
-#dnsAddDomain input {
-    vertical-align: bottom;
-}
-
-/* @dnsInfo */
-#dnsInfo {
-    position: relative;
-}
-
-#dnsInfo span {
-    display: inline-block;
-    width: 10em;
-    text-align: right;
-    padding-right: 0.6em;
-}
-
-#dnsInfo em {
-    position: relative;
-    font-style: normal;
-    font-weight: bold;
-}
-
-#dnsInfo div.soa {
-    margin-top: 24px;
-}
-
-/* @end */
-
-#dnsRecords .ui-tabs-panel {
-    min-height:250px;
-    /*
-    height: 440px;
-    overflow: auto;
-    */
 }
 
 #dnsRecords div.header {
@@ -143,12 +74,12 @@ div.accountTitle > div.content > div > a:hover {
     min-height: 28px;
 }
 
-#dnsRecords div.row > div {
+#dnsRecords div.dns-row > div {
     display: inline-block;
     margin-right: 8px;
     /*vertical-align: middle;*/
 }
-#dnsRecords div.row > br {
+#dnsRecords div.dns-row > br {
     clear: both;
 }
 
@@ -156,8 +87,7 @@ div.accountTitle > div.content > div > a:hover {
     display: none;
 }
 
-
-#dnsRecords div.row > div > label {
+#dnsRecords div.dns-row > div > label {
     display: inline-block;
     font-weight: bold;
     font-size: 9pt;
@@ -167,20 +97,18 @@ div.accountTitle > div.content > div > a:hover {
     width: 100%;
 }
 
-#dnsRecords div.row > div > span {
+#dnsRecords div.dns-row > div > span {
     overflow: hidden;
     white-space: nowrap;
 }
 
-#dnsRecords div.row > div > input {
+#dnsRecords div.dns-row > div > input {
     border: 1px solid silver;
     width: 100%;
     min-height: 10px;
 }
 
-
-
-#dnsRecords div.row > div.hostName {
+#dnsRecords div.dns-row > div.hostName {
     width: 140px;
 }
 
@@ -201,115 +129,77 @@ div.accountTitle > div.content > div > a:hover {
     width: 136px;
     margin-left: 4px;
 }
-#dnsRecords div.row > div.in {
+#dnsRecords div.dns-row > div.in {
     width: 14px;
     text-align: center;
 }
-#dnsRecords div.row > div.type,
-#dnsRecords div.dnsRecordA > div.row > div.type {
+#dnsRecords div.dns-row > div.type,
+#dnsRecords div.dnsRecordA > div.dns-row > div.type {
     width: 50px;
     text-align: center;
 }
 
-#dnsRecords div.dnsRecordMX > div.row > div.type,
-#dnsRecords div.dnsRecordNS > div.row > div.type {
+#dnsRecords div.dnsRecordMX > div.dns-row > div.type,
+#dnsRecords div.dnsRecordNS > div.dns-row > div.type {
     width: 24px;
 }
 
-#dnsRecords div.dnsRecordTXT > div.row > div.type,
-#dnsRecords div.dnsRecordSRV > div.row > div.type,
-#dnsRecords div.dnsRecordSPF > div.row > div.type,
-#dnsRecords div.dnsRecordPTR > div.row > div.type {
+#dnsRecords div.dnsRecordTXT > div.dns-row > div.type,
+#dnsRecords div.dnsRecordSRV > div.dns-row > div.type,
+#dnsRecords div.dnsRecordSPF > div.dns-row > div.type,
+#dnsRecords div.dnsRecordPTR > div.dns-row > div.type {
     width: 34px;
 }
 
-#dnsRecords div.dnsRecordAAAA > div.row > div.type {
+#dnsRecords div.dnsRecordAAAA > div.dns-row > div.type {
     width: 44px;
 }
 
-#dnsRecords div.dnsRecordCNAME > div.row > div.type,
-#dnsRecords div.dnsRecordNAPTR > div.row > div.type {
+#dnsRecords div.dnsRecordCNAME > div.dns-row > div.type,
+#dnsRecords div.dnsRecordNAPTR > div.dns-row > div.type {
     width: 54px;
 }
 
-
-#dnsRecords div.dnsRecordURL > div.row > div.in,
-#dnsRecords div.dnsRecordURL > div.row > div.type,
-#dnsRecords div.dnsRecordPROXY > div.row > div.in,
-#dnsRecords div.dnsRecordPROXY > div.row > div.type,
-#dnsRecords div.dnsRecordSOA > div.row > div.in,
-#dnsRecords div.dnsRecordSOA > div.row > div.type {
-    display: none;
-}
-
-#dnsRecords div > div.row > div.target {
+#dnsRecords div > div.dns-row > div.target {
     width: 200px;
 }
 
-#dnsRecords div.dnsRecordURL > div.row > div.target,
-#dnsRecords div.dnsRecordPROXY > div.row > div.target {
-    width: 470px;
-}
-#dnsRecords div.dnsRecordCNAME > div.row > div.target,
-#dnsRecords div.dnsRecordTXT > div.row > div.target,
-#dnsRecords div.dnsRecordSPF > div.row > div.target {
+#dnsRecords div.dnsRecordCNAME > div.dns-row > div.target,
+#dnsRecords div.dnsRecordTXT > div.dns-row > div.target {
     width: 360px;
 }
 
-#dnsRecords div.row > div.TTL,
-#dnsRecords div.row > div.priority {
+#dnsRecords #typeCAA div.dns-row > div.target {
+    width: 320px;
+}
+
+#dnsRecords div.dns-row > div.TTL,
+#dnsRecords div.dns-row > div.priority {
     width: 54px;
 }
 
-#dnsRecords div.row > div.weight {
+#dnsRecords div.dns-row > div.weight {
     width: 50px;
 }
-#dnsRecords div.row > div.port {
+#dnsRecords div.dns-row > div.port {
     width: 38px;
 }
 
-#dnsRecords #typeSOA div.dnsRecord {
-    height: auto;
-    border-bottom: none;
-}
-#dnsRecords #typeSOA div.dnsRecord > div {
-    height: auto;
-}
-
-#dnsRecords #typeSOA div.dnsRecord:hover {
-    background-color: inherit;
-}
-
-#dnsRecords #typeSOA div.row > div {
-    width: 80px;
-}
-
-#dnsRecords #typeSOA div.row > div.primary,
-#dnsRecords #typeSOA div.row > div.hostmaster {
-    display: inline-block;
-    clear: both;
-    width: 300px;
-}
-
-#dnsRecords #typeSOA div.row > div.serial {
-    width: 100px;
-}
-
-#dnsRecords div.row > div.order,
-#dnsRecords div.row > div.preference,
-#dnsRecords div.row > div.flags {
+#dnsRecords div.dns-row > div.order,
+#dnsRecords div.dns-row > div.preference,
+#dnsRecords div.dns-row > div.flags {
     width: 70px;
 }
 
-#dnsRecords div.row > div.service,
-#dnsRecords div.row > div.regex {
+#dnsRecords div.dns-row > div.service,
+#dnsRecords div.dns-row > div.regex {
     width: 80px;
 }
-#dnsRecords div.row > div.replacement {
+#dnsRecords div.dns-row > div.replacement {
     width: 90px;
 }
 
-#dnsRecords div.records > div.hidden {
+#dnsRecords div.records > div.d-none {
     display: none;
 }
 
@@ -340,7 +230,6 @@ div.accountTitle > div.content > div > a:hover {
     top: 8px;
 }*/
 
-
 /*#dnsRecords div.dnsRecord > span.undo {
     padding: 0;
     margin-left: 4px;
@@ -353,8 +242,7 @@ div.accountTitle > div.content > div > a:hover {
     top: 8px;
 }*/
 
-
-#dnsRecords div.row > div.errorMessage {
+#dnsRecords div.dns-row > div.errorMessage {
     background: url(/icons/16x16/plain/error.png) no-repeat 10px 1px;
     padding-left: 30px;
     display: block;
@@ -371,77 +259,9 @@ div.accountTitle > div.content > div > a:hover {
     padding-left: 30px;
 }
 
-
-#dnsImport div.content > div {
-    padding: 1em;
-    border-top: 1px solid silver;
-}
-#dnsImport div.content > div:hover {
-    background-color: #e8e3e3;
-    color: inherit;
-}
-
-#dnsImport div.content > div > label {
-}
-#dnsImport div.content > div > textarea {
-    width: 90%;
-    margin-top: 4px;
-    margin-left: 24px;
-    border: 1px solid silver;
-    height: 10em;
-}
-
-#dnsImport div.content > div > input.axfr {
-    width: 10em;
-    margin-top: 4px;
-    margin-left: 24px;
-    border: 1px solid silver;
-    padding-left: 18px;
-    background: url(/icons/16x16/plain/server.png) no-repeat 0 2px white;
-    min-height: 18px;
-}
-
-#dnsImport div.content > div.description {
-    padding: 1em;
-    border-top: none;
-}
-#dnsImport div.content > div.description:hover {
-    background-color: inherit;
-}
-#dnsImport div.content > div > span.example {
-    padding-left: 10px;
-}
-
-
-#dnsExport div.content > div.output {
-    white-space: pre;
-    background-color: white;
-    font-size: 12px;
-    font-family: monospace;
-    overflow: auto;
-    padding: 1em;
-    height: 440px;
-}
-
-
-.inlineBlock {
-    display: inline-block;
-}
-
 .tabError {
     background-color: #bf7979;
 }
-
-.ui-tabs .ui-tabs-panel {
-    padding: 0.6em 0.5em;
-}
-
-
-
-
-
-
-
 
 #inDomain {
     height: 44px;
@@ -450,6 +270,74 @@ div.accountTitle > div.content > div > a:hover {
     margin-right: 5px;
 }
 
+/* Domain selection buttons — disabled/active states */
+#btnEditDomain,
+#btnRegenZone,
+#btnCreateDNS {
+    color: #fff;
+    border: none;
+    background-color: #b8bec4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+#btnEditDomain:not(.disabled) {
+    background-color: #337ab7;
+    cursor: pointer;
+    pointer-events: auto;
+}
+#btnEditDomain:not(.disabled):hover {
+    background-color: #286090;
+}
+#btnRegenZone:not(.disabled) {
+    background-color: #27ae60;
+    cursor: pointer;
+    pointer-events: auto;
+}
+#btnRegenZone:not(.disabled):hover {
+    background-color: #1e8449;
+}
+#btnCreateDNS:not(.disabled) {
+    background-color: #337ab7;
+    cursor: pointer;
+    pointer-events: auto;
+}
+#btnCreateDNS:not(.disabled):hover {
+    background-color: #286090;
+}
+
+/* === Multi-field record types: CAA, NAPTR, SSHFP, TLSA, URI === */
+#dnsRecords div.dns-row > div.caa-flags  { width: 52px; }
+#dnsRecords div.dns-row > div.caa-tag    { width: 105px; }
+#dnsRecords div.dns-row > div.caa-value  { width: 210px; }
+
+#dnsRecords div.dns-row > div.naptr-order       { width: 44px; }
+#dnsRecords div.dns-row > div.naptr-pref        { width: 40px; }
+#dnsRecords div.dns-row > div.naptr-flags       { width: 52px; }
+#dnsRecords div.dns-row > div.naptr-service     { width: 80px; }
+#dnsRecords div.dns-row > div.naptr-regexp      { width: 130px; }
+#dnsRecords div.dns-row > div.naptr-replacement { width: 80px; }
+
+#dnsRecords div.dns-row > div.sshfp-algo   { width: 110px; }
+#dnsRecords div.dns-row > div.sshfp-fptype { width: 98px; }
+#dnsRecords div.dns-row > div.sshfp-fp     { width: 300px; }
+
+#dnsRecords div.dns-row > div.tlsa-usage    { width: 110px; }
+#dnsRecords div.dns-row > div.tlsa-selector { width: 110px; }
+#dnsRecords div.dns-row > div.tlsa-matching { width: 90px; }
+#dnsRecords div.dns-row > div.tlsa-cert     { width: 300px; }
+
+#dnsRecords div.dns-row > div.uri-priority { width: 52px; }
+#dnsRecords div.dns-row > div.uri-weight   { width: 52px; }
+#dnsRecords div.dns-row > div.uri-uri      { width: 300px; }
+
+#dnsRecords div.dns-row > div > select {
+    width: 100%;
+    border: 1px solid silver;
+    height: 22px;
+    font-size: 11px;
+    padding: 1px 2px;
+    box-sizing: border-box;
+}
 
 .dnsRecord:nth-child(even) {
     background-color: #F9F9F9;
@@ -459,38 +347,43 @@ div.accountTitle > div.content > div > a:hover {
      color: #333;
 }
 
-.row.new:nth-child(even) {
+.dns-row.new:nth-child(even) {
     background-color: #DFF0D8;
 }
 
-#dnsRecords .row.dnsRecord.new {
+#dnsRecords .dns-row.dnsRecord.new {
     background-color: #DFF0D8;
     border-color: #D6E9C6;
 }
-#dnsRecords .row.dnsRecord.deleted {
+#dnsRecords .dns-row.dnsRecord.deleted {
     background-color: #F2DEDE;
     border-color: #EED3D7;
 }
 
 #dnsRecords div.dnsRecord > .delete {
-    float: right;
+    position: absolute;
+    right: 10px;
+    top: 6px;
     letter-spacing: 1pt;
-    padding: 2px 6px 2px 6px;
-    margin: 0 10px 0 0;
+    padding: 2px 8px;
 }
 #dnsRecords div.dnsRecord > .delete:hover {
     cursor: pointer;
 }
 #dnsRecords div.dnsRecord > .undo {
     display: none;
-    float: right;
+    position: absolute;
+    right: 75px;
+    top: 6px;
     letter-spacing: 1pt;
-    padding: 2px 6px 2px 6px;
-    margin: 3px 10px 0 0;
+    padding: 2px 8px;
 }
-
 #dnsRecords div.dnsRecord > .undo:hover {
     cursor: pointer;
+}
+/* Espacio derecho para que los campos no queden bajo el botón Delete */
+#dnsRecords div.dnsRecord {
+    padding-right: 90px;
 }
 
 #dnsRecords .description {
@@ -498,41 +391,101 @@ div.accountTitle > div.content > div > a:hover {
     color: #777;
 }
 
-
-#dnsRecords div.row {
+#dnsRecords div.dns-row {
     border-top: 1px solid #EEE;
     position: relative;
-    margin-left: 0px;
-    margin-right: 0px;
+    margin-left: 0;
+    margin-right: 0;
     padding-left: 5px;
 }
 
 /* Add Strike through to Deleted DNS Rows */
-#dnsRecords .row.dnsRecord.deleted span,
-#dnsRecords .row.dnsRecord.deleted .input-small,
-#dnsRecords .row.dnsRecord.deleted div {
+#dnsRecords .dns-row.dnsRecord.deleted span,
+#dnsRecords .dns-row.dnsRecord.deleted .form-control-sm,
+#dnsRecords .dns-row.dnsRecord.deleted div {
         text-decoration: line-through;
 }
-#dnsRecords .row.dnsRecord.deleted .input-small{
-    filter: alpha(opacity=40);
+#dnsRecords .dns-row.dnsRecord.deleted .form-control-sm{
     opacity: 0.40;
 }
 
 .actions label {
     margin-right: 10px;
 }
-#dnsRecords .row > .actions {
+#dnsRecords .dns-row > .actions {
     float: right;
     margin-right: -3px;
 }
 
+@media (max-width: 767.98px) {
 
+    /* La fila de cabeceras es inútil cuando los campos están apilados */
+    #dnsRecords div.header.dns-row {
+        display: none;
+    }
 
+    /* "IN" es siempre constante — no aporta nada en móvil */
+    #dnsRecords div.dns-row > div.in {
+        display: none;
+    }
 
+    /* Cada registro como tarjeta */
+    #dnsRecords div.dnsRecord {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        padding: 8px 10px;
+        padding-right: 10px;
+        background: #fff;
+    }
 
+    #dnsRecords div.dns-row > div {
+        display: block;
+        width: 100% !important;
+        margin-right: 0;
+        margin-bottom: 6px;
+    }
 
+    #dnsRecords div.dns-row > div > input,
+    #dnsRecords div.dns-row > div > select {
+        width: 100% !important;
+        box-sizing: border-box;
+    }
 
+    /* Etiquetas inline para cada campo (sin modificar PHP) */
+    #dnsRecords div.dns-row > div.hostName::before { content: "Host Name"; display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.TTL::before      { content: "TTL";       display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.type::before     { content: "Tipo";      display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.target::before   { content: "Target";    display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.priority::before { content: "Priority";  display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.weight::before   { content: "Weight";    display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.port::before     { content: "Port";      display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
 
+    /* Campos extra multi-tipo */
+    #dnsRecords div.dns-row > div.caa-flags::before       { content: "Flags";       display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.caa-tag::before         { content: "Tag";         display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.caa-value::before       { content: "Value";       display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.sshfp-algo::before      { content: "Algorithm";   display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.sshfp-fptype::before    { content: "FP-Type";     display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.sshfp-fp::before        { content: "Fingerprint"; display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.uri-priority::before    { content: "Priority";    display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.uri-weight::before      { content: "Weight";      display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
+    #dnsRecords div.dns-row > div.uri-uri::before         { content: "URI";         display: block; font-size: 0.72em; font-weight: 600; color: #6c757d; margin-bottom: 2px; }
 
+    /* No añadir etiqueta a la fila de acciones (botones de guardar/undo/back) */
+    #dnsRecords div.dns-row > div.actions::before { content: none; }
 
+    /* Botones Delete/Undo: sacar del absolute, mostrar en línea */
+    #dnsRecords div.dnsRecord > .delete,
+    #dnsRecords div.dnsRecord > .undo {
+        position: static;
+        display: inline-block;
+        margin-top: 8px;
+    }
+
+    #dnsRecords .dns-row > .actions {
+        float: none;
+        margin-right: 0;
+    }
+}
 

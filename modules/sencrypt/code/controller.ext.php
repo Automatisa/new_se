@@ -47,9 +47,7 @@ class module_controller extends ctrl_module {
 	}
 
 	static function getCheckPortReq() {
-		# Post message if port 443 appears to not be open. Using external source to detect. Sentora check port API.
-		$portquery = file_get_contents('http://api.sentora.org/portcheck.txt/?port=443');
-		if ((sys_monitoring::PortStatus(443)) && ($portquery) == false) {
+		if (!sys_monitoring::LocalPortStatus(443)) {
 			self::$portReqsError = true;
 		}
 	}
@@ -152,9 +150,10 @@ class module_controller extends ctrl_module {
 		# Check if Panel ssl folder exists - This file should have been created during install.
 		# Check if cert exist or not
 		if ( is_file( $panelCertPath . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $panelDomain . "/cert.pem" ) ) {	
-			$panelDeleteButton = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=DeletePanelSSL" method="post">
-			<input type="hidden" name="inName" value="'. $panelDomain.'">
-			<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeletePanelSSL" value="inDeletePanelSSL">' . ui_language::translate("Delete") . '</button>
+			$panelDeleteButton = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=DeletePanelSSL" method="post">'
+			. runtime_csfr::Token() .
+			'<input type="hidden" name="inName" value="'. htmlspecialchars($panelDomain, ENT_QUOTES, 'UTF-8').'">
+			<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeletePanelSSL" value="inDeletePanelSSL"><i class="bi bi-trash me-1"></i>' . ui_language::translate("Delete") . '</button>
 			</form>';
 			$certinfo = openssl_x509_parse(file_get_contents(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $panelDomain . "/cert.pem"));
 			$validTo = date('Y-m-d', $certinfo["validTo_time_t"]);
@@ -172,9 +171,10 @@ class module_controller extends ctrl_module {
 			}
 			
 			# Revoke button just incase its needed
-			$panelRevokeButton = '<form action="./?module=sencrypt&action=RevokePanelSSL" method="post">
-				<input type="hidden" name="inDomain" value="'. $panelDomain.'">
-				<button class="button-loader btn btn-danger" type="submit" id="button" name="inRevokeSSL" id="inRevokePanelSSL" value="inRevokePanelSSL">' . ui_language::translate("Revoke") . '</button>
+			$panelRevokeButton = '<form action="./?module=sencrypt&action=RevokePanelSSL" method="post">'
+				. runtime_csfr::Token() .
+				'<input type="hidden" name="inDomain" value="'. htmlspecialchars($panelDomain, ENT_QUOTES, 'UTF-8').'">
+				<button class="button-loader btn btn-danger" type="submit" id="button" name="inRevokeSSL" id="inRevokePanelSSL" value="inRevokePanelSSL"><i class="bi bi-slash-circle me-1"></i>' . ui_language::translate("Revoke") . '</button>
 			</form>';
 		
 			$panelres[] = array('Active_Panel_Domain' => $panelDomain, 'Active_Panel_Provider' => $sslvendor, 'Active_Panel_Days' =>  $paneldays, 'Active_Panel_Button' => $panelDeleteButton,  'Active_Panel_Revoke' => $panelRevokeButton);
@@ -182,9 +182,10 @@ class module_controller extends ctrl_module {
 		# If third party ssl show
 		} elseif ( is_dir( $panelCertPath . $currentuser["username"] . "/ssl/sencrypt/third_party/" . $panelDomain . "/" ) ) {
 						
-			$panelDeleteButton = '<form action="./?module=sencrypt&ShowPanel=third_party&action=TPDelete" method="post">
-			<input type="hidden" name="inName" value="'. $panelDomain.'">
-			<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeletePanelSSL" value="inDeletePanelSSL">' . ui_language::translate("Delete") . '</button>
+			$panelDeleteButton = '<form action="./?module=sencrypt&ShowPanel=third_party&action=TPDelete" method="post">'
+			. runtime_csfr::Token() .
+			'<input type="hidden" name="inName" value="'. htmlspecialchars($panelDomain, ENT_QUOTES, 'UTF-8').'">
+			<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeletePanelSSL" value="inDeletePanelSSL"><i class="bi bi-trash me-1"></i>' . ui_language::translate("Delete") . '</button>
 			</form>';
 			$certinfo = openssl_x509_parse(file_get_contents(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/" . $panelDomain . "/cert.pem"));
 			$validTo = date('Y-m-d', $certinfo["validTo_time_t"]);
@@ -225,9 +226,10 @@ class module_controller extends ctrl_module {
 			# Check if ssl exists else where
 			if (!is_dir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] ."/ssl/sencrypt/third_party/". $panelDomain ."/") ) {
 				# do nothing cert exists
-				$panelbutton = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=MakePanelSSL" method="post">
-				<input type="hidden" name="inDomain" value="'. $panelDomain.'">
-				<button class="button-loader btn btn-primary" type="submit" id="button" name="in" id="inMakePanelSSL" value="inMakePanelSSL">' . ui_language::translate("Encrypt") . '</button>
+				$panelbutton = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=MakePanelSSL" method="post">'
+				. runtime_csfr::Token() .
+				'<input type="hidden" name="inDomain" value="'. htmlspecialchars($panelDomain, ENT_QUOTES, 'UTF-8').'">
+				<button class="button-loader btn btn-primary" type="submit" id="button" name="in" id="inMakePanelSSL" value="inMakePanelSSL"><i class="bi bi-shield-lock me-1"></i>' . ui_language::translate("Encrypt") . '</button>
 				</form>';
 				$paneldays = "";
 				
@@ -281,9 +283,10 @@ class module_controller extends ctrl_module {
 
 					} else {
 
-						$button = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=MakeSSL" method="post">
-							<input type="hidden" name="inDomain" value="'.$rowdomains['vh_name_vc'].'">
-							<button class="button-loader btn btn-primary" type="submit" id="button" name="in" id="inMakeSSL" value="inMakeSSL">' . ui_language::translate("Encrypt") . '</button>
+						$button = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=MakeSSL" method="post">'
+							. runtime_csfr::Token() .
+							'<input type="hidden" name="inDomain" value="'.htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8').'">
+							<button class="button-loader btn btn-primary" type="submit" id="button" name="in" id="inMakeSSL" value="inMakeSSL"><i class="bi bi-shield-lock me-1"></i>' . ui_language::translate("Encrypt") . '</button>
 						</form>';
 						
 						$res[] = array('Vh_Domain' => $rowdomains['vh_name_vc'], 'Vh_Button' => $button);
@@ -334,13 +337,14 @@ class module_controller extends ctrl_module {
 	
 					$button = '<form action="./?module=sencrypt&ShowPanel=third-party&action=TPDelete" method="post">
 						<input type="hidden" name="inName" value="'. $rowdomains['vh_name_vc'] .'">
-						<button class="btn btn-warning" type="submit" id="button" name="inDelete_'. $currentuser["username"].'" id="inDelete_'. $currentuser["username"].'" value="inDelete_' . $currentuser["username"] . '">' . ui_language::translate("Delete") . '</button></td>
+						<button class="btn btn-warning" type="submit" id="button" name="inDelete_'. $currentuser["username"].'" id="inDelete_'. $currentuser["username"].'" value="inDelete_' . $currentuser["username"] . '"><i class="bi bi-trash me-1"></i>' . ui_language::translate("Delete") . '</button></td>
 						 '.runtime_csfr::Token().'
 					</form>';
 					
-					$Downloadbutton = '<form action="./?module=sencrypt&ShowPanel=third-party&action=Download" method="post">
-							<input type="hidden" name="inName" value="'. $rowdomains['vh_name_vc'] .'">
-							<button class="btn btn-primary1" type="submit" id="button" name="inDownload_'. $currentuser["username"].'" id="inDownload_'. $currentuser["username"].'" value="inDownload_'. $currentuser["username"].'">' . ui_language::translate("Download") . '</button></td>
+					$Downloadbutton = '<form action="./?module=sencrypt&ShowPanel=third-party&action=Download" method="post">'
+						. runtime_csfr::Token() .
+						'<input type="hidden" name="inName" value="'. htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8') .'">
+							<button class="btn btn-primary1" type="submit" id="button" name="inDownload_'. $currentuser["username"].'" id="inDownload_'. $currentuser["username"].'" value="inDownload_'. $currentuser["username"].'"><i class="bi bi-download me-1"></i>' . ui_language::translate("Download") . '</button></td>
 					</form>';
 					
 					$certinfo = openssl_x509_parse(file_get_contents(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/" . $rowdomains['vh_name_vc'] . "/cert.pem"));
@@ -363,15 +367,17 @@ class module_controller extends ctrl_module {
 				# If Letsencrypt cert	
 				} elseif ( is_file(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $rowdomains['vh_name_vc'] . "/cert.pem" ) ) {
 					
-					$button = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=Delete" method="post">
-						<input type="hidden" name="inDomain" value="'. $rowdomains['vh_name_vc'].'">
-						<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeleteSSL" value="inDeleteSSL">' . ui_language::translate("Delete") . '</button>
+					$button = '<form action="./?module=sencrypt&ShowPanel=letsencrypt&action=Delete" method="post">'
+					. runtime_csfr::Token() .
+					'<input type="hidden" name="inDomain" value="'. htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8').'">
+						<button class="button-loader btn btn-warning" type="submit" id="button" name="inDeleteSSL" id="inDeleteSSL" value="inDeleteSSL"><i class="bi bi-trash me-1"></i>' . ui_language::translate("Delete") . '</button>
 					</form>';
 					
 					# Revoke button just incase its needed
-					$RevokeButton = '<form action="./?module=sencrypt&action=RevokeSSL" method="post">
-						<input type="hidden" name="inDomain" value="'. $rowdomains['vh_name_vc'].'">
-						<button class="button-loader btn btn btn-danger" type="submit" id="button" name="inRevokeSSL" id="inRevokeSSL" value="inRevokeSSL">' . ui_language::translate("Revoke") . '</button>
+					$RevokeButton = '<form action="./?module=sencrypt&action=RevokeSSL" method="post">'
+					. runtime_csfr::Token() .
+					'<input type="hidden" name="inDomain" value="'. htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8').'">
+						<button class="button-loader btn btn btn-danger" type="submit" id="button" name="inRevokeSSL" id="inRevokeSSL" value="inRevokeSSL"><i class="bi bi-slash-circle me-1"></i>' . ui_language::translate("Revoke") . '</button>
 					</form>';
 					
 					$certinfo = openssl_x509_parse(file_get_contents(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $rowdomains['vh_name_vc'] . "/cert.pem"));
@@ -415,13 +421,43 @@ class module_controller extends ctrl_module {
 		set_time_limit(0);
 		global $zdbh;
 		global $controller;
+		$currentuser = ctrl_users::GetUserDetail();
+
+		// Reject any non-hostname characters (blocks ../ traversal)
+		if (!preg_match('/^[a-zA-Z0-9.\-]+$/', $domain) || $domain === '') {
+			return false;
+		}
+		// Ownership: domain must belong to this user
+		$chk = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
+		$chk->execute([':d' => $domain, ':u' => $currentuser['userid']]);
+		if ($chk->fetchColumn() == 0) return false;
+
+		// realpath containment
+		$sslBase = realpath(ctrl_options::GetSystemOption('hosted_dir') . $username . '/ssl/sencrypt/third_party');
+		$sslDir  = ctrl_options::GetSystemOption('hosted_dir') . $username . '/ssl/sencrypt/third_party/' . $domain . '/';
+		$realSSL = realpath(rtrim($sslDir, '/'));
+		if ($sslBase === false || $realSSL === false || strpos($realSSL . '/', $sslBase . '/') !== 0) {
+			return false;
+		}
+
 		$rootdir = str_replace('.', '_', $domain);
-		
+
 		$temp_dir = ctrl_options::GetSystemOption('sentora_root') . "etc/tmp/";
 		$homedir = ctrl_options::GetSystemOption('hosted_dir') . $username;
     	$backupname = $rootdir;
-		$resault = exec("cd " . $homedir . "/ssl/sencrypt/third_party/" . $domain . "/ && " . ctrl_options::GetSystemOption('zip_exe') . " -r9 " . $temp_dir . $backupname . " *");
-        @chmod($temp_dir . $backupname . ".zip", 0777);
+		// Crear zip con ZipArchive (sin exec ni shell)
+		$sslDir = $homedir . '/ssl/sencrypt/third_party/' . $domain . '/';
+		$zipPath = $temp_dir . $backupname . '.zip';
+		$zip = new ZipArchive();
+		if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+			foreach (glob($sslDir . '*') as $file) {
+				if (is_file($file)) {
+					$zip->addFile($file, basename($file));
+				}
+			}
+			$zip->close();
+		}
+        @chmod($zipPath, 0600);
 		$filename = $backupname . ".zip";
 		$filepath = $temp_dir;
 		header("Pragma: public");
@@ -436,15 +472,11 @@ class module_controller extends ctrl_module {
 		ob_end_flush();
 		readfile($filepath. $filename);
 		unlink($temp_dir . $backupname . ".zip");
-		
 		return true;
-		
-		# Return to page. Reload issue. Fix below
-		header('Location: ' . $_SERVER['HTTP_REFERER']);
 	}
 	
 	static function doDownload() {
-		
+        runtime_csfr::Protect();
         global $controller;
         $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
@@ -509,8 +541,8 @@ class module_controller extends ctrl_module {
 			//$phpmailer->From = "info@sentora.org";
 			$phpmailer->Subject = $emailsubject;
 			$phpmailer->Body = $emailbody;
-			$phpmailer->AddAttachment(ctrl_options::GetSystemOption('hosted_dir'). $currentuser["username"] . "/ssl/sencrypt/third_party/key/" . $domain . ".key");
-			$phpmailer->AddAddress($email);
+			$phpmailer->addAttachment(ctrl_options::GetSystemOption('hosted_dir'). $currentuser["username"] . "/ssl/sencrypt/third_party/key/" . $domain . ".key");
+			$phpmailer->addAddress($email);
 			$phpmailer->SendEmail();
 
 			unlink(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/key/" . $domain . ".key");
@@ -522,10 +554,10 @@ class module_controller extends ctrl_module {
 
 	static function doTPDelete() {
         global $controller;
-        //runtime_csfr::Protect();
+        runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
-		
+
 		$sub_module = "third_party";
 		
         if (self::ExecuteTPDelete($formvars['inName'], $currentuser["username"], $sub_module)) {
@@ -537,7 +569,31 @@ class module_controller extends ctrl_module {
 		global $zdbh;
 		global $controller;
 		$currentuser = ctrl_users::GetUserDetail();
+
+		// Whitelist sub_module
+		if (!in_array($sub_module, ['letsencrypt', 'third_party'], true)) {
+			return false;
+		}
+		// Reject any non-hostname characters (blocks ../ traversal)
+		if (!preg_match('/^[a-zA-Z0-9.\-]+$/', $domain) || $domain === '') {
+			return false;
+		}
+		// Ownership: domain must belong to this user, or be the panel domain for admins only
+		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		if ($domain === $panelDomain) {
+			if ($currentuser['usergroup'] !== 'Administrators') return false;
+		} else {
+			$chk = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
+			$chk->execute([':d' => $domain, ':u' => $currentuser['userid']]);
+			if ($chk->fetchColumn() == 0) return false;
+		}
+		// realpath containment
+		$baseDir = realpath(ctrl_options::GetSystemOption('hosted_dir') . $username . '/ssl/sencrypt/' . $sub_module);
 		$dir = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . $sub_module . "/" . $domain;
+		$realDir = realpath($dir);
+		if ($baseDir === false || $realDir === false || strpos($realDir . '/', $baseDir . '/') !== 0) {
+			return false;
+		}
 		$objects = scandir($dir);
 		
 		foreach ($objects as $object) {
@@ -734,17 +790,37 @@ class module_controller extends ctrl_module {
 	}
 
 	static function doUploadSSL() {
+        runtime_csfr::Protect();
 		global $zdbh;
 		global $controller;
 		$currentuser = ctrl_users::GetUserDetail();
 		$formvars = $controller->GetAllControllerRequests('FORM');
 		$domain = $formvars["inDomain"];
 
-		if (empty($_FILES["inkey"]["name"]) || empty($_FILES["inWCA"]["name"])) { 
+		if (empty($_FILES["inkey"]["name"]) || empty($_FILES["inWCA"]["name"])) {
 			self::$empty = true;
-			return false; 
+			return false;
 		}
-		
+
+		if (!preg_match('/^[a-zA-Z0-9.\-]+$/', $domain) || $domain === '') {
+			self::$error = true;
+			return false;
+		}
+		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		if ($domain !== $panelDomain) {
+			$chk = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
+			$chk->execute([':d' => $domain, ':u' => $currentuser['userid']]);
+			if ((int)$chk->fetchColumn() === 0) {
+				self::$error = true;
+				return false;
+			}
+		} else {
+			if ($currentuser['usergroup'] !== 'Administrators') {
+				self::$error = true;
+				return false;
+			}
+		}
+
 		if (!is_dir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/") ) {
 			mkdir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/", 0777);
 		}
@@ -1181,8 +1257,9 @@ class module_controller extends ctrl_module {
 # LETS Encrypt code - START
 # Client
 	static function doMakeSSL() {
+        runtime_csfr::Protect();
 		global $controller;
-		
+
 		$sub_module = "letsencrypt";
 		
 		$currentuser = ctrl_users::GetUserDetail();
@@ -1194,8 +1271,9 @@ class module_controller extends ctrl_module {
 	
 # Panel		
 	static function doMakePanelSSL() {
+        runtime_csfr::Protect();
 		global $controller;
-		
+
 		$sub_module = "letsencrypt";
 		
 		$currentuser = ctrl_users::GetUserDetail();
@@ -1229,28 +1307,21 @@ class module_controller extends ctrl_module {
 		require("modules/sencrypt/code/Lescript.php");
 		date_default_timezone_set("UTC");
 		
-		# Set country/state- tg & Jettaman	
 		$user_ip = ctrl_options::GetSystemOption('server_ip');
-		$ip_response = file_get_contents('http://ip-api.com/json/'.$user_ip);
-		$ip_array = json_decode($ip_response);
-		$countryCode = $ip_array->countryCode; 
-		$state = $ip_array->regionName;
-		$ipStatus = $ip_array->status;
-		$querydata = $ip_array->query;
-	
+
 		# Check DNS before continuing
-		if (self::checkDNSIsLive($domain, $ipStatus, $querydata, $user_ip) == false) {
+		if (!self::checkDNSIsLive($domain, $user_ip)) {
 			self::$dnsInvalid = true;
 			return false;
 		}
-		
+
 		# Make Let´s encrypt SSL
 		$logger = new Logger();
-	
+
 		try {
 
-			$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $domainRoot, $logger, $countryCode, $state);
-			
+			$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $domainRoot, $logger);
+
 			# uses client's email used during registration
 			$le->contact = array('mailto:'. $currentuser['email']); // optional
 			
@@ -1374,26 +1445,19 @@ class module_controller extends ctrl_module {
 		require("modules/sencrypt/code/Lescript.php");
 		
 		
-		# Set country/state - tg & Jettaman
 		$user_ip = ctrl_options::GetSystemOption('server_ip');
-		$ip_response = file_get_contents('http://ip-api.com/json/'.$user_ip);
-		$ip_array = json_decode($ip_response);
-		$countryCode = $ip_array->countryCode; 
-		$state = $ip_array->regionName;
-		$ipStatus = $ip_array->status;
-		$querydata = $ip_array->query;
-		
+
 		# Check DNS before continuing
-		if (self::checkDNSIsLive($domain, $ipStatus, $querydata, $user_ip) == false) {
+		if (!self::checkDNSIsLive($domain, $user_ip)) {
 			self::$dnsInvalid = true;
 			return false;
 		}
-		
+
 		# Make Let´s encrypt SSL
 		$logger = new Logger();
 
 		try {
-			$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $domainRoot, $logger, $countryCode, $state);
+			$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $domainRoot, $logger);
 			
 			# uses client's email used during registration
 			$le->contact = array('mailto:' . $currentuser['email']); // optional
@@ -1530,10 +1594,11 @@ class module_controller extends ctrl_module {
 	}
 
 	static function doDelete() {
+        runtime_csfr::Protect();
 		global $controller;
 		$currentuser = ctrl_users::GetUserDetail();
 		$formvars = $controller->GetAllControllerRequests('FORM');
-		
+
 		$sub_module = "letsencrypt";
 		
 		if (self::ExecuteTPDelete($formvars['inDomain'], $currentuser["username"], $sub_module))
@@ -1600,9 +1665,10 @@ class module_controller extends ctrl_module {
 	# Delete Panel SSL		
 	# do we need to pass panel domain since panel only uses one domain?
 	static function doDeletePanelSSL() {
+        runtime_csfr::Protect();
 		global $controller;
 		$currentuser = ctrl_users::GetUserDetail();
-		$formvars = $controller->GetAllControllerRequests('FORM');			
+		$formvars = $controller->GetAllControllerRequests('FORM');
 		//if (self::ExecuteDeletePanelSSL($formvars['inDomain'], $currentuser["username"]))
 		if (self::ExecuteDeletePanelSSL(ctrl_options::GetSystemOption('sentora_domain'), $currentuser["username"]))
 		return true;
@@ -1676,9 +1742,48 @@ class module_controller extends ctrl_module {
 		self::SetWriteApacheConfigTrue();
 		self::$delok = true;
 		return true;
-	}	
+	}
+
+	/**
+	 * Revoca el certificado SSL del PANEL en Let's Encrypt y limpia localmente.
+	 * La revocación remota es best-effort (try/catch, sin exit): aunque falle,
+	 * se limpia el cert y se restaura el panel a HTTP (reutiliza ExecuteDeletePanelSSL).
+	 * Faltaba este handler: el botón "Revoke" del panel SSL no hacía nada.
+	 */
+	static function doRevokePanelSSL() {
+		runtime_csfr::Protect();
+		$currentuser = ctrl_users::GetUserDetail();
+		$username    = $currentuser["username"];
+		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+
+		$accountDir   = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/letsencrypt/";
+		$certlocation = $accountDir . $panelDomain;               // dir con cert.pem del panel
+		$certFile     = $certlocation . "/cert.pem";
+
+		// 1) Revocar en Let's Encrypt (best-effort: no romper el panel si falla)
+		if (is_file($certFile)) {
+			try {
+				require_once("modules/sencrypt/code/Lescript.php");
+				date_default_timezone_set("UTC");
+				$logger  = new Logger();
+				$pem2der = self::base64url(self::pem2der(file_get_contents($certFile)));
+				$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $certlocation, $logger);
+				$le->initAccount();
+				$le->postRevoke($pem2der);
+			} catch (\Throwable $e) {
+				// Log y continuar: la limpieza local se hace igualmente.
+				error_log('sencrypt doRevokePanelSSL: fallo al revocar en LE: ' . $e->getMessage());
+			}
+		}
+
+		// 2) Limpieza local + reconstrucción de config (misma lógica que "Delete panel SSL")
+		self::ExecuteDeletePanelSSL($panelDomain, $username);
+		self::$delok = true;
+		return true;
+	}
 
 	static function doRevokeSSL() {
+        runtime_csfr::Protect();
 		global $controller;
 		$sub_module = "letsencrypt";
 		$currentuser = ctrl_users::GetUserDetail();
@@ -1775,13 +1880,13 @@ class module_controller extends ctrl_module {
 					
 				} else {
 					# For Sentora 2.0
-					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx= (vh_ssl_tx, :data, :new), vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
-					$sql->bindParam(':data', $data);
+					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx= replace(vh_ssl_tx, :data, :new), vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
+					$sql->bindParam(':data', $line);
 					$sql->bindParam(':new', $new);
 					$sql->bindParam(':port', $port);
 					$sql->bindParam(':domain', $domain);
 					$sql->execute();
-					
+
 				}
 				# NEW CODE END
 				
@@ -1820,20 +1925,20 @@ class module_controller extends ctrl_module {
 		//return '<font face="ariel" size="4">' . ui_language::translate("ZADMIN ALERT: Make sure port 443 is OPEN before adding any SSL certificates!") . '</font>';
     //}
 	
-	static function checkDNSIsLive ($domain, $ipStatus, $querydata, $server_ip) { 
-		# Check DNS for domain is live and public before continuing
-		 
-		 // Pull IP from sentora
-		 ctrl_options::GetSystemOption('server_ip');
-		
-		if(checkdnsrr($domain,"A")) {
-			
-			if (($ipStatus == "success") && ($querydata == $server_ip)) {
-				return true;		
-			}
-		} else {
+	static function checkDNSIsLive($domain, $server_ip) {
+		if (!checkdnsrr($domain, "A")) {
 			return false;
 		}
+		$records = dns_get_record($domain, DNS_A);
+		if (empty($records)) {
+			return false;
+		}
+		foreach ($records as $record) {
+			if (isset($record['ip']) && $record['ip'] === $server_ip) {
+				return true;
+			}
+		}
+		return false;
 	}
 	
 

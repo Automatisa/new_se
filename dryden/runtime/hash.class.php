@@ -74,18 +74,6 @@ class runtime_hash {
     }
 
     /**
-     * A 'setter' method to set the cost (strenght) of the encryption.
-     * @param int $cost Numbe of rounds (2 to the power 10) eg. 10 = 1,024, 11 = 2,048, 12 = 4,096 (Default is 12 (4,096))
-     */
-    public function SetCost($cost = 0) {
-        if ($cost > 0) {
-            $this->cost = $cost;
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * Main method for generating the bcrypt hash.
      * @return boolean Will return false if fails (the user didn't define a password or the version of PHP does not support Blowfish, PHP 5.3.0+ is required!) or the password hash if successful.
      */

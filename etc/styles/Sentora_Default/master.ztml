@@ -8,9 +8,11 @@
 
         <!-- Stylesheets -->
         <link href="<# ui_tpl_assetfolderpath #>global-css/bootstrap.min.css" rel="stylesheet">
+        <link href="<# ui_tpl_assetfolderpath #>global-css/bootstrap-icons.min.css" rel="stylesheet">
         <link href="<# ui_tpl_csspath #>" rel="stylesheet" type="text/css">
 
         <script src="<# ui_tpl_assetfolderpath #>js/jquery.js"></script>
+        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap.bundle.min.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/jquery.cookie.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/jquery.sortable-custom.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/spin.min.js"></script>
@@ -29,7 +31,6 @@
         <link rel="icon" href="<# ui_tpl_assetfolderpath #>img/ico/fav128.png" sizes="128x128" type="image/png">
 
         <link rel="icon" href="<# ui_tpl_assetfolderpath #>img/ico/fav32.png">
-        <!--[if IE]><link rel="shortcut icon" href="<# ui_tpl_assetfolderpath #>img/ico/favicon.ico"><![endif]-->
 
         <meta name="msapplication-TileColor" content="#222222">
         <meta name="msapplication-TileImage" content="<# ui_tpl_assetfolderpath #>img/ico/fav144.png">
@@ -44,44 +45,40 @@
         <!-- END ZLOADER PROGRESSBAR DIV -->
 
         <!-- BEGIN NAVBAR -->
-        <div class="navbar navbar-inverse navbar-fixed-top">
-            <div class="container">
-                <!-- .navbar-toggle is used as the toggle for collapsed navbar content -->
-                <a class="navbar-toggle navbar-inverse" data-toggle="collapse" data-target=".navbar-responsive-collapse">
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </a>
+        <nav class="navbar navbar-dark bg-dark navbar-expand-lg fixed-top">
+            <div class="container-fluid px-3">
                 <a class="navbar-brand" href="."><img src="<# ui_tpl_assetfolderpath #>img/logos/sentora_logo_header.png" width="96" height="36" alt="Home"></a>
-                <div class="nav-collapse collapse navbar-responsive-collapse">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarMain">
                     <ul class="nav navbar-nav">
-                        <li><a href="#" class="nav-stat-button" title="View Account Info" data-toggle="collapse" data-target="#stats-data"><i class="icon-chart-bar-2"></i></a></li>
+                        <li class="nav-item"><a href="#" class="nav-link nav-stat-button" title="View Account Info" data-bs-toggle="collapse" data-bs-target="#stats-data"><i class="bi bi-bar-chart-fill"></i></a></li>
                         <# ui_tpl_modulelistznavbar #>
                     </ul>
-                </div><!--/.nav-collapse -->
-            </div><!-- /.container -->
-        </div>
+                </div>
+            </div>
+        </nav>
         <!-- END NAVBAR -->
 
         <!-- BEGIN CONTAINER -->
         <div class="wrap container">
-            <div id="module-search-wrap" class="visible-lg visible-desktop">
-                <input type="text" id="module-search" data-provide="typeahead" placeholder="Search" autocomplete="off">
-            </div>
             <div class="inner-wrap">
                 <!-- BEGIN LEFT SIDEBAR -->
-                <div id="page-sidebar" class="col-lg-3 visible-desktop">
+                <div id="page-sidebar" class="d-none d-lg-block">
+                    <div id="module-search-wrap">
+                        <input type="text" id="module-search" class="form-control form-control-sm" data-provide="typeahead" placeholder="Search" autocomplete="off">
+                    </div>
                     <ul id="menu-sidebar">
-                        <li id="acc-stats"><a class="stats-but" href="#"  data-toggle="collapse" data-target="#stats-data"><: Account Info :></a></li>
+                        <li id="acc-stats"><a class="stats-but" href="#" data-bs-toggle="collapse" data-bs-target="#stats-data"><: Account Info :></a></li>
                         <# ui_tpl_modulelistzsidebar #>
                     </ul>
                     <div id="sidebar-bg"></div>
                 </div>
                 <!-- END LEFT SIDEBAR -->
 
-
                 <!-- BEGIN PAGE-CONTENT -->
-                <div id="page-content" class="col-lg-9">
+                <div id="page-content">
 
                     <# ui_tpl_shadowbar #>
 
@@ -91,15 +88,15 @@
 
                             <!-- BEGIN STATS -->
                             <ul class="nav nav-tabs" id="stats-tab">
-                                <li class="active"><a href="#account"><: Account Information :></a></li>
-                                <li><a href="#usage"><: Account Usage :></a></li>
-                                <li><a href="#server"><: Server Information :></a></li>
-                                <li><a href="#domain"><: Domain Information :></a></li>
+                                <li class="nav-item"><a class="nav-link active" href="#account" data-bs-toggle="tab"><: Account Information :></a></li>
+                                <li class="nav-item"><a class="nav-link" href="#usage" data-bs-toggle="tab"><: Account Usage :></a></li>
+                                <li class="nav-item"><a class="nav-link" href="#server" data-bs-toggle="tab"><: Server Information :></a></li>
+                                <li class="nav-item"><a class="nav-link" href="#domain" data-bs-toggle="tab"><: Domain Information :></a></li>
                             </ul>
 
                             <div class="tab-content">
                                 <!-- BEGIN ACCOUNTINFO -->
-                                <div class="tab-pane active" id="account">
+                                <div class="tab-pane fade show active" id="account">
                                     <div class="stats-row s-top">
                                         <div class="stats-column"><strong><: Username :>:</strong></div>
                                         <div class="stats-column"><# ui_tpl_username #></div>
@@ -133,7 +130,7 @@
                                 <!-- END ACCOUNTINFO -->
 
                                 <!-- BEGIN USAGE -->
-                                <div class="tab-pane" id="usage">
+                                <div class="tab-pane fade" id="usage">
                                     <!-- Disk usage -->
                                     <div class="stats-row bar-row s-top">
                                         <div class="stats-column"><strong><: Disk Quota :>:</strong></div>
@@ -151,7 +148,6 @@
                                             <# ui_tpl_usagebandwidth #> / <# ui_tpl_quotabandwidth #>
                                         </div>
                                     </div>
-
 
                                     <div class="stats-row">
                                         <div class="stats-column"></div>
@@ -174,7 +170,6 @@
                                         <div class="stats-column"><span class="Side_Info_used"><# ui_tpl_usedemail #></span> / <span class="Side_Info_max"><# ui_tpl_totalemail #></span></div>
                                     </div>
 
-
                                     <div class="stats-row">
                                         <div class="stats-column"><strong><: FTP accounts :>:</strong></div>
                                         <div class="stats-column"><span class="Side_Info_used"><# ui_tpl_usedftp #></span> / <span class="Side_Info_max"><# ui_tpl_totalftp #></span></div>
@@ -192,7 +187,7 @@
                                 <!-- END USAGE -->
 
                                 <!-- BEGIN SERVERINFO -->
-                                <div class="tab-pane" id="server">
+                                <div class="tab-pane fade" id="server">
                                     <div class="stats-row bar-row s-top">
                                         <div class="stats-column"><strong><: Your IP :>:</strong></div>
                                         <div class="stats-column"><# ui_tpl_clientipaddress #></div>
@@ -205,7 +200,7 @@
 
                                     <div class="stats-row">
                                         <div class="stats-column"><strong><: Server OS :>:</strong></div>
-                                        <div class="stats-column"><img src="<# ui_tpl_assetfolderpath #>img/os_icons/<# ui_tpl_serverosname #>.png" width="16" height="16" class="pull-left" alt="<# ui_tpl_serverosname #> Icon">&nbsp;<# ui_tpl_serverosname #></div>
+                                        <div class="stats-column"><img src="<# ui_tpl_assetfolderpath #>img/os_icons/<# ui_tpl_serverosname #>.png" width="16" height="16" class="float-start" alt="<# ui_tpl_serverosname #> Icon">&nbsp;<# ui_tpl_serverosname #></div>
                                     </div>
 
                                     <div class="stats-row">
@@ -236,7 +231,7 @@
                                 <!-- END SERVERINFO -->
 
                                 <!-- BEGIN DOMAININFO -->
-                                <div class="tab-pane" id="domain">
+                                <div class="tab-pane fade" id="domain">
                                     <# ui_tpl_clientdomains #>
                                 </div>
                                 <!-- END DOMAININFO -->
@@ -245,7 +240,7 @@
                     </div><!-- END STATSDATA-WRAPPER -->
                     <!-- END STATS -->
 
-		    <# ui_tpl_sysnotice #>
+                    <# ui_tpl_sysnotice #>
 
                     <# ui_tpl_notice #>
 
@@ -259,22 +254,9 @@
 
                 </div><!--/page-content-->
             </div>
-            <div id="footer" >Copyright &copy; 2004-<# ui_tpl_year #> <a href="http://www.sentora.org/" target="_blank">Sentora Project</a>.</div>
+            <div id="footer">Copyright &copy; 2004-<# ui_tpl_year #> <a href="http://www.sentora.org/" target="_blank">Sentora Project</a>.</div>
         </div><!-- END CONTAINER -->
 
-        <!-- Javascript
-        ================================================== -->
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-transition.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-alert.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-modal.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-dropdown.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-scrollspy.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-tab.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-tooltip.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-popover.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-button.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-collapse.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/bootstrap-carousel.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/typeahead.min.js"></script>
 
         <!-- Modulelist for Typeahead -->

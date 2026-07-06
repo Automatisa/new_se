@@ -31,15 +31,21 @@ class debug_logger {
     var $detail;
 
     /**
-     * @var string A log code eg. (ERR4433) 
+     * @var string A log code eg. (ERR4433)
      */
     var $logcode;
+
+    /**
+     * @var string Módulo asociado a la entrada de log (por defecto "NA").
+     */
+    var $module;
 
     function __construct() {
         $this->method = "file";
         $this->mextra = null;
         $this->detail = null;
         $this->logcode = 0;
+        $this->module = "NA";
     }
 
     /**
@@ -59,28 +65,18 @@ class debug_logger {
             $email_log = new sys_email();
             $email_log->Subject = "Sentora Error Log";
             $email_log->Body = "" . date('c') . ' - ' . $this->logcode . ' - ' . $this->detail . "";
-            $email_log->AddAddress(ctrl_options::GetSystemOption('email_from_address'));
+            $email_log->addAddress(ctrl_options::GetSystemOption('email_from_address'));
             $email_log->SendEmail();
         } elseif ($this->method == "db") {
-            $statement = "INSERT INTO x_logs (lg_user_fk, lg_code_vc, lg_module_vc, lg_detail_tx, lg_stack_tx) VALUES (0, '" . $this->logcode . "', 'NA', '" . $this->detail . "', '" . $this->mextra . "')";
-            if ($zdbh->exec($statement)) {
-                $retval = true;
-            } else {
-                $retval = false;
-            }
             try {
-                $statement = "INSERT INTO x_logs (lg_user_fk, lg_code_vc, lg_module_vc, lg_detail_tx, lg_stack_tx) VALUES (0, '" . $this->logcode . "', 'NA', '" . $this->detail . "', '" . $this->mextra . "')";
-                if ($zdbh->exec($statement) > 0) {
-                    $retval = true;
-                } else {
-                    $retval = false;
-                }
+                $stmt = $zdbh->prepare("INSERT INTO x_logs (lg_user_fk, lg_code_vc, lg_module_vc, lg_detail_tx, lg_stack_tx) VALUES (0, :code, :module, :detail, :extra)");
+                $stmt->bindValue(':code',   $this->logcode);
+                $stmt->bindValue(':module', ($this->module !== null && $this->module !== '') ? $this->module : 'NA');
+                $stmt->bindValue(':detail', $this->detail);
+                $stmt->bindValue(':extra',  $this->mextra);
+                $stmt->execute();
             } catch (Exception $e) {
-                $temp_log_obj->method = "text";
-                $temp_log_obj->logcode = "012";
-                $temp_log_obj->detail = "Unable to log infomation to the required place (in the database)";
-                $temp_log_obj->mextra = $e;
-                $temp_log_obj->writeLog();
+                fs_filehandler::AddTextToFile(ctrl_options::GetSystemOption('logfile'), date('c') . ' - 012 - Unable to log to database: ' . $e->getMessage(), 1);
             }
             return true;
         } else {

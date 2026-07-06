@@ -16,6 +16,14 @@
 class ctrl_options {
 
     /**
+     * Subcarpeta contenedora de los directorios de dominio dentro del home del
+     * usuario: /var/sentora/hostdata/<usuario>/<DOMAINS_SUBDIR>/<dominio>/
+     * Agrupa los dominios y los separa de las carpetas de sistema (mail, ssl,
+     * backups, tmp, quarantine). Fuente única del nombre "web".
+     */
+    const DOMAINS_SUBDIR = 'web';
+
+    /**
      * The main 'getter' class used to retrieve the value from the system options table.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @global db_driver $zdbh The ZPX database handle.
@@ -186,7 +194,7 @@ class ctrl_options {
      */
     public static function GetVhostPaths($username, $vh_directory) {
         $base = rtrim(self::GetSystemOption('hosted_dir'), '/');
-        $domain_root = $base . '/' . $username . '/' . $vh_directory;
+        $domain_root = $base . '/' . $username . '/' . self::DOMAINS_SUBDIR . '/' . $vh_directory;
         return array(
             'domain_root' => $domain_root,
             'public_html' => $domain_root . '/public_html',
@@ -195,6 +203,40 @@ class ctrl_options {
             'errorpages'  => $domain_root . '/_errorpages',
             'cgibin'      => $domain_root . '/_cgi-bin',
         );
+    }
+
+    /**
+     * Returns the username that the web server process runs as.
+     *
+     * Priority: cron_reload_user DB option → first existing user from a
+     * well-known list (www-data, www, apache, nobody).
+     *
+     * @return string Username, e.g. "www" on FreeBSD or "www-data" on Debian.
+     */
+    public static function GetWebServerUser() {
+        $user = trim(self::GetSystemOption('cron_reload_user'));
+        if (!empty($user)) {
+            return $user;
+        }
+        // Try posix functions (Linux with posix extension)
+        if (function_exists('posix_getpwnam')) {
+            foreach (array('www-data', 'www', 'apache', 'nobody') as $candidate) {
+                if (posix_getpwnam($candidate) !== false) {
+                    return $candidate;
+                }
+            }
+        }
+        // Fallback: shell-based detection for systems without posix extension (e.g. FreeBSD)
+        if (function_exists('exec')) {
+            foreach (array('www-data', 'www', 'apache', 'nobody') as $candidate) {
+                $out = array();
+                @exec('id -u ' . escapeshellarg($candidate) . ' 2>/dev/null', $out, $rc);
+                if ($rc === 0 && !empty($out[0]) && is_numeric($out[0])) {
+                    return $candidate;
+                }
+            }
+        }
+        return 'www'; // BSD default
     }
 
     /**

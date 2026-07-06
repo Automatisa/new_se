@@ -102,8 +102,7 @@ INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`
 (78,'shared_domains','Shared Domains','no-ip,dyndns,autono,zphub',NULL,'Domains entered here can be shared across multiple accounts. Seperate domains with , example: no-ip,dyndns','Apache Config','true'),
 (79,'upload_temp_dir','Upload Temp Directory','/var/sentora/temp/',NULL,'The path to the Apache Upload directory (with trailing slash)','Apache Config','true'),
 (80,'apache_port','Apache Port','80',NULL,'Apache service port','Apache Config','true'),
-(81,'dir_index','Directory Indexes','DirectoryIndex index.html index.htm index.php index.asp index.aspx index.jsp index.jspa index.shtml index.shtm',NULL,'Directory Index','Apache Config','true'),
-(82,'suhosin_value','Suhosin Value','php_admin_value suhosin.executor.func.blacklist "passthru, show_source, shell_exec, system, pcntl_exec, popen, pclose, proc_open, proc_nice, proc_terminate, proc_get_status, proc_close, leak, apache_child_terminate, posix_kill, posix_mkfifo, posix_setpgid, posix_setsid, posix_setuid, escapeshellcmd, escapeshellarg, exec"',NULL,'Suhosin configuration for virtual host  blacklisting commands','Apache Config','true');
+(81,'dir_index','Directory Indexes','DirectoryIndex index.html index.htm index.php index.asp index.aspx index.jsp index.jspa index.shtml index.shtm',NULL,'Directory Index','Apache Config','true');
 
 INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
 (83,'openbase_seperator','Open Base Seperator',':',NULL,'Seperator flag used in open_base_directory setting','Apache Config','false'),
@@ -112,7 +111,6 @@ INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`
 (86,'bandwidth_log_format','Bandwidth Log Format','common','combined|common','Log format for the Apache bandwidth log','Apache Config','true'),
 (87,'global_zpcustom','Global Sentora Entry',NULL,NULL,'Extra directives for Sentora default vhost.','Apache Config','true'),
 (88,'use_openbase','Use Open Base Dir','true','true|false','Enable openbase directory for all vhosts','Apache Config','true'),
-(89,'use_suhosin','Use Suhosin','true','true|false','Enable Suhosin for all vhosts','Apache Config','true'),
 (90,'sentora_domain','Sentora Domain','sentora.ztest.com',NULL,'Domain that the control panel is installed under.','Sentora Config','false'),
 (91,'log_dir','Log Directory','/var/sentora/logs/',NULL,'Root path to directory log folders','Sentora Config','true'),
 (92,'apache_changed','Apache Changed','true','true|false','If set, Apache Config daemon hook will write the vhost config file changes.','Apache Config','false'),

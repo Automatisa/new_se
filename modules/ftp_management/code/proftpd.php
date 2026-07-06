@@ -36,15 +36,45 @@ try {
     
 }
 
+// Hash password with SHA512-CRYPT ($6$) — ProFTPD verifies via SQLAuthTypes Crypt
+function proftpd_hash_password($plain) {
+    $salt = '$6$' . substr(base64_encode(random_bytes(12)), 0, 16) . '$';
+    return crypt($plain, $salt);
+}
+
+// Obtiene el UID del usuario de sistema h_USERNAME leyendo /etc/passwd sin exec().
+// Devuelve el UID real para que los ficheros subidos por FTP sean propiedad de h_USERNAME.
+// GID siempre 80 (www) para que Apache pueda leer por grupo.
+function proftpd_get_hosting_uid(string $panelUsername): int {
+    $sysuser = 'h_' . $panelUsername;
+    $fh = @fopen('/etc/passwd', 'r');
+    if ($fh) {
+        while (($line = fgets($fh)) !== false) {
+            $parts = explode(':', trim($line));
+            if (($parts[0] ?? '') === $sysuser && isset($parts[2])) {
+                fclose($fh);
+                return (int)$parts[2];
+            }
+        }
+        fclose($fh);
+    }
+    return 80; // fallback: www
+}
+
 // Included after acount has been created
 if (!fs_director::CheckForEmptyValue(self::$create)) {
     $homedir = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . $homedirectory_to_use . "";
     $sql = $ftp_db->prepare("INSERT INTO ftpquotalimits (name, quota_type, per_session, limit_type, bytes_in_avail, bytes_out_avail, bytes_xfer_avail, files_in_avail, files_out_avail, files_xfer_avail) VALUES (:username, 'user', 'true', 'hard', 0, 0, 0, 0, 0, 0);");
     $sql->bindParam(':username', $username);
     $sql->execute();
-    $sql = $ftp_db->prepare("INSERT INTO ftpuser (userid, passwd, homedir, shell, count, accessed, modified) VALUES (:username, :password, :homedir, '/sbin/nologin', 0, now(), now());");
+    $daemonHash = proftpd_hash_password($password);
+    $ftpUid = proftpd_get_hosting_uid($currentuser['username']);
+    $ftpGid = 80; // grupo www — Apache y PHP-FPM leen por grupo
+    $sql = $ftp_db->prepare("INSERT INTO ftpuser (userid, passwd, uid, gid, homedir, shell, count, accessed, modified) VALUES (:username, :password, :uid, :gid, :homedir, '/sbin/nologin', 0, now(), now());");
     $sql->bindParam(':username', $username);
-    $sql->bindParam(':password', $password);
+    $sql->bindParam(':password', $daemonHash);
+    $sql->bindParam(':uid', $ftpUid);
+    $sql->bindParam(':gid', $ftpGid);
     $sql->bindParam(':homedir', $homedir);
     $sql->execute();
 }
@@ -59,9 +89,16 @@ if (!fs_director::CheckForEmptyValue(self::$delete)) {
 }
 // Included after account password has been reset
 if (!fs_director::CheckForEmptyValue(self::$reset)) {
+    $daemonHash = proftpd_hash_password($password);
     $sql = $ftp_db->prepare("UPDATE ftpuser SET passwd=:password WHERE userid=:username");
     $sql->bindParam(':username', $rowftp['ft_user_vc']);
-    $sql->bindParam(':password', $password);
+    $sql->bindParam(':password', $daemonHash);
     $sql->execute();
+}
+
+// Regenerate per-user access limits config when accounts are added or removed
+if (!fs_director::CheckForEmptyValue(self::$create) || !fs_director::CheckForEmptyValue(self::$delete)) {
+    include_once(__DIR__ . '/ftp_conf_gen.php');
+    generateFTPAccessConf($host, $z_db_user, $z_db_pass);
 }
 ?>

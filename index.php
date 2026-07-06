@@ -12,6 +12,8 @@
  * @link http://www.zpanelcp.com/
  * @license GPL (http://www.gnu.org/licenses/gpl.html)
  */
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
 session_start();
 require_once 'dryden/loader.inc.php';
 require_once 'cnf/db.php';

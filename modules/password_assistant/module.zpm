@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -15,7 +15,7 @@
     <div class="zform_wrapper">
         <h2><: Enter your current and new password :></h2>
         <form action="./?module=password_assistant&action=UpdatePassword" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Current password :>:</th>
                     <td><input name="inCurPass" type="password" id="inCurPass" /></td>
@@ -30,9 +30,10 @@
                 </tr>
                 <tr>
                     <td>&nbsp;</td>
-                    <td align="right"><@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" id="button"><: Change :></button></td>
+                    <td align="right"><@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" id="button"><i class="bi bi-pencil me-1"></i><: Change :></button></td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
         </form>
     </div>
 

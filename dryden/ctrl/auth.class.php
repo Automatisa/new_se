@@ -45,7 +45,10 @@ class ctrl_auth
             $bindArray = array(':zadmin' => 'zadmin');
             $zdbh->bindQuery($sqlQuery, $bindArray);
             $themeRow = $zdbh->returnRow();
-            include 'etc/styles/' . $themeRow['ac_usertheme_vc'] . '/login.ztml';
+            // Validate theme name against filesystem to prevent path traversal via DB
+            $rawTheme = $themeRow['ac_usertheme_vc'] ?? 'Sentora_Default';
+            $themeName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawTheme) ? $rawTheme : 'Sentora_Default';
+            include 'etc/styles/' . $themeName . '/login.ztml';
             exit;
         }
         return true;
@@ -112,31 +115,41 @@ class ctrl_auth
     static function Authenticate($username, $password, $rememberMe = false, $isCookie = false, $sessionSecurity = false)
     {
         global $zdbh;
-        $sqlString = "SELECT * FROM
-                      x_accounts WHERE
-                      ac_user_vc = :username AND
-                      ac_pass_vc = :password AND
-                      ac_enabled_in = 1 AND
-                      ac_deleted_ts IS NULL";
-
-        $bindArray = array(':username' => $username,
-            ':password' => $password
-        );
-
-        $zdbh->bindQuery($sqlString, $bindArray);
-        $row = $zdbh->returnRow();
+        // Autenticación desde cookie: valida token aleatorio en ac_resethash_tx
+        if ($isCookie) {
+            $sqlString = "SELECT * FROM x_accounts
+                           WHERE ac_user_vc = :username
+                             AND ac_resethash_tx = :rmtok
+                             AND ac_enabled_in = 1
+                             AND ac_deleted_ts IS NULL";
+            $bindArray = [':username' => $username, ':rmtok' => 'RM:' . $password];
+            $zdbh->bindQuery($sqlString, $bindArray);
+            $row = $zdbh->returnRow();
+        } else {
+            $sqlString = "SELECT * FROM x_accounts
+                           WHERE ac_user_vc = :username
+                             AND ac_pass_vc = :password
+                             AND ac_enabled_in = 1
+                             AND ac_deleted_ts IS NULL";
+            $bindArray = [':username' => $username, ':password' => $password];
+            $zdbh->bindQuery($sqlString, $bindArray);
+            $row = $zdbh->returnRow();
+        }
 
         if ($row) {
-            //Disabled till zpanel 10.0.3
-            //runtime_sessionsecurity::sessionRegen();
-
             ctrl_auth::SetUserSession($row['ac_id_pk'], $sessionSecurity);
-            $log_logon = $zdbh->prepare("UPDATE x_accounts SET ac_lastlogon_ts=" . time() . " WHERE ac_id_pk=" . $row['ac_id_pk'] . "");
-            $log_logon->execute();
-            if ($rememberMe) {
-                setcookie("zUser", $username, time() + 60 * 60 * 24 * 30, "/");
-                setcookie("zPass", $password, time() + 60 * 60 * 24 * 30, "/");
-                //setcookie("zSec", $sessionSecuirty, time() + 60 * 60 * 24 * 30, "/");
+            // Fix SQL injection: prepared statement en lugar de concatenación
+            $log_logon = $zdbh->prepare("UPDATE x_accounts SET ac_lastlogon_ts = :ts WHERE ac_id_pk = :id");
+            $log_logon->execute([':ts' => time(), ':id' => (int)$row['ac_id_pk']]);
+            // Fix: NO almacenar hash de contraseña en cookies (credential theft).
+            // El "remember me" se sustituye por un token aleatorio en ac_resethash_tx.
+            if ($rememberMe && !$isCookie) {
+                $rememberToken = bin2hex(random_bytes(32));
+                $rt = $zdbh->prepare("UPDATE x_accounts SET ac_resethash_tx = :tok WHERE ac_id_pk = :id");
+                $rt->execute([':tok' => 'RM:' . $rememberToken, ':id' => (int)$row['ac_id_pk']]);
+                $cookieOpts = ['expires' => time() + 60 * 60 * 24 * 7, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict'];
+                setcookie("zUser", $username,       $cookieOpts);
+                setcookie("zPass", $rememberToken,  $cookieOpts);
             }
 
             runtime_hook::Execute('OnGoodUserLogin');
@@ -159,6 +172,7 @@ class ctrl_auth
         if (isset($_SESSION['ruid'])) {
             unset($_SESSION['ruid']);
         }
+        unset($_SESSION['ruid_stack']);
         unset($_COOKIE['zUserSaltCookie']);
         return true;
     }
@@ -170,11 +184,16 @@ class ctrl_auth
      */
     static function KillCookies()
     {
-        setcookie("zUser", '', time() - 3600, "/");
-        setcookie("zPass", '', time() - 3600, "/");
-        unset($_COOKIE['zUser']);
-        unset($_COOKIE['zPass']);
-        unset($_COOKIE['zSec']);
+        global $zdbh;
+        // Invalidar el token remember-me en la BD si existe
+        if (!empty($_COOKIE['zUser']) && !empty($_COOKIE['zPass'])) {
+            $q = $zdbh->prepare("UPDATE x_accounts SET ac_resethash_tx = NULL WHERE ac_user_vc = :u AND ac_resethash_tx = :tok AND ac_deleted_ts IS NULL");
+            $q->execute([':u' => $_COOKIE['zUser'], ':tok' => 'RM:' . $_COOKIE['zPass']]);
+        }
+        $expired = ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict'];
+        setcookie("zUser", '', $expired);
+        setcookie("zPass", '', $expired);
+        unset($_COOKIE['zUser'], $_COOKIE['zPass'], $_COOKIE['zSec']);
         return true;
     }
 
@@ -187,7 +206,8 @@ class ctrl_auth
     static function CurrentUserID()
     {
         global $controller;
-        return $controller->GetControllerRequest('USER', 'zpuid');
+        $result = $controller->GetControllerRequest('USER', 'zpuid');
+        return $result;
     }
 
 }

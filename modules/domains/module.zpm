@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -12,17 +12,74 @@
 
     <@ Result @>
 
+    <% if isPhpSettings %>
+    <div class="zform_wrapper">
+        <h2>PHP &mdash; <@ PhpDomainName @></h2>
+        <p style="color:#666;font-size:0.9em">Los cambios se aplican en el próximo ciclo del daemon (aprox. 1&nbsp;min).</p>
+        <form action="./?module=domains&action=SavePhpSettings" method="post">
+            <input type="hidden" name="inVhostId" value="<@ PhpVhostId @>">
+            <table class="table table-striped">
+                <tr>
+                    <th style="width:220px">upload_max_filesize</th>
+                    <td><input type="text" name="inUploadMax" value="<@ PhpUploadMax @>" size="10" maxlength="10"></td>
+                    <td><small>Ej: 50M, 100M, 2G</small></td>
+                </tr>
+                <tr>
+                    <th>post_max_size</th>
+                    <td><input type="text" name="inPostMax" value="<@ PhpPostMax @>" size="10" maxlength="10"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th>memory_limit</th>
+                    <td><input type="text" name="inMemoryLimit" value="<@ PhpMemoryLimit @>" size="10" maxlength="10"></td>
+                    <td><small>Ej: 128M, 256M, 512M</small></td>
+                </tr>
+                <tr>
+                    <th>max_execution_time (s)</th>
+                    <td><input type="number" name="inMaxExec" value="<@ PhpMaxExec @>" min="1" max="3600" size="6"></td>
+                    <td><small>Segundos</small></td>
+                </tr>
+                <tr>
+                    <th>max_input_time (s)</th>
+                    <td><input type="number" name="inMaxInput" value="<@ PhpMaxInput @>" min="1" max="3600" size="6"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th>display_errors</th>
+                    <td><input type="checkbox" name="inDisplayErrors" value="1" {! PhpDisplayErrorsChecked !}></td>
+                    <td><small>Solo activar en desarrollo</small></td>
+                </tr>
+            </table>
+            <div style="text-align:right;margin-top:8px">
+                <button class="button-loader btn btn-primary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar</button>
+                <a href="./?module=domains" class="btn btn-secondary">Cancelar</a>
+            </div>
+            <@ CSFR_Tag @>
+        </form>
+    </div>
+    <% endif %>
+
     <% if isDeleteDomain %>
     <div class="zform_wrapper alert alert-danger">
         <h2><: Delete :>: <@ CurrentDomain @>?</h2>
         <p><: Please confirm that you want to delete this domain. :></p>
+        <% if SubDomainsForDelete %>
+        <div style="background:#fff3cd;border:1px solid #ffc107;padding:10px;margin-bottom:10px;border-radius:4px;color:#856404;">
+            <strong>Warning:</strong> The following subdomains will also be permanently deleted:
+            <ul style="margin:6px 0 0 18px;">
+            <% loop SubDomainsForDelete %>
+                <li><& subname &></li>
+            <% endloop %>
+            </ul>
+        </div>
+        <% endif %>
         <form action="./?module=domains&action=DeleteDomain" method="post">
             <table class="none" cellpadding="0" cellspacing="0">
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ CurrentID @>">
-                        <button class="delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="btn btn-default" type="button" onclick="window.location.href='./?module=domains';return false;"><: Cancel :></button>
+                        <button class="delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="btn btn-secondary" type="button" onclick="window.location.href='./?module=domains';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
@@ -41,14 +98,12 @@
                     <th><: Home directory :></th>
                     <th><: Status :></th>
                     <th></th>
-                    <th></th>
                 </tr>
                 <% loop DomainList %>
                 <tr>
                     <td><a href="http://<& name &>/" target="_blank"><& name &></a></td>
                     <td><& directory &></td>
-                    <& status &>
-                    <td><button class="delete btn btn-danger" type="submit" id="button" name="inDelete_<& id &>" id="inDelete_<& id &>" value="inDelete_<& id &>"><: Delete :></button></td>
+                    {! status !}
                 </tr>
                 <% endloop %>
             </table>
@@ -71,30 +126,10 @@
                             <th nowrap="nowrap"><: Domain name :>:</th>
                             <td><input name="inDomain" type="text" id="inDomain" size="30" /></td>
                         </tr>
-                        <tr>
-                            <th nowrap="nowrap"><: Home directory :>:</th>
-                            <td><input name="inAutoHome" type="radio" id="inAutoHome" value="1" onclick="hide_div('showdomainselect');" CHECKED />&nbsp;<: Create a new home directory :></td>
-                        </tr>
-                        <tr>
-                            <th>&nbsp;</th>
-                            <td><input name="inAutoHome" type="radio" id="inAutoHome" value="2" onclick="show_div('showdomainselect');" />&nbsp;<: Use existing home directory :></td>
-                        </tr>
-                        <tr>
-                            <th>&nbsp;</th>
-                            <td>
-                                <div id="showdomainselect" style="display:none;">
-                                    <select name="inDestination" id="inDestination">
-                                        <option value="">/ (root)</option>
-                                        <% loop DomainDirsList %>
-                                        <option value="<& domains &>">/<& domains &></option>
-                                        <% endloop %>
-                                    </select>
-                                </div>
-                            </td>
-                        </tr>
+                        <input type="hidden" name="inAutoHome" value="1">
                         <tr>
                             <th></th>
-                            <td align="right"><button class="button-loader btn btn-primary" type="submit" id="button" name="CreateDomain" value="1">Create</button></td>
+                            <td align="right"><button class="button-loader btn btn-primary" type="submit" id="button" name="CreateDomain" value="1"><i class="bi bi-plus-circle me-1"></i>Create</button></td>
                         </tr>
                     </table>
                     <@ CSFR_Tag @>

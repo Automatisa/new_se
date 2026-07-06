@@ -47,6 +47,7 @@ class module_controller extends ctrl_module
     static $clientpkgid;
     static $resetform;
     static $not_unique_email;
+    static $poolexceeded;
 
     /**
      * The 'worker' methods.
@@ -386,10 +387,30 @@ class module_controller extends ctrl_module
         return true;
     }
 
-    static function ExecuteUpdateClient($clientid, $package, $enabled, $group, $fullname, $email, $address, $post, $phone, $newpass)
+    static function ExecuteUpdateClient($clientid, array $client)
     {
         global $zdbh;
+        extract($client, EXTR_SKIP);
         runtime_hook::Execute('OnBeforeUpdateClient');
+        // Si el paquete cambia, verificar pool del reseller antes de proceder.
+        $old_row_sql = $zdbh->prepare("SELECT ac_package_fk, ac_reseller_fk FROM x_accounts WHERE ac_id_pk=:id AND ac_deleted_ts IS NULL");
+        $old_row_sql->execute([':id' => $clientid]);
+        $old_row = $old_row_sql->fetch(PDO::FETCH_ASSOC);
+        if ($old_row && (int)$old_row['ac_package_fk'] !== (int)$package) {
+            $reseller_id = (int)$old_row['ac_reseller_fk'];
+            if ($reseller_id > 0) {
+                $old_q_sql = $zdbh->prepare("SELECT * FROM x_quotas WHERE qt_package_fk=:pid");
+                $old_q_sql->execute([':pid' => $old_row['ac_package_fk']]);
+                $old_pkg_q = $old_q_sql->fetch(PDO::FETCH_ASSOC) ?: [];
+                $new_q_sql = $zdbh->prepare("SELECT * FROM x_quotas WHERE qt_package_fk=:pid");
+                $new_q_sql->execute([':pid' => $package]);
+                $new_pkg_q = $new_q_sql->fetch(PDO::FETCH_ASSOC) ?: [];
+                if ($new_pkg_q && !ctrl_users::CheckResellerPoolForMove($reseller_id, $old_pkg_q, $new_pkg_q)) {
+                    self::$poolexceeded = true;
+                    return false;
+                }
+            }
+        }
         if ($newpass != "") {
             // Check for password length...
             if (strlen($newpass) < ctrl_options::GetSystemOption('password_minlength')) {
@@ -413,13 +434,33 @@ class module_controller extends ctrl_module
             $sql->bindParam(':passsalt', $randomsalt);
             $sql->execute();
         }
-        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_email_vc= :email, ac_package_fk= :package, ac_enabled_in= :isenabled, ac_group_fk= :group WHERE ac_id_pk = :clientid");
+        // Valores válidos: 1=activo, 2=suspendido, 0=deshabilitado; cualquier otro → activo
+        $enabled = in_array((string)$enabled, ['0', '1', '2'], true) ? (int)$enabled : 1;
+
+        // FIX-29: nunca deshabilitar/suspender cuentas admin (grupo 1) ni la cuenta propia
+        if ($enabled !== 1) {
+            $chk = $zdbh->prepare("SELECT ac_group_fk FROM x_accounts WHERE ac_id_pk=:id");
+            $chk->bindParam(':id', $clientid);
+            $chk->execute();
+            $chkrow = $chk->fetch(PDO::FETCH_ASSOC);
+            $selfid = (int)ctrl_users::GetUserDetail()['userid'];
+            if (!$chkrow || (int)$chkrow['ac_group_fk'] === 1 || (int)$clientid === $selfid) {
+                $enabled = 1; // forzar activo: protección admin/self
+            }
+        }
+
+        // ac_enabled_in: 1=activo, 0=bloqueado (suspendido o deshabilitado)
+        // ac_suspended_in: 1=suspendido, 0=deshabilitado o activo
+        $ac_enabled   = ($enabled === 1) ? 1 : 0;
+        $ac_suspended = ($enabled === 2) ? 1 : 0;
+
+        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_email_vc= :email, ac_package_fk= :package, ac_enabled_in= :isenabled, ac_suspended_in= :issuspended, ac_group_fk= :group WHERE ac_id_pk = :clientid");
         $sql->bindParam(':email', $email);
         $sql->bindParam(':package', $package);
-        $sql->bindParam(':isenabled', $enabled);
+        $sql->bindParam(':isenabled', $ac_enabled);
+        $sql->bindParam(':issuspended', $ac_suspended);
         $sql->bindParam(':group', $group);
         $sql->bindParam(':clientid', $clientid);
-        //$sql->bindParam(':accountid', $clientid);
         $sql->execute();
 
         $sql = $zdbh->prepare("UPDATE x_profiles SET ud_fullname_vc= :fullname, ud_group_fk= :group, ud_package_fk= :package, ud_address_tx= :address,ud_postcode_vc= :postcode, ud_phone_vc= :phone WHERE ud_user_fk=:accountid");
@@ -431,10 +472,12 @@ class module_controller extends ctrl_module
         $sql->bindParam(':phone', $phone);
         $sql->bindParam(':accountid', $clientid);
         $sql->execute();
-        if ($enabled == 0) {
+
+        if ($enabled === 0) {
             self::DisableClient($clientid);
-        }
-        if ($enabled == 1) {
+        } elseif ($enabled === 2) {
+            self::SuspendClient($clientid);
+        } else {
             self::EnableClient($clientid);
         }
         runtime_hook::Execute('OnAfterUpdateClient');
@@ -446,7 +489,7 @@ class module_controller extends ctrl_module
     {
         runtime_hook::Execute('OnBeforeEnableClient');
         global $zdbh;
-        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_enabled_in=1 WHERE ac_id_pk=:userid");
+        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_enabled_in=1, ac_suspended_in=0 WHERE ac_id_pk=:userid");
         $sql->bindParam(':userid', $userid);
         $sql->execute();
         runtime_hook::Execute('OnAfterEnableClient');
@@ -457,27 +500,41 @@ class module_controller extends ctrl_module
     {
         runtime_hook::Execute('OnBeforeDisableClient');
         global $zdbh;
-        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_enabled_in=0 WHERE ac_id_pk=:userid");
+        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_enabled_in=0, ac_suspended_in=0 WHERE ac_id_pk=:userid");
         $sql->bindParam(':userid', $userid);
         $sql->execute();
         runtime_hook::Execute('OnAfterDisableClient');
         return true;
     }
 
+    static function SuspendClient($userid)
+    {
+        runtime_hook::Execute('OnBeforeSuspendClient');
+        global $zdbh;
+        $sql = $zdbh->prepare("UPDATE x_accounts SET ac_enabled_in=0, ac_suspended_in=1 WHERE ac_id_pk=:userid");
+        $sql->bindParam(':userid', $userid);
+        $sql->execute();
+        runtime_hook::Execute('OnAfterSuspendClient');
+        return true;
+    }
+
     static function CheckEnabledHTML($userid)
     {
-        $currentuser = ctrl_users::GetUserDetail($userid);
-        $res = array();
-        if ($currentuser['enabled'] == 1) {
-            $echecked = "CHECKED";
-            $dchecked = "";
+        global $zdbh;
+        $sql = $zdbh->prepare("SELECT ac_enabled_in, ac_suspended_in FROM x_accounts WHERE ac_id_pk=:id AND ac_deleted_ts IS NULL");
+        $sql->bindParam(':id', $userid);
+        $sql->execute();
+        $row = $sql->fetch(PDO::FETCH_ASSOC);
+
+        $echecked = $schecked = $dchecked = '';
+        if (!$row || (int)$row['ac_enabled_in'] === 1) {
+            $echecked = 'CHECKED';
+        } elseif ((int)$row['ac_suspended_in'] === 1) {
+            $schecked = 'CHECKED';
         } else {
-            $echecked = "";
-            $dchecked = "CHECKED";
+            $dchecked = 'CHECKED';
         }
-        array_push($res, array('echecked' => $echecked,
-            'dchecked' => $dchecked));
-        return $res;
+        return [['echecked' => $echecked, 'schecked' => $schecked, 'dchecked' => $dchecked]];
     }
 
     static function CheckHasPackage($userid)
@@ -495,14 +552,23 @@ class module_controller extends ctrl_module
         return true;
     }
 
-    static function ExecuteCreateClient($uid, $username, $packageid, $groupid, $fullname, $email, $address, $post, $phone, $password, $sendemail, $emailsubject, $emailbody)
+    static function ExecuteCreateClient($uid, $username, array $client)
     {
         global $zdbh;
+        extract($client, EXTR_SKIP);
         // Check for spaces and remove if found...
         $username = strtolower(str_replace(' ', '', $username));
         $reseller = ctrl_users::GetUserDetail($uid);
         // Check for errors before we continue...
         if (fs_director::CheckForEmptyValue(self::CheckCreateForErrors($username, $packageid, $groupid, $email, $password))) {
+            return false;
+        }
+        // Pool check: el reseller no puede comprometer más recursos de los que tiene asignados.
+        $pkg_quota_sql = $zdbh->prepare("SELECT q.* FROM x_quotas q JOIN x_packages p ON p.pk_id_pk = q.qt_package_fk WHERE q.qt_package_fk = :pid AND p.pk_deleted_ts IS NULL");
+        $pkg_quota_sql->execute([':pid' => $packageid]);
+        $pkg_quotas = $pkg_quota_sql->fetch(PDO::FETCH_ASSOC);
+        if ($pkg_quotas && !ctrl_users::CheckResellerPoolForPkg($uid, $pkg_quotas, 0, 1)) {
+            self::$poolexceeded = true;
             return false;
         }
         runtime_hook::Execute('OnBeforeCreateClient');
@@ -553,12 +619,20 @@ class module_controller extends ctrl_module
         $sql->bindParam(':ac_id_pk', $client['ac_id_pk']);
         $sql->execute();
         // Lets create the client directories
-        fs_director::CreateDirectory(ctrl_options::GetSystemOption('hosted_dir') . $username);
-        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username, 0755);
+        $user_home    = ctrl_options::GetSystemOption('hosted_dir') . $username;
+        $user_backups = $user_home . '/backups';
+        $user_web     = $user_home . '/' . ctrl_options::DOMAINS_SUBDIR; // contenedor de dominios
+        fs_director::CreateDirectory($user_home);
+        fs_director::SetFileSystemPermissions($user_home, 0755);
         // public_html ya NO se crea aquí: se crea por dominio en modules/domains
-        // con la estructura: hosted_dir/username/domain_dir/public_html/
-        fs_director::CreateDirectory(ctrl_options::GetSystemOption('hosted_dir') . $username . "/backups");
-        fs_director::SetFileSystemPermissions(ctrl_options::GetSystemOption('hosted_dir') . $username . "/backups", 0755);
+        // con la estructura: hosted_dir/username/web/domain_dir/public_html/
+        fs_director::CreateDirectory($user_web);
+        // 0775: el grupo www necesita escritura para que el panel pueda crear los
+        // directorios de cada dominio dentro de web/ (si no, solo el daemon como
+        // root crea logs/tmp y faltan public_html/_errorpages/_cgi-bin).
+        fs_director::SetFileSystemPermissions($user_web, 0775);
+        fs_director::CreateDirectory($user_backups);
+        fs_director::SetFileSystemPermissions($user_backups, 0755);
         // Send the user account details via. email (if requested)...
         if ($sendemail <> 0) {
             if (isset($_SERVER['HTTPS'])) {
@@ -584,7 +658,7 @@ class module_controller extends ctrl_module
             $phpmailer = new sys_email();
             $phpmailer->Subject = $emailsubject;
             $phpmailer->Body = $emailbody;
-            $phpmailer->AddAddress($email);
+            $phpmailer->addAddress($email);
             $phpmailer->SendEmail();
         }
         runtime_hook::Execute('OnAfterCreateClient');
@@ -608,6 +682,20 @@ class module_controller extends ctrl_module
                     self::$alreadyexists = true;
                     return false;
                 }
+            }
+            // Check if the OS system user h_USERNAME already exists in /etc/passwd.
+            // Prevents creating a hosting account whose sysuser slot is already occupied.
+            $sysuser_check = 'h_' . strtolower($username);
+            $ph = @fopen('/etc/passwd', 'r');
+            if ($ph) {
+                while (($pl = fgets($ph)) !== false) {
+                    if (strpos($pl, $sysuser_check . ':') === 0) {
+                        fclose($ph);
+                        self::$alreadyexists = true;
+                        return false;
+                    }
+                }
+                fclose($ph);
             }
 		// Check to make sure the password is not blank before we go any further...
         if ($password == '') {
@@ -806,7 +894,20 @@ class module_controller extends ctrl_module
         } else {
             $sendemail = 0;
         }
-        if (self::ExecuteCreateClient($currentuser['userid'], $formvars['inNewUserName'], $formvars['inNewPackage'], $formvars['inNewGroup'], $formvars['inNewFullName'], $formvars['inNewEmailAddress'], $formvars['inNewAddress'], $formvars['inNewPostCode'], $formvars['inNewPhone'], $formvars['inNewPassword'], $sendemail, $formvars['inEmailSubject'], $formvars['inEmailBody'])) {
+        $client = [
+            'packageid'    => $formvars['inNewPackage'],
+            'groupid'      => $formvars['inNewGroup'],
+            'fullname'     => $formvars['inNewFullName'],
+            'email'        => $formvars['inNewEmailAddress'],
+            'address'      => $formvars['inNewAddress'],
+            'post'         => $formvars['inNewPostCode'],
+            'phone'        => $formvars['inNewPhone'],
+            'password'     => $formvars['inNewPassword'],
+            'sendemail'    => $sendemail,
+            'emailsubject' => $formvars['inEmailSubject'],
+            'emailbody'    => $formvars['inEmailBody'],
+        ];
+        if (self::ExecuteCreateClient($currentuser['userid'], $formvars['inNewUserName'], $client)) {
             unset($_POST['inNewUserName']);
             return true;
         } else {
@@ -868,7 +969,18 @@ class module_controller extends ctrl_module
         runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
-        if (self::ExecuteUpdateClient($formvars['inClientID'], $formvars['inPackage'], $formvars['inEnabled'], $formvars['inGroup'], $formvars['inFullName'], $formvars['inEmailAddress'], $formvars['inAddress'], $formvars['inPostCode'], $formvars['inPhone'], $formvars['inNewPassword']))
+        $client = [
+            'package'  => $formvars['inPackage'],
+            'enabled'  => $formvars['inEnabled'],
+            'group'    => $formvars['inGroup'],
+            'fullname' => $formvars['inFullName'],
+            'email'    => $formvars['inEmailAddress'],
+            'address'  => $formvars['inAddress'],
+            'post'     => $formvars['inPostCode'],
+            'phone'    => $formvars['inPhone'],
+            'newpass'  => $formvars['inNewPassword'],
+        ];
+        if (self::ExecuteUpdateClient($formvars['inClientID'], $client))
             return true;
         return false;
     }
@@ -1232,6 +1344,9 @@ class module_controller extends ctrl_module
         }
         if (!fs_director::CheckForEmptyValue(self::$not_unique_email)) {
             return ui_sysmessage::shout(ui_language::translate("Another user account is already using this email address."), "zannounceerror");
+        }
+        if (!fs_director::CheckForEmptyValue(self::$poolexceeded)) {
+            return ui_sysmessage::shout(ui_language::translate("Cannot assign this package: the reseller's resource pool would be exceeded. Request a package upgrade from the administrator."), "zannounceerror");
         }
         return;
     }

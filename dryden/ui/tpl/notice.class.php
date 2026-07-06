@@ -21,23 +21,16 @@ class ui_tpl_notice {
         global $zdbh;
         $result = $zdbh->query("SELECT ac_notice_tx FROM x_accounts WHERE ac_id_pk = " . $user_array['resellerid'] . "")->Fetch();
         if ($result) {
-            if ($result['ac_notice_tx'] <> "")
-				// Convert BBcode to HTML - TGates
-				require_once('modules/client_notices/code/bbcode.php');
-				$ac_notice_tx = bbcode_to_html($result['ac_notice_tx']);
-                return ui_sysmessage::shout($ac_notice_tx,
-                    'notice',
-                    'Notice:',
-                    true
-                );
-                /* xssClean() disables BBCode conversion - TGates
-                return ui_sysmessage::shout(
-                    runtime_xss::xssClean($result['ac_notice_tx']),
-                    'notice',
-                    'Notice:',
-                    true
-                );
-				*/
+            if ($result['ac_notice_tx'] <> "") {
+                $bbcodePath = 'modules/client_notices/code/bbcode.php';
+                if (file_exists($bbcodePath)) {
+                    require_once($bbcodePath);
+                    $ac_notice_tx = bbcode_to_html($result['ac_notice_tx']);
+                } else {
+                    $ac_notice_tx = htmlspecialchars($result['ac_notice_tx'], ENT_QUOTES, 'UTF-8');
+                }
+                return ui_sysmessage::shout($ac_notice_tx, 'notice', 'Notice:', true);
+            }
             return false;
         } else {
             return false;

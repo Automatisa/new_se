@@ -171,76 +171,52 @@ class ui_module {
         return $retvalEnd;
     }
 
+    /** Cached module row for the current request. */
+    private static $moduleRowCache = null;
+
+    /** Fetches and caches the full module row for the active URL module. */
+    private static function GetCurrentModuleRow() {
+        if (self::$moduleRowCache !== null) return self::$moduleRowCache;
+        global $controller, $zdbh;
+        $bindArray = [':module' => $controller->GetControllerRequest('URL', 'module')];
+        $zdbh->bindQuery(
+            "SELECT mo_id_pk, mo_name_vc, mo_folder_vc, mo_desc_tx FROM x_modules WHERE mo_folder_vc = :module",
+            $bindArray
+        );
+        self::$moduleRowCache = $zdbh->returnRow();
+        return self::$moduleRowCache;
+    }
+
     /**
      * Returns the name of the current module.
-     * @author Bobby Allen (ballen@bobbyallen.me)
-     * @global obj $controller The controller object.
-     * @global db_driver $zdbh The ZPX database handle.
-     * @return string The name of the currently loaded (active) module.
+     * @return string
      */
     public static function GetModuleName() {
-        global $controller;
-        global $zdbh;
-        $bindArray = array(
-            ':module' => $controller->GetControllerRequest('URL', 'module'),
-        );
-        $retval = $zdbh->bindQuery("SELECT mo_name_vc FROM x_modules WHERE mo_folder_vc = :module", $bindArray);
-        $moduleInfo = $zdbh->returnRow();
-        return $moduleInfo['mo_name_vc'];
+        return self::GetCurrentModuleRow()['mo_name_vc'];
     }
 
     /**
-     * This class returns the database ID of the currently loaded (active) module.
-     * @author Bobby Allen (ballen@bobbyallen.me)
-     * @global obj $controller The controller object.
-     * @global db_driver $zdbh The ZPX database handle.
-     * @return int The module ID of the currently loaded (active) module.
+     * Returns the database ID of the currently loaded module.
+     * @return int
      */
     static function GetModuleID() {
-        global $controller;
-        global $zdbh;
-        $bindArray = array(
-            ':module' => $controller->GetControllerRequest('URL', 'module'),
-        );
-        $retval = $zdbh->bindQuery("SELECT mo_id_pk FROM x_modules WHERE mo_folder_vc = :module", $bindArray);
-        $moduleInfo = $zdbh->returnRow();
-        return $moduleInfo['mo_id_pk'];
+        return self::GetCurrentModuleRow()['mo_id_pk'];
     }
 
     /**
-     * This class returns the folder name of the current module.
-     * @author Bobby Allen (ballen@bobbyallen.me)
-     * @global obj $controller The controller object.
-     * @global db_driver $zdbh The ZPX database handle.
-     * @return string The modules folder name as it appears in panel/modules/.
+     * Returns the folder name of the current module.
+     * @return string
      */
     static function GetModuleFolderName() {
-        global $controller;
-        global $zdbh;
-        $bindArray = array(
-            ':module' => $controller->GetControllerRequest('URL', 'module'),
-        );
-        $retval = $zdbh->bindQuery("SELECT mo_folder_vc FROM x_modules WHERE mo_folder_vc = :module", $bindArray);
-        $moduleInfo = $zdbh->returnRow();
-        return $moduleInfo['mo_folder_vc'];
+        return self::GetCurrentModuleRow()['mo_folder_vc'];
     }
 
     /**
-     * This class returns the description of the current module.
-     * @author Bobby Allen (ballen@bobbyallen.me)
-     * @global obj $controller The controller object.
-     * @global db_driver $zdbh The ZPX database handle.
-     * @return string The module description from the database (originally improted from the module.xml file).
+     * Returns the description of the current module.
+     * @return string
      */
     static function GetModuleDescription() {
-        global $controller;
-        global $zdbh;
-        $bindArray = array(
-            ':module' => $controller->GetControllerRequest('URL', 'module'),
-        );
-        $retval = $zdbh->bindQuery("SELECT mo_desc_tx FROM x_modules WHERE mo_folder_vc = :module", $bindArray);
-        $moduleInfo = $zdbh->returnRow();
-        return $moduleInfo['mo_desc_tx'];
+        return self::GetCurrentModuleRow()['mo_desc_tx'];
     }
 
     /**
@@ -278,20 +254,7 @@ class ui_module {
      * @return mixed If updates are avaliable will return an array with the new version and download URL otherwise will return 'false'.
      */
     static function GetModuleHasUpdates($modulefolder) {
-        global $zdbh;
-
-        $bindArray = array(
-            ':module' => $modulefolder,
-        );
-        $retvalQuery = $zdbh->bindQuery("SELECT mo_updateurl_tx, mo_updatever_vc FROM x_modules WHERE mo_folder_vc = :module", $bindArray);
-        $retval = $zdbh->returnRow();
-
-        if ($retval['mo_updatever_vc'] <> "") {
-            $retval = array($retval['mo_updatever_vc'], $retval['mo_updateurl_tx']);
-        } else {
-            $retval = false;
-        }
-        return $retval;
+        return false;
     }
 
     /**
@@ -314,7 +277,6 @@ class ui_module {
             $info['authorname'] = $mod_config->document->authorname[0]->tagData;
             $info['authoremail'] = $mod_config->document->authoremail[0]->tagData;
             $info['authorurl'] = $mod_config->document->authorurl[0]->tagData;
-            $info['updateurl'] = $mod_config->document->updateurl[0]->tagData;
             return $info;
         } catch (Exception $e) {
             return false;

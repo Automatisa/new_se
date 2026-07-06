@@ -28,16 +28,11 @@ class ui_tpl_modulelistzsidebar {
                 $line .= '<ul>';
                 
                 foreach ($mods as $mod) {
-                    $class_name = str_replace(array(' ', '_'), '-', strtolower($mod['mo_folder_vc']));
                     $line .= '<li>';
-                    
-                    if ($mod['mo_installed_ts'] != 0) {
-                        $line .= '<a href="?module=' . $mod['mo_folder_vc']. '"><i class="icon-' . $class_name . ' greyscale transparent"><img src="/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png" height="16px" width="16px"></i> ';
-                    } else {
-                        $line .= '<a href="?module=' . $mod['mo_folder_vc']. '"><i class="icon-'.$class_name.'"></i> ';
-                    }
-                    $line .= '<: '.$mod['mo_name_vc'].' :>';
-                    $line .= '</a>';
+                    $line .= '<a href="?module=' . $mod['mo_folder_vc'] . '">'
+                           . '<img src="/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png" width="16" height="16" alt="" style="opacity:.75;filter:grayscale(30%)">'
+                           . ' <: ' . $mod['mo_name_vc'] . ' :>'
+                           . '</a>';
                     $line .= '</li>';
                 }
                 $line .= '</ul></li>';

@@ -95,14 +95,14 @@ class ui_tpl_clientdomains {
 
 
                     if ($rowdomains['vh_active_in'] == 1 && $rowdomains['vh_enabled_in'] == 1) {
-                        $line .= '<div class="stats-column"><span class="label label-success">Active</span></div>';
+                        $line .= '<div class="stats-column"><span class="badge bg-success">Active</span></div>';
                     } elseif ($rowdomains['vh_active_in'] == 0 && $rowdomains['vh_enabled_in'] == 1) {
-                        $line .= '<div class="stats-column"><span class="label label-warning">Pending</span></div>';
+                        $line .= '<div class="stats-column"><span class="badge bg-warning">Pending</span></div>';
                     } else {
                         $line .= '';
                     }
                     if ($rowdomains['vh_enabled_in'] == 0) {
-                        $line .= '<div class="stats-column"><span class="label label-danger">Disabled</span></div>';
+                        $line .= '<div class="stats-column"><span class="badge bg-danger">Disabled</span></div>';
                     }
 
                     $line .= '</div><!--end stats-row-->';

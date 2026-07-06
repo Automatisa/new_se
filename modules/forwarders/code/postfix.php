@@ -38,61 +38,80 @@ try {
 
 
 
-// Deleting hMail Forwarder
+// Deleting Postfix Forwarder
 if (!fs_director::CheckForEmptyValue(self::$delete)) {
-    //$result = $mail_db->query("SELECT address FROM alias WHERE address='" . $rowforwarder['fw_address_vc'] . "'")->Fetch();   
     $numrows = $mail_db->prepare("SELECT address FROM alias WHERE address=:fw_address_vc");
     $numrows->bindParam(':fw_address_vc', $rowforwarder['fw_address_vc']);
     $numrows->execute();
     $result = $numrows->fetch();
     if ($result) {
-        $sql = "UPDATE alias SET goto=:fw_address_vc, modified=NOW() WHERE address = :fw_address_vc2";
-        $sql = $mail_db->prepare($sql);
-        $sql->bindParam(':fw_address_vc', $rowforwarder['fw_address_vc']);
-        $sql->bindParam(':fw_address_vc2', $rowforwarder['fw_address_vc']);
+        // If a mailbox exists, reset alias to local delivery; otherwise delete it
+        $mbcheck = $mail_db->prepare("SELECT username FROM mailbox WHERE username=:addr");
+        $mbcheck->bindParam(':addr', $rowforwarder['fw_address_vc']);
+        $mbcheck->execute();
+        if ($mbcheck->fetch()) {
+            $sql = $mail_db->prepare("UPDATE alias SET goto=:addr, modified=NOW() WHERE address=:addr2");
+            $sql->bindParam(':addr', $rowforwarder['fw_address_vc']);
+            $sql->bindParam(':addr2', $rowforwarder['fw_address_vc']);
+            $sql->execute();
+        } else {
+            $sql = $mail_db->prepare("DELETE FROM alias WHERE address=:addr");
+            $sql->bindParam(':addr', $rowforwarder['fw_address_vc']);
+            $sql->execute();
+        }
+    }
+
+    // Clean up domain if no mailboxes or aliases remain
+    $domaincheck = explode("@", $rowforwarder['fw_address_vc']);
+    $sql = $mail_db->prepare("SELECT * FROM mailbox WHERE domain=:domain");
+    $sql->bindParam(':domain', $domaincheck[1]);
+    $sql->execute();
+    $mailboxresult = $sql->fetch();
+    $sql = $mail_db->prepare("SELECT * FROM alias WHERE domain=:domain");
+    $sql->bindParam(':domain', $domaincheck[1]);
+    $sql->execute();
+    $aliasresult = $sql->fetch();
+    if (!$mailboxresult && !$aliasresult) {
+        $sql = $mail_db->prepare("DELETE FROM domain WHERE domain=:domain");
+        $sql->bindParam(':domain', $domaincheck[1]);
         $sql->execute();
     }
-	
-   // If no more mailboxes or aliases for the domain exist, delete the domain to
-   // prevent Postfix using a local route when sending to this domain in future
-
-   $domaincheck = explode("@", $rowforwarder['fw_address_vc']);
-   $sql = $mail_db->prepare("SELECT * FROM mailbox WHERE domain=:domain");
-   $sql->bindParam(':domain', $domaincheck[1]);
-   $sql->execute();
-   $mailboxresult = $sql->fetch();
-   $sql = $mail_db->prepare("SELECT * FROM alias WHERE domain=:domain");
-   $sql->bindParam(':domain', $domaincheck[1]);
-   $sql->execute();
-   $aliasresult = $sql->fetch();
-
-   if (!$mailboxresult && !$aliasresult) {
-       $sql = $mail_db->prepare("DELETE FROM domain WHERE domain=:domain");
-       $sql->bindParam(':domain', $domaincheck[1]);
-       $sql->execute();
-   }
 }
 
-
-
-// Adding hMail Forwarder
+// Adding Postfix Forwarder
 if (!fs_director::CheckForEmptyValue(self::$create)) {
-    //$result = $mail_db->query("SELECT address FROM alias WHERE address='" . $address . "'")->Fetch();
-    $numrows = $mail_db->prepare("SELECT address FROM alias WHERE address=:address");
+    $domainparts = explode("@", $address);
+    $forwarder_domain = $domainparts[1];
+
+    // Ensure domain exists in postfix
+    $numrows = $mail_db->prepare("SELECT domain FROM domain WHERE domain=:domain");
+    $numrows->bindParam(':domain', $forwarder_domain);
+    $numrows->execute();
+    if (!$numrows->fetch()) {
+        $sql = $mail_db->prepare("INSERT INTO domain (domain, description, aliases, mailboxes, maxquota, quota, transport, backupmx, created, modified, active) VALUES (:domain, '', 0, 0, 0, 0, '', 0, NOW(), NOW(), '1')");
+        $sql->bindParam(':domain', $forwarder_domain);
+        $sql->execute();
+    }
+
+    $numrows = $mail_db->prepare("SELECT address, goto FROM alias WHERE address=:address");
     $numrows->bindParam(':address', $address);
     $numrows->execute();
     $result = $numrows->fetch();
+
     if ($result) {
-        if ($keepmessage == 1) {
-            $copy = "," . $address;
-        } else {
-            $copy = NULL;
-        }
-        $sql = "UPDATE alias SET goto=:goTo, modified=NOW() WHERE address = :address";
-        $sql = $mail_db->prepare($sql);
-        $goTo = $destination . $copy;
+        // Alias exists (e.g. a mailbox): append destination
+        $goTo = ($keepmessage == 1) ? $result['goto'] . "," . $destination : $destination;
+        $sql = $mail_db->prepare("UPDATE alias SET goto=:goTo, modified=NOW() WHERE address=:address");
         $sql->bindParam(':goTo', $goTo);
         $sql->bindParam(':address', $address);
+        $sql->execute();
+    } else {
+        // No existing alias: create one
+        $goTo = ($keepmessage == 1) ? $address . "," . $destination : $destination;
+        $sql = $mail_db->prepare("INSERT INTO alias (address, goto, domain, created, modified, active) VALUES (:address, :goto, :domain, NOW(), NOW(), '1')");
+        $sql->bindParam(':address', $address);
+        $sql->bindParam(':goto', $goTo);
+        $sql->bindParam(':domain', $forwarder_domain);
         $sql->execute();
     }
 }

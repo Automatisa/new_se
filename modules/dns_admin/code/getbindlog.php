@@ -3,6 +3,9 @@ session_start();
 if (!isset($_SESSION['zpuid'])) {
     die("<h1>Unathorised request!</h1><p>You must be logged in before you are able to view the DNS logs on this server.</p>");
 }
+if (!isset($_POST['csfr_token']) || !isset($_SESSION['zpcsfr']) || !hash_equals((string)$_SESSION['zpcsfr'], (string)$_POST['csfr_token'])) {
+    die("<h1>Application Error: [0204]</h1><p>Invalid CSRF token. Accede al log desde el panel principal.</p>");
+}
 ?>
 <body bgcolor="#000000">
     <font color="#009900">

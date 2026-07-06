@@ -138,7 +138,7 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnBeforeCreateForwarder');
         self::$create = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
         $sql = "INSERT INTO x_forwarders (fw_acc_fk,
@@ -168,14 +168,17 @@ class module_controller extends ctrl_module
         global $zdbh;
         global $controller;
         runtime_hook::Execute('OnBeforeDeleteForwarer');
-        //$rowforwarder = $zdbh->query("SELECT * FROM x_forwarders WHERE fw_id_pk=" . $fw_id_pk . "")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_forwarders WHERE fw_id_pk=:fw_id_pk");
+        // LOW-3 FIX: enforce ownership before delete
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_forwarders WHERE fw_id_pk=:fw_id_pk AND fw_acc_fk=:uid AND fw_deleted_ts IS NULL");
         $numrows->bindParam(':fw_id_pk', $fw_id_pk);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowforwarder = $numrows->fetch();
+        if (!$rowforwarder) { return false; }
         self::$delete = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
         $sql = "UPDATE x_forwarders SET fw_deleted_ts=:time WHERE fw_id_pk=:fw_id_pk";
@@ -367,9 +370,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('forwarders', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

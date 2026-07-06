@@ -26,7 +26,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-echo "<script src=\"http://code.jquery.com/jquery-latest.js\"></script>";
+session_start();
+if (!isset($_POST['csfr_token']) || !isset($_SESSION['zpcsfr']) || !hash_equals((string)$_SESSION['zpcsfr'], (string)$_POST['csfr_token'])) {
+    die("<h1>Application Error: [0204]</h1><p>Invalid CSRF token.</p>");
+}
 set_time_limit(0);
 ini_set('memory_limit', '256M');
 require($_SERVER["DOCUMENT_ROOT"] . 'cnf/db.php');
@@ -50,9 +53,8 @@ if (isset($_POST['inDownLoad'])) {
     $download = 0;
 }
 if (isset($_GET['id']) && $_GET['id'] != "") {
-    session_start();
-    if ($_SESSION['zpuid'] == $_GET['id']) {
-        $userid = $_GET['id'];
+    if ((int)$_SESSION['zpuid'] === (int)$_GET['id'] && (int)$_GET['id'] > 0) {
+        $userid = (int)$_GET['id'];
         $rows = $zdbh->prepare("
 	    	SELECT * FROM x_accounts 
 	        LEFT JOIN x_profiles ON (x_accounts.ac_id_pk=x_profiles.ud_user_fk) 
@@ -66,9 +68,9 @@ if (isset($_GET['id']) && $_GET['id'] != "") {
         $dbvals = $rows->fetch();
 
         if ($backup = ExecuteBackup($userid, $dbvals['ac_user_vc'], $download)) {
-            echo "<p>Ready to download file: <b>" . basename($backup) . "<b></p>";
-			//echo "<button class=\"fg-button ui-state-default ui-corner-all\" type=\"button\" onclick=\"window.location.href='../../../etc/tmp/" . basename($backup) . "';return false;\">Download Now</button>";
-            echo "<button class=\"fg-button ui-state-default ui-corner-all\" type=\"button\" onclick=\"window.location.href='downloadbackup.php?id=" . $userid . "&file=" . basename($backup) . "';return false;\">Download Now</button>";
+            $safe_file = htmlspecialchars(basename($backup), ENT_QUOTES, 'UTF-8');
+            echo "<p>Ready to download file: <b>" . $safe_file . "</b></p>";
+            echo "<button class=\"fg-button ui-state-default ui-corner-all\" type=\"button\" onclick=\"window.location.href='downloadbackup.php?id=" . $userid . "&amp;file=" . $safe_file . "';return false;\">Download Now</button>";
             echo "<button class=\"fg-button ui-state-default ui-corner-all\" type=\"button\" value=\"Close Window\" onClick=\"return window.close()\">Close Window</button>";
         } else {
             echo "Could not find user!";
@@ -96,16 +98,24 @@ function ExecuteBackup($userid, $username, $download = 0) {
     }
     $temp_dir = ctrl_options::GetSystemOption('sentora_root') . "etc/tmp/";
     // Lets grab and archive the user's web data....
-    $homedir = ctrl_options::GetSystemOption('hosted_dir') . $username;
+    $homedir    = ctrl_options::GetSystemOption('hosted_dir') . $username;
     $backupname = $username . "_" . date("M-d-Y_hms", time());
-    $dbstamp = date("dmy_Gi", time());
-    // We now see what the OS is before we work out what compression command to use..
-    if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-        $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " a -tzip -y-r " . $temp_dir . $backupname . ".zip " . $homedir));
-    } else {// Backup todo el home del usuario (nueva estructura: un dir por dominio)
-        $resault = exec("cd " . $homedir . "/../ && " . ctrl_options::GetSystemOption('zip_exe') . " -r9 " . $temp_dir . $backupname . " " . $username . "/ --exclude=" . $username . "/backups/*");
-        @chmod($temp_dir . $backupname . ".zip", 0777);
+    $dbstamp    = date("dmy_Gi", time());
+    $zip_exe    = ctrl_options::GetSystemOption('zip_exe');
+
+    // CRIT-3 FIX: validate username contains only safe characters before shell use
+    if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $username)) {
+        return false;
     }
+
+    $resault = exec(
+        "cd " . escapeshellarg(dirname($homedir)) . " && "
+        . escapeshellarg($zip_exe) . " -r9 "
+        . escapeshellarg($temp_dir . $backupname) . " "
+        . escapeshellarg($username . "/")
+        . " --exclude=" . escapeshellarg($username . "/backups/*")
+    );
+    @chmod($temp_dir . $backupname . ".zip", 0777);
     // Now lets backup all MySQL datbases for the user and add them to the archive...
     $sql = "SELECT COUNT(*) FROM x_mysql_databases WHERE my_acc_fk=:userid AND my_deleted_ts IS NULL";
     $numrows = $zdbh->prepare($sql);
@@ -118,15 +128,29 @@ function ExecuteBackup($userid, $username, $download = 0) {
             $sql->bindParam(':userid', $userid);
             $sql->execute();
             while ($row_mysql = $sql->fetch()) {
-                $bkcommand = ctrl_options::GetSystemOption('mysqldump_exe') . " -h " . $host . " -u " . $user . " -p" . $pass . " --no-create-db " . $row_mysql['my_name_vc'] . " > " . $temp_dir . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql";
+                $dbname_shell = $row_mysql['my_name_vc'];
+                // CRIT-2 FIX: validate DB name before any shell use
+                if (!preg_match('/^[a-zA-Z0-9_]+$/', $dbname_shell)) {
+                    continue;
+                }
+                $sql_outfile = $temp_dir . $dbname_shell . "_" . $dbstamp . ".sql";
+                // CRIT-2 FIX: escapeshellarg on ALL variables passed to shell
+                $bkcommand = escapeshellarg(ctrl_options::GetSystemOption('mysqldump_exe'))
+                    . " -h " . escapeshellarg($host)
+                    . " -u " . escapeshellarg($user)
+                    . " --password=" . escapeshellarg($pass)
+                    . " --no-create-db "
+                    . escapeshellarg($dbname_shell)
+                    . " > " . escapeshellarg($sql_outfile);
                 passthru($bkcommand);
                 // Add it to the ZIP archive...
-                if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-                    $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " u " . $temp_dir . $backupname . ".zip " . $temp_dir . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql"));
-                } else {
-                    $resault = exec("cd " . $temp_dir . "/ && " . ctrl_options::GetSystemOption('zip_exe') . " " . $temp_dir . $backupname . "  " . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql");
-                }
-                unlink($temp_dir . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql");
+                $resault = exec(
+                    "cd " . escapeshellarg($temp_dir) . " && "
+                    . escapeshellarg($zip_exe) . " "
+                    . escapeshellarg($temp_dir . $backupname) . " "
+                    . escapeshellarg($dbname_shell . "_" . $dbstamp . ".sql")
+                );
+                unlink($sql_outfile);
             }
         }
     }
@@ -149,34 +173,6 @@ function ExecuteBackup($userid, $username, $download = 0) {
 
         // If Client has checked to download file
         if ($download <> 0) {
-            /* Ajax not supporting headers - changed to link in temp dir.
-              if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-              # Now we send the output (Windows)...
-              header('Pragma: public');
-              header('Expires: 0');
-              header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-              header('Cache-Control: private', false);
-              header('Content-Type: application/zip');
-              header('Content-Disposition: attachment; filename=' . $backupname . '.zip');
-              header('Content-Transfer-Encoding: binary');
-              header('Content-Length: ' . filesize($backupdir . $backupname . '.zip ') . '');
-              readfile($backupdir . $backupname . ".zip ");
-              } else {
-
-              # Now we send the output (POSIX)...
-              $file = $backupdir . $backupname . ".zip";
-              header('Pragma: public');
-              header('Expires: 0');
-              header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-              header('Cache-Control: private', false);
-              header('Content-Description: File Transfer');
-              header('Content-Transfer-Encoding: binary');
-              header('Content-Type: application/force-download');
-              header('Content-Length: ' . filesize($file));
-              header('Content-Disposition: attachment; filename=' . $backupname . '.zip');
-              readfile_chunked($file);
-              }
-             */
             fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0777);
             return $temp_dir . $backupname . ".zip";
         }

@@ -65,18 +65,19 @@ class module_controller extends ctrl_module
         $line .= "<div style=\"display: block; margin-right:20px;\">";
         $line .= "<div class=\"ui-tabs ui-widget ui-widget-content ui-corner-all\" id=\"dnsTabs\">";
         $line .= "<ul class=\"domains nav nav-tabs\">";
-        $line .= "<li class=\"active\"><a href=\"#general\" data-toggle=\"tab\">" . ui_language::translate("General") . "</a></li>";
-        $line .= "<li><a href=\"#tools\" data-toggle=\"tab\">" . ui_language::translate("Tools") . "</a></li>";
-        $line .= "<li><a href=\"#services\" data-toggle=\"tab\">" . ui_language::translate("Services") . "</a></li>";
-        $line .= "<li><a href=\"#logs\" data-toggle=\"tab\">" . ui_language::translate("Logs") . "</a></li>";
+        $line .= "<li class=\"nav-item\"><a class=\"nav-link active\" href=\"#general\" data-bs-toggle=\"tab\">" . ui_language::translate("General") . "</a></li>";
+        $line .= "<li class=\"nav-item\"><a class=\"nav-link\" href=\"#tools\" data-bs-toggle=\"tab\">" . ui_language::translate("Tools") . "</a></li>";
+        $line .= "<li class=\"nav-item\"><a class=\"nav-link\" href=\"#services\" data-bs-toggle=\"tab\">" . ui_language::translate("Services") . "</a></li>";
+        $line .= "<li class=\"nav-item\"><a class=\"nav-link\" href=\"#logs\" data-bs-toggle=\"tab\">" . ui_language::translate("Logs") . "</a></li>";
         $line .= "</ul>";
 
         //Tabs Panel Wrap
         $line .= '<div class="tab-content">';
 
         //general
-        $line .= "<div class=\"tab-pane active\" id=\"general\">";
+        $line .= "<div class=\"tab-pane active show\" id=\"general\">";
         $line .= "<form action=\"./?module=dns_admin&action=UpdateDNSConfig\" method=\"post\">";
+        $line .= runtime_csfr::Token();
         $line .= "<table class=\"table table-striped\">";
         $count = 0;
         $sql = "SELECT COUNT(*) FROM x_settings WHERE so_module_vc=:moduleName AND so_usereditable_en = 'true'";
@@ -99,7 +100,7 @@ class module_controller extends ctrl_module
                     }
                     $line .= "<tr valign=\"top\"><th nowrap=\"nowrap\">" . ui_language::translate($row['so_cleanname_vc']) . "</th><td>" . $fieldhtml . "</td><td>" . ui_language::translate($row['so_desc_tx']) . "</td></tr>";
                 }
-                $line .= "<tr><th colspan=\"3\"><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSaveSystem\">" . ui_language::translate("Save Changes") . "</button>  <button class=\"button-loader btn btn-default\" type=\"button\" onclick=\"window.location.href='./?module=moduleadmin';return false;\">" . ui_language::translate("Cancel") . "</button></tr>";
+                $line .= "<tr><th colspan=\"3\"><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSaveSystem\"><i class=\"bi bi-floppy me-1\"></i>" . ui_language::translate("Save Changes") . "</button>  <button class=\"button-loader btn btn-secondary\" type=\"button\" onclick=\"window.location.href='./?module=moduleadmin';return false;\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Cancel") . "</button></tr>";
             }
         }
         $line .= "</table>";
@@ -108,10 +109,11 @@ class module_controller extends ctrl_module
         //tools
         $line .= "<div class=\"tab-pane\" id=\"tools\">";
         $line .= "<form action=\"./?module=dns_admin&action=UpdateTools\" method=\"post\">";
+        $line .= runtime_csfr::Token();
         $line .= "<table class=\"table table-striped\">";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Reset all Records to Default") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inResetAll\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-warning\" type=\"submit\" id=\"button\" name=\"inResetAll\" value=\"1\"><i class=\"bi bi-arrow-counterclockwise me-1\"></i>" . ui_language::translate("Reset") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<tr>";
@@ -130,11 +132,11 @@ class module_controller extends ctrl_module
         }
         $line .= "</select>";
         $line .= "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inResetDomain\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-warning\" type=\"submit\" id=\"button\" name=\"inResetDomain\" value=\"1\"><i class=\"bi bi-arrow-counterclockwise me-1\"></i>" . ui_language::translate("Reset") . "</button></td>";
         $line .= "</tr>";
         $line .= "<th>" . ui_language::translate("Add Default Records to Missing Domains") . "";
         $line .= "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inAddMissing\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inAddMissing\" value=\"1\"><i class=\"bi bi-plus-circle me-1\"></i>" . ui_language::translate("Add") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Delete Record Type from ALL Records") . " ";
@@ -149,18 +151,18 @@ class module_controller extends ctrl_module
         $line .= "<option value=\"NS\">NS</option>";
         $line .= "</select>";
         $line .= "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inDeleteType\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-danger\" type=\"submit\" id=\"button\" name=\"inDeleteType\" value=\"1\"><i class=\"bi bi-trash me-1\"></i>" . ui_language::translate("Delete") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Purge Deleted Zone Records From Database") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inPurge\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-danger\" type=\"submit\" id=\"button\" name=\"inPurge\" value=\"1\"><i class=\"bi bi-eraser me-1\"></i>" . ui_language::translate("Purge") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Delete ALL Zone Records") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inDeleteAll\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-danger\" type=\"submit\" id=\"button\" name=\"inDeleteAll\" value=\"1\"><i class=\"bi bi-trash me-1\"></i>" . ui_language::translate("Delete All") . "</button></td>";
         $line .= "</tr>";
         $line .= "<th>" . ui_language::translate("Force Records Update on Next Daemon Run") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inForceUpdate\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inForceUpdate\" value=\"1\"><i class=\"bi bi-arrow-repeat me-1\"></i>" . ui_language::translate("Force Update") . "</button></td>";
         $line .= "</tr>";
         $line .= "</table>";
         $line .= "</form>";
@@ -168,35 +170,29 @@ class module_controller extends ctrl_module
         //Services
         $line .= "<div class=\"tab-pane\" id=\"services\">";
         $line .= "<form action=\"./?module=dns_admin&action=UpdateService\" method=\"post\">";
-        $line .= "<table class=\"none\" border=\"0\" cellpading=\"0\" cellspacing=\"0\" width=\"85%\"><tr valign=\"top\"><td width=\"100%\">";
+        $line .= runtime_csfr::Token();
         $line .= "<table class=\"table table-striped\">";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Start Service") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inStartService\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-success\" type=\"submit\" id=\"button\" name=\"inStartService\" value=\"1\"><i class=\"bi bi-play-fill me-1\"></i>" . ui_language::translate("Start") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Stop Service") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inStopService\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-warning\" type=\"submit\" id=\"button\" name=\"inStopService\" value=\"1\"><i class=\"bi bi-stop-fill me-1\"></i>" . ui_language::translate("Stop") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Reload BIND") . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inReloadService\" value=\"1\">" . ui_language::translate("GO") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inReloadService\" value=\"1\"><i class=\"bi bi-arrow-repeat me-1\"></i>" . ui_language::translate("Reload") . "</button></td>";
         $line .= "</tr>";
+        $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Service Port Status") . "</th>";
         if (fs_director::CheckForEmptyValue(sys_monitoring::PortStatus(53))) {
-            $line .= "<td><font color=\"red\">" . ui_language::translate("STOPPED") . "</font></td>";
+            $line .= "<td><span class=\"text-danger fw-semibold\"><i class=\"bi bi-x-circle-fill me-1\"></i>" . ui_language::translate("STOPPED") . "</span></td>";
         } else {
-            $line .= "<td><font color=\"green\">" . ui_language::translate("RUNNING") . "</font></td>";
+            $line .= "<td><span class=\"text-success fw-semibold\"><i class=\"bi bi-check-circle-fill me-1\"></i>" . ui_language::translate("RUNNING") . "</span></td>";
         }
         $line .= "</tr>";
         $line .= "</table>";
-        $line .= "</td><td>";
-        if (fs_director::CheckForEmptyValue(sys_monitoring::PortStatus(53))) {
-            $line .= "<img src=\"/modules/" . $controller->GetControllerRequest('URL', 'module') . "/assets/down.png\" border=\"0\"/>";
-        } else {
-            $line .= "<img src=\"/modules/" . $controller->GetControllerRequest('URL', 'module') . "/assets/up.png\" border=\"0\"/>";
-        }
-        $line .="</td></tr></table>";
         $line .= "</form>";
         $line .= "</div>";
         //logs
@@ -204,27 +200,29 @@ class module_controller extends ctrl_module
 
         $line .= "<div class=\"tab-pane\" id=\"logs\">";
         $line .= "<form action=\"./?module=dns_admin&action=Updatelogs\" method=\"post\">";
+        $line .= runtime_csfr::Token();
         $line .= "<table class=\"table table-striped\">";
         $line .= "<tr>";
         $line .= "<th style=\"width:350px;\">" . self::CheckLogReadable(ctrl_options::GetSystemOption('bind_log')) . " " . self::CheckLogWritable(ctrl_options::GetSystemOption('bind_log')) . "</th>";
-        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSetPerms\" value=\"1\">" . ui_language::translate("Set Permissions") . "</button></td>";
+        $line .= "<td><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSetPerms\" value=\"1\"><i class=\"bi bi-key me-1\"></i>" . ui_language::translate("Set Permissions") . "</button></td>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Clear errors") . "</th>";
-        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearErrors\" value=\"1\">" . ui_language::translate("Clear") . "</button></td>";
+        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearErrors\" value=\"1\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Clear") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Clear warnings") . "";
         $line .= "</th>";
-        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearWarnings\" value=\"1\">" . ui_language::translate("Clear") . "</button></td>";
+        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearWarnings\" value=\"1\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Clear") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("Clear logs") . "";
         $line .= "</th>";
-        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearLogs\" value=\"1\">" . ui_language::translate("Clear") . "</button></td>";
+        $line .= "<td><button class=\"delete btn btn-danger\" type=\"submit\" id=\"button\" name=\"inClearLogs\" value=\"1\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Clear") . "</button></td>";
         $line .= "</tr>";
         $line .= "</table>";
         $line .= "</form>";
         $line .= "<form name=\"launchbindlog\" action=\"modules/dns_admin/code/getbindlog.php\" target=\"bindlogwindow\" method=\"post\" onsubmit=\"window.open('', 'bindlogwindow', 'scrollbars=yes,menubar=no,height=525,width=825,resizable=no,toolbar=no,location=no,status=no')\">";
+        $line .= runtime_csfr::Token();
         $line .= "<table class=\"table table-striped\">";
         $line .= "<tr>";
         if (count(self::$logerror) > 0) {
@@ -233,7 +231,7 @@ class module_controller extends ctrl_module
             $logerrorcolor = NULL;
         }
         $line .= "<th style=\"width:350px;\">" . ui_language::translate("View Errors") . " (<font color=\"" . $logerrorcolor . "\">" . count(self::$logerror) . "</font>)</th>";
-        $line .= "<td><button class=\"btn btn-primary\" type=\"submit\" id=\"logerror_a\" name=\"inViewErrors\" value=\"1\">" . ui_language::translate("View") . "</button></td>";
+        $line .= "<td><button class=\"btn btn-primary\" type=\"submit\" id=\"logerror_a\" name=\"inViewErrors\" value=\"1\"><i class=\"bi bi-eye me-1\"></i>" . ui_language::translate("View") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         if (count(self::$logwarning) > 0) {
@@ -242,11 +240,11 @@ class module_controller extends ctrl_module
             $logwarningcolor = NULL;
         }
         $line .= "<th>" . ui_language::translate("View warnings") . " (<font color=\"" . $logwarningcolor . "\">" . count(self::$logwarning) . "</font>)</th>";
-        $line .= "<td><button class=\"btn btn-primary\" type=\"submit\" id=\"logwarning_a\" name=\"inViewWarnings\" value=\"1\">" . ui_language::translate("View") . "</button></td>";
+        $line .= "<td><button class=\"btn btn-primary\" type=\"submit\" id=\"logwarning_a\" name=\"inViewWarnings\" value=\"1\"><i class=\"bi bi-eye me-1\"></i>" . ui_language::translate("View") . "</button></td>";
         $line .= "</tr>";
         $line .= "<tr>";
         $line .= "<th>" . ui_language::translate("View logs") . " (" . count(self::$getlog) . ")</th>";
-        $line .= "<td><input type=\"hidden\" name=\"inBindLog\" value=\"" . ctrl_options::GetSystemOption('bind_log') . "\" /><button class=\"btn btn-primary\" type=\"submit\" id=\"button\" name=\"inViewLogs\" value=\"1\">" . ui_language::translate("View") . "</button></td>";
+        $line .= "<td><input type=\"hidden\" name=\"inBindLog\" value=\"" . ctrl_options::GetSystemOption('bind_log') . "\" /><button class=\"btn btn-primary\" type=\"submit\" id=\"button\" name=\"inViewLogs\" value=\"1\"><i class=\"bi bi-eye me-1\"></i>" . ui_language::translate("View") . "</button></td>";
         $line .= "</tr>";
         $line .= "</table>";
         $line .= "</form>";
@@ -270,6 +268,7 @@ class module_controller extends ctrl_module
 
     static function doUpdateDNSConfig()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         $sql = "SELECT COUNT(*) FROM x_settings WHERE so_module_vc=:moduleName AND so_usereditable_en = 'true'";
@@ -300,6 +299,7 @@ class module_controller extends ctrl_module
 
  static function doUpdateService()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         $messages = array();
@@ -325,6 +325,7 @@ class module_controller extends ctrl_module
 
     static function doUpdateTools()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inResetAll'))) {
@@ -358,6 +359,7 @@ class module_controller extends ctrl_module
 
     static function doUpdateLogs()
     {
+        runtime_csfr::Protect();
         global $zdbh;
         global $controller;
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inSetPerms'))) {
@@ -380,60 +382,37 @@ class module_controller extends ctrl_module
 
    static function StartBind()
     {
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            /** @todo this needs changing to use the system command */
-            exec('net start ' . ctrl_options::GetSystemOption('bind_service') . '', $out);
-            return "OK (windows)";
-        } else {
-            // Security fix (June 2026): replace zsudo with privilege::run()
-            // (action key maps to a fixed command in privilege.class.php).
-            list($code, $stdout, $stderr) = privilege::run('bind_start');
-            sleep(2);
-            if ($code === 0) {
-                return "OK (exit 0)";
-            }
-            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
-            if ($msg == '') { $msg = "exit " . $code; }
-            return "FAIL (" . $msg . ")";
+        list($code, $stdout, $stderr) = privilege::run('bind_start');
+        sleep(2);
+        if ($code === 0) {
+            return "OK (exit 0)";
         }
+        $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+        if ($msg == '') { $msg = "exit " . $code; }
+        return "FAIL (" . $msg . ")";
     }
 
    static function StopBind()
     {
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            /** @todo this needs changing to use the system command */
-            exec('net stop ' . ctrl_options::GetSystemOption('bind_service') . '', $out);
-            return "OK (windows)";
-        } else {
-            // Security fix (June 2026): replace zsudo with privilege::run().
-            list($code, $stdout, $stderr) = privilege::run('bind_stop');
-            sleep(2);
-            if ($code === 0) {
-                return "OK (exit 0)";
-            }
-            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
-            if ($msg == '') { $msg = "exit " . $code; }
-            return "FAIL (" . $msg . ")";
+        list($code, $stdout, $stderr) = privilege::run('bind_stop');
+        sleep(2);
+        if ($code === 0) {
+            return "OK (exit 0)";
         }
+        $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+        if ($msg == '') { $msg = "exit " . $code; }
+        return "FAIL (" . $msg . ")";
     }
 
     static function ReloadBind()
     {
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            /** @todo this needs changing to use the system command */
-            $reload_bind = ctrl_options::GetSystemOption('bind_dir') . 'rndc.exe reload';
-            pclose(popen($reload_bind, 'r'));
-            return "OK (windows)";
-        } else {
-            // Security fix (June 2026): replace zsudo with privilege::run().
-            list($code, $stdout, $stderr) = privilege::run('bind_reload');
-            if ($code === 0) {
-                return "OK (exit 0)";
-            }
-            $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
-            if ($msg == '') { $msg = "exit " . $code; }
-            return "FAIL (" . $msg . ")";
+        list($code, $stdout, $stderr) = privilege::run('bind_reload');
+        if ($code === 0) {
+            return "OK (exit 0)";
         }
+        $msg = trim($stderr) != '' ? trim($stderr) : trim($stdout);
+        if ($msg == '') { $msg = "exit " . $code; }
+        return "FAIL (" . $msg . ")";
     }
 
     static function ResetAll()
@@ -612,20 +591,15 @@ class module_controller extends ctrl_module
     static function SetPerms()
     {
         $bindlog = ctrl_options::GetSystemOption('bind_log');
-        if (sys_versions::ShowOSPlatformVersion() <> "Windows") {
-            // Security fix (June 2026): replace zsudo + chmod 0777 with
-            // privilege::run('bind_log_chmod', $bindlog). Hardened mode 0644
-            // (no world-writable); path validated against /var/sentora/logs/bind/
-            // by privilege::run(). The legacy chgrp call is removed: the
-            // installer should put the BIND log under group `bind` instead of
-            // giving world write access.
-            privilege::run('bind_log_chmod', array($bindlog));
-        }
+        privilege::run('bind_log_chown', array($bindlog));
+        privilege::run('bind_log_chmod', array($bindlog));
     }
 
     static function ClearErrors()
     {
         $bindlog = ctrl_options::GetSystemOption('bind_log');
+        // Ensure group=www and mode=0664 before writing.
+        self::SetPerms();
         if (is_writable($bindlog)) {
             $log = $bindlog;
             if (file_exists($bindlog)) {
@@ -657,6 +631,8 @@ class module_controller extends ctrl_module
     static function ClearWarnings()
     {
         $bindlog = ctrl_options::GetSystemOption('bind_log');
+        // Ensure group=www and mode=0664 before writing.
+        self::SetPerms();
         if (is_writable($bindlog)) {
             $log = $bindlog;
             if (file_exists($bindlog)) {
@@ -688,6 +664,8 @@ class module_controller extends ctrl_module
     static function ClearLog()
     {
         $bindlog = ctrl_options::GetSystemOption('bind_log');
+        // Ensure group=www and mode=0664 before writing.
+        self::SetPerms();
         if (is_writable($bindlog)) {
             $log = $bindlog;
             if (file_exists($bindlog)) {
@@ -730,7 +708,7 @@ class module_controller extends ctrl_module
         $active = $numactiverecords;
         $deleted = $total - $active;
         $line = "<h2>DNS Database Usage</h2>";
-        $line .= "<img src=\"etc/lib/pChart2/sentora/z3DPie.php?score=" . $active . "::" . $deleted . "&labels=Active Domain Records:   " . $active . "::Deleted Domain Records: " . $deleted . "&legendfont=verdana&legendfontsize=8&imagesize=240::200&chartsize=120::90&radius=100&legendsize=10::160\"/>";
+        $line .= "<img src=\"etc/lib/charts/svg_pie.php?score=" . $active . "::" . $deleted . "&labels=Active:_" . $active . "::Deleted:_" . $deleted . "&imagesize=320::200\"/>";
         return $line;
     }
 
@@ -800,7 +778,7 @@ class module_controller extends ctrl_module
         $SPFrecords = $numSPFrecords;
         $NSrecords = $numNSrecords;
         $line = "<h2>Record Types Usage</h2>";
-        $line .= "<img src=\"etc/lib/pChart2/sentora/z3DPie.php?score=" . $Arecords . "::" . $NSrecords . "::" . $MXrecords . "::" . $SPFrecords . "::" . $TXTrecords . "::" . $SRVrecords . "::" . $CNAMErecords . "::" . $AAAArecords . "&labels=A: " . $Arecords . "::NS: " . $NSrecords . "::MX: " . $MXrecords . "::SPF: " . $SPFrecords . "::TXT: " . $TXTrecords . "::SRV: " . $SRVrecords . "::CNAME: " . $CNAMErecords . "::AAAA: " . $AAAArecords . "&legendfont=verdana&legendfontsize=8&imagesize=320::200&chartsize=120::90&radius=100&legendsize=250::25\"/>";
+        $line .= "<img src=\"etc/lib/charts/svg_pie.php?score=" . $Arecords . "::" . $NSrecords . "::" . $MXrecords . "::" . $SPFrecords . "::" . $TXTrecords . "::" . $SRVrecords . "::" . $CNAMErecords . "::" . $AAAArecords . "&labels=A:_" . $Arecords . "::NS:_" . $NSrecords . "::MX:_" . $MXrecords . "::SPF:_" . $SPFrecords . "::TXT:_" . $TXTrecords . "::SRV:_" . $SRVrecords . "::CNAME:_" . $CNAMErecords . "::AAAA:_" . $AAAArecords . "&imagesize=320::200\"/>";
         return $line;
     }
 
@@ -808,8 +786,12 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         global $controller;
-        $domainID = $vh_acc_fk;
-        $domainName = $zdbh->query("SELECT * FROM x_vhosts WHERE vh_id_pk=" . $domainID . " AND vh_deleted_ts IS NULL")->Fetch();
+        // CRIT-4 FIX: use prepared statement — $vh_acc_fk was concatenated directly into query()
+        $domainID  = (int)$vh_acc_fk;
+        $stmtVhost = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_id_pk = :did AND vh_deleted_ts IS NULL");
+        $stmtVhost->bindParam(':did', $domainID, PDO::PARAM_INT);
+        $stmtVhost->execute();
+        $domainName = $stmtVhost->fetch();
         $userID = $domainName['vh_acc_fk'];
         if (!fs_director::CheckForEmptyValue(ctrl_options::GetSystemOption('server_ip'))) {
             $target = ctrl_options::GetSystemOption('server_ip');

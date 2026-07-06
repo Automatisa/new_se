@@ -34,7 +34,6 @@ class module_controller extends ctrl_module
     static function getConfig()
     {
         global $zdbh;
-        $currentuser = ctrl_users::GetUserDetail();
         $sql = "SELECT * FROM x_settings WHERE so_module_vc=:name AND so_usereditable_en = 'true' ORDER BY so_cleanname_vc";
         //$numrows = $zdbh->query($sql);
         $name = ui_module::GetModuleName();
@@ -69,8 +68,26 @@ class module_controller extends ctrl_module
         global $zdbh;
         global $controller;
         runtime_csfr::Protect();
+
+        // Per-setting validators: prevent invalid or dangerous values being saved.
+        // mailserver_php is used in include() — only known filenames allowed.
+        // mailserver_db is used as a PDO dbname — only safe identifiers allowed.
+        $validators = array(
+            'mailserver_php' => function($v) {
+                return $v === 'postfix.php';
+            },
+            'mailserver_db' => function($v) {
+                return (bool) preg_match('/^[a-zA-Z0-9_]{1,64}$/', $v);
+            },
+            'max_mail_size' => function($v) {
+                return ctype_digit($v) && (int)$v > 0;
+            },
+            'remove_orphan' => function($v) {
+                return in_array($v, array('true', 'false'), true);
+            },
+        );
+
         $sql = "SELECT * FROM x_settings WHERE so_module_vc=:name AND so_usereditable_en = 'true'";
-        //$numrows = $zdbh->query($sql);
         $name = ui_module::GetModuleName();
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':name', $name);
@@ -80,13 +97,19 @@ class module_controller extends ctrl_module
             $sql->bindParam(':name', $name);
             $sql->execute();
             while ($row = $sql->fetch()) {
-                if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', $row['so_name_vc']))) {
-                    $updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :name2 WHERE so_name_vc = :so_name_vc");
-                    $name2 = $controller->GetControllerRequest('FORM', $row['so_name_vc']);
-                    $updatesql->bindParam(':name2', $name2);
-                    $updatesql->bindParam(':so_name_vc', $row['so_name_vc']);
-                    $updatesql->execute();
+                $fieldName = $row['so_name_vc'];
+                $value = $controller->GetControllerRequest('FORM', $fieldName);
+                if (fs_director::CheckForEmptyValue($value)) {
+                    continue;
                 }
+                // Apply per-field validator if one exists
+                if (isset($validators[$fieldName]) && !$validators[$fieldName]($value)) {
+                    continue;
+                }
+                $updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :fieldname");
+                $updatesql->bindParam(':value', $value);
+                $updatesql->bindParam(':fieldname', $fieldName);
+                $updatesql->execute();
             }
         }
         self::$ok = true;

@@ -1,0 +1,416 @@
+<@ Init @>
+<div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+        <div class="zmodule_title"><@ ModuleName @></div>
+        <div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ ModuleDesc @></div>
+    </div>
+
+    <@ Result @>
+
+    <!-- Formularios ocultos para acciones de tabla (rellenados por JS) -->
+    <form id="fwDeleteBlockForm" method="post" action="./?module=fw_admin&action=UnblockIP&tab=blocked" style="display:none">
+        <@ CSFR_Tag @>
+        <input type="hidden" name="inID" id="fwDeleteBlockID">
+    </form>
+    <form id="fwDeleteWhiteForm" method="post" action="./?module=fw_admin&action=RemoveWhitelist&tab=whitelist" style="display:none">
+        <@ CSFR_Tag @>
+        <input type="hidden" name="inID" id="fwDeleteWhiteID">
+    </form>
+    <form id="fwUnbanForm" method="post" action="./?module=fw_admin&action=UnbanSshguard&tab=sshguard" style="display:none">
+        <@ CSFR_Tag @>
+        <input type="hidden" name="inIP" id="fwUnbanIP">
+    </form>
+    <form id="fwDeleteRuleForm" method="post" action="./?module=fw_admin&action=DeleteRule&tab=rules" style="display:none">
+        <@ CSFR_Tag @>
+        <input type="hidden" name="inID" id="fwDeleteRuleID">
+    </form>
+    <form id="fwToggleRuleForm" method="post" action="./?module=fw_admin&action=ToggleRule&tab=rules" style="display:none">
+        <@ CSFR_Tag @>
+        <input type="hidden" name="inID" id="fwToggleRuleID">
+    </form>
+
+    <!-- Navegación de pestañas -->
+    <ul class="nav nav-tabs" style="margin:15px 15px 0;" id="fwTabs">
+        <li class="nav-item"><a class="nav-link active" href="#fw-status"    data-bs-toggle="tab">
+            <span class="bi bi-speedometer"></span> Estado
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-blocked"   data-bs-toggle="tab">
+            <span class="bi bi-ban"></span> IPs bloqueadas
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-whitelist" data-bs-toggle="tab">
+            <span class="bi bi-check-circle-fill"></span> Lista blanca
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-sshguard"  data-bs-toggle="tab">
+            <span class="bi bi-fire"></span> SSHGuard
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-loginattempts" data-bs-toggle="tab">
+            <span class="bi bi-lock"></span> Intentos login
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-rules"     data-bs-toggle="tab">
+            <span class="bi bi-list-ul"></span> Reglas pf
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#fw-config"    data-bs-toggle="tab">
+            <span class="bi bi-gear"></span> Configuración
+        </a></li>
+    </ul>
+
+    <div class="tab-content" style="padding:15px;">
+
+        <!-- ============================================================ ESTADO -->
+        <div class="tab-pane active show" id="fw-status">
+            <h3>Estado del cortafuegos</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Tu IP actual: <strong><@ ClientIP @></strong>
+                — asegúrate de añadirla a la lista blanca antes de bloquear rangos.
+            </p>
+            <@ StatusPanel @>
+        </div>
+
+        <!-- ======================================================= BLOQUEADAS -->
+        <div class="tab-pane" id="fw-blocked">
+            <h3>IPs bloqueadas manualmente</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Soporta IPv4 (<code>1.2.3.4</code>), IPv6 (<code>2001:db8::1</code>)
+                y notación CIDR (<code>10.0.0.0/8</code>, <code>2001:db8::/32</code>).
+                Tu IP actual <strong><@ ClientIP @></strong> y la IP del servidor
+                no pueden bloquearse.
+            </p>
+
+            <form method="post" action="./?module=fw_admin&action=BlockIP&tab=blocked"
+                  style="margin-bottom:20px;">
+                <@ CSFR_Tag @>
+                <div class="row">
+                    <div class="col-sm-4">
+                        <input type="text" name="inIP" class="form-control form-control-sm"
+                               placeholder="IP o CIDR (IPv4/IPv6)" required
+                               pattern="^[0-9a-fA-F:.\/]+$"
+                               title="Dirección IPv4, IPv6 o CIDR">
+                    </div>
+                    <div class="col-sm-5">
+                        <input type="text" name="inReason" class="form-control form-control-sm"
+                               placeholder="Motivo (opcional)" maxlength="255">
+                    </div>
+                    <div class="col-sm-3">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <span class="bi bi-ban"></span> Bloquear
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <@ BlockedTable @>
+        </div>
+
+        <!-- ====================================================== LISTA BLANCA -->
+        <div class="tab-pane" id="fw-whitelist">
+            <h3>Lista blanca</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Las IPs en lista blanca nunca son bloqueadas por pf ni por SSHGuard
+                (<code>pass quick</code> tiene precedencia sobre todos los bloqueos).
+                Añade aquí tu IP de administración.
+            </p>
+
+            <form method="post" action="./?module=fw_admin&action=AddWhitelist&tab=whitelist"
+                  style="margin-bottom:20px;">
+                <@ CSFR_Tag @>
+                <div class="row">
+                    <div class="col-sm-4">
+                        <input type="text" name="inIP" class="form-control form-control-sm"
+                               placeholder="IP o CIDR (IPv4/IPv6)" required
+                               pattern="^[0-9a-fA-F:.\/]+$">
+                    </div>
+                    <div class="col-sm-5">
+                        <input type="text" name="inReason" class="form-control form-control-sm"
+                               placeholder="Motivo (ej: IP de administración)" maxlength="255">
+                    </div>
+                    <div class="col-sm-3">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <span class="bi bi-plus-lg"></span> Añadir
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <@ WhitelistTable @>
+        </div>
+
+        <!-- ======================================================== SSHGUARD -->
+        <div class="tab-pane" id="fw-sshguard">
+            <h3>SSHGuard — Bans automáticos activos</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Bans aplicados automáticamente por SSHGuard a la tabla pf
+                <code>&lt;sshguard&gt;</code>.
+                Se sincronizan con la BD en cada ejecución del daemon (cada 5 min).
+                La columna <strong>Servicio atacado</strong> muestra qué protocolo
+                provocó el ban (SSH, FTP, SMTP…) y el <strong>Puerto</strong> destino.
+                Desbanear elimina la IP de la tabla pf inmediatamente; SSHGuard puede
+                volver a banear si los ataques continúan (añade la IP a la lista blanca
+                para evitarlo).
+            </p>
+            <@ AutoBlockedTable @>
+        </div>
+
+        <!-- ================================================= INTENTOS DE LOGIN -->
+        <div class="tab-pane" id="fw-loginattempts">
+            <h3>Intentos de login fallidos</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Cada login fallido en el panel queda registrado aquí.
+                Al superar el umbral configurado la IP se añade automáticamente a
+                <strong>IPs bloqueadas</strong> y se aplica a pf sin esperar al daemon.
+                Las IPs en <strong>lista blanca</strong> nunca se bloquean aunque fallen
+                todos los intentos que quieran.
+            </p>
+            <@ LoginAttemptsTable @>
+
+            <div class="alert alert-info" style="max-width:600px;font-size:12px;margin-top:15px;">
+                <strong>Ajustar umbral:</strong> cambia los valores en
+                <a href="./?module=fw_admin&tab=config" data-bs-toggle="tab"
+                   onclick="document.querySelector(\'#fwTabs a[href=\\"#fw-config\\"]\').click();return false;">
+                    Configuración
+                </a>
+                → <em>Protección panel: intentos / ventana (s)</em>.
+            </div>
+        </div>
+
+        <!-- ======================================================== REGLAS PF -->
+        <div class="tab-pane" id="fw-rules">
+            <h3>Reglas personalizadas pf</h3>
+
+            <div class="alert alert-info" style="font-size:12px;max-width:700px;">
+                <strong>Requisito:</strong> añade <code>anchor "sentora_rules"</code>
+                en <code>/etc/pf.conf</code> antes de <code>pass all</code>:<br>
+                <code>anchor "sentora_rules"</code>
+                &nbsp;←&nbsp;antes de <code>pass all</code><br>
+                Luego recarga pf: <code>service pf reload</code>.
+                Las reglas se aplican dentro del anchor; la lista blanca y los
+                bloqueos por IP siguen teniendo precedencia (<code>quick</code>).
+            </div>
+
+            <@ RulesTable @>
+
+            <div style="margin-top:10px;">
+                <form method="post" action="./?module=fw_admin&action=ReloadRules&tab=rules"
+                      style="display:inline;">
+                    <@ CSFR_Tag @>
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <span class="bi bi-arrow-clockwise"></span> Reaplicar reglas en pf
+                    </button>
+                </form>
+            </div>
+
+            <hr>
+            <h4>Visor de reglas activas en pf</h4>
+            <@ PfRulesPanel @>
+        </div>
+
+        <!-- ====================================================== CONFIG -->
+        <div class="tab-pane" id="fw-config">
+            <h3>Configuración</h3>
+            <p class="text-muted" style="font-size:12px;">
+                Los valores numéricos son de <strong>referencia</strong> para el administrador.
+                Para que tengan efecto en SSHGuard deben reflejarse también en
+                <code>/usr/local/etc/sshguard.conf</code> y reiniciar el servicio.
+            </p>
+
+            <form method="post" action="./?module=fw_admin&action=SaveConfig&tab=config">
+                <@ CSFR_Tag @>
+                <@ ConfigPanel @>
+                <button type="submit" class="btn btn-primary">
+                    <span class="bi bi-floppy"></span> Guardar configuración
+                </button>
+            </form>
+
+            <div class="alert alert-warning" style="max-width:600px;margin-top:18px;font-size:12px;">
+                <strong>Tras cambiar parámetros en sshguard.conf:</strong><br>
+                <code>service sshguard restart</code>
+            </div>
+        </div>
+
+    </div><!-- /tab-content -->
+
+<!-- ============================================================ MODAL EDITAR REGLA -->
+<div class="modal fade" id="fwEditRuleModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                <h4 class="modal-title">
+                    <span class="bi bi-pencil"></span> Editar regla pf
+                </h4>
+            </div>
+            <form method="post" action="./?module=fw_admin&action=UpdateRule&tab=rules" id="fwEditRuleForm">
+                <@ CSFR_Tag @>
+                <input type="hidden" name="inID" id="editRuleID">
+                <div class="modal-body">
+                    <div class="table-responsive"><table class="table table-sm" style="margin-bottom:0;">
+                        <tbody>
+                            <tr>
+                                <td style="width:130px;vertical-align:middle;"><label>Acción</label></td>
+                                <td>
+                                    <select name="inAction" id="editRuleAction" class="form-control form-control-sm">
+                                        <option value="pass">pass (permitir)</option>
+                                        <option value="block">block (bloquear)</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Dirección</label></td>
+                                <td>
+                                    <select name="inDirection" id="editRuleDirection" class="form-control form-control-sm">
+                                        <option value="in">in (entrante)</option>
+                                        <option value="out">out (saliente)</option>
+                                        <option value="any">any (ambas)</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Protocolo</label></td>
+                                <td>
+                                    <select name="inProto" id="editRuleProto" class="form-control form-control-sm">
+                                        <option value="tcp">tcp</option>
+                                        <option value="udp">udp</option>
+                                        <option value="icmp">icmp</option>
+                                        <option value="any">any</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>IP / Red origen</label></td>
+                                <td>
+                                    <input type="text" name="inSrc" id="editRuleSrc" class="form-control form-control-sm"
+                                           placeholder="vacío = cualquier origen">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Puerto</label></td>
+                                <td>
+                                    <input type="number" name="inPort" id="editRulePort" class="form-control form-control-sm"
+                                           min="0" max="65535" style="width:100px;">
+                                    <span class="help-block" style="margin:2px 0 0;font-size:11px;">
+                                        0 = cualquier puerto
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Hasta (rango)</label></td>
+                                <td>
+                                    <input type="number" name="inPortMax" id="editRulePortMax" class="form-control form-control-sm"
+                                           min="0" max="65535" style="width:100px;">
+                                    <span class="help-block" style="margin:2px 0 0;font-size:11px;">
+                                        0 = sin rango; mayor que Puerto = rango puerto:portMax
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Descripción</label></td>
+                                <td>
+                                    <input type="text" name="inDesc" id="editRuleDesc" class="form-control form-control-sm"
+                                           maxlength="255" placeholder="ej: Acceso HTTPS">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align:middle;"><label>Orden</label></td>
+                                <td>
+                                    <input type="number" name="inOrder" id="editRuleOrder" class="form-control form-control-sm"
+                                           min="1" max="999" style="width:80px;">
+                                    <span class="help-block" style="margin:2px 0 0;font-size:11px;">
+                                        Menor número = mayor prioridad
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+</div><!-- /table-responsive -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1"></i>Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="bi bi-floppy"></span> Guardar y aplicar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+</div><!-- /zmodule_content -->
+
+<script>
+(function () {
+    "use strict";
+
+    // ---- Activar pestaña según parámetro URL ?tab=xxx ----
+    function getTabParam() {
+        var m = window.location.search.match(/[?&]tab=([a-z]+)/);
+        return m ? m[1] : null;
+    }
+    var tabMap = {
+        status:    '#fw-status',
+        blocked:   '#fw-blocked',
+        whitelist: '#fw-whitelist',
+        sshguard:  '#fw-sshguard',
+        loginattempts: '#fw-loginattempts',
+        rules:     '#fw-rules',
+        config:    '#fw-config'
+    };
+    var tab = getTabParam();
+    if (tab && tabMap[tab]) {
+        document.querySelector('#fwTabs a[href="' + tabMap[tab] + '"]').click();
+    }
+
+    // ---- Acciones de tabla vía formularios ocultos ----
+    window.fwDeleteBlock = function (id, ip) {
+        if (!confirm('¿Eliminar bloqueo de ' + ip + '?')) return;
+        document.getElementById('fwDeleteBlockID').value = id;
+        document.getElementById('fwDeleteBlockForm').submit();
+    };
+
+    window.fwDeleteWhite = function (id, ip) {
+        if (!confirm('¿Eliminar ' + ip + ' de la lista blanca?')) return;
+        document.getElementById('fwDeleteWhiteID').value = id;
+        document.getElementById('fwDeleteWhiteForm').submit();
+    };
+
+    window.fwUnban = function (ip) {
+        if (!confirm('¿Desbanear ' + ip + ' de SSHGuard?\n\nSSHGuard puede volver a banearla si los ataques continúan.')) return;
+        document.getElementById('fwUnbanIP').value = ip;
+        document.getElementById('fwUnbanForm').submit();
+    };
+
+    window.fwDeleteRule = function (id) {
+        if (!confirm('¿Eliminar esta regla pf?')) return;
+        document.getElementById('fwDeleteRuleID').value = id;
+        document.getElementById('fwDeleteRuleForm').submit();
+    };
+
+    window.fwToggleRule = function (id) {
+        document.getElementById('fwToggleRuleID').value = id;
+        document.getElementById('fwToggleRuleForm').submit();
+    };
+
+    window.fwEditRule = function (id, action, direction, proto, src, port, portMax, desc, order) {
+        document.getElementById('editRuleID').value      = id;
+        document.getElementById('editRulePort').value    = port;
+        document.getElementById('editRulePortMax').value = portMax;
+        document.getElementById('editRuleDesc').value    = desc;
+        document.getElementById('editRuleOrder').value   = order;
+
+        // Seleccionar el valor correcto en cada <select>
+        function setSelect(elemId, val) {
+            var sel = document.getElementById(elemId);
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === val) { sel.selectedIndex = i; break; }
+            }
+        }
+        setSelect('editRuleAction',    action);
+        setSelect('editRuleDirection', direction);
+        setSelect('editRuleProto',     proto);
+
+        // src: "any" se muestra como vacío en el campo de texto
+        document.getElementById('editRuleSrc').value = (src === 'any') ? '' : src;
+
+        jQuery('#fwEditRuleModal').modal('show');
+    };
+})();
+</script>

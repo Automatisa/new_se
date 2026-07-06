@@ -25,7 +25,7 @@ global $zdbh;
 $zlo = new debug_logger();
 
 try {
-    $zdbh = new db_driver("mysql:host=$host;dbname=$dbname", $user, $pass, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8'"));
+    $zdbh = new db_driver("mysql:host=$host;dbname=$dbname", $user, $pass, array(\Pdo\Mysql::ATTR_INIT_COMMAND => "SET NAMES 'utf8'"));
     $zdbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     $zlo->method = "text";
@@ -46,7 +46,7 @@ try {
                     color: #666;
             }
             </style>
-            <div class=\"dbwarning\"><strong>Critical Error:</strong> [0100] - Unable to connect or authenticate to the Sentora database (<em>$dbname</em>).<p>We advice that you contact the server administrator to ensure that the database server is online and that the correct connection parameters are being used.</p></div>";
+            <div class=\"dbwarning\"><strong>Critical Error:</strong> [0100] - Unable to connect or authenticate to the database.<p>Please contact the server administrator.</p></div>";
 
     die($error_html);
 }

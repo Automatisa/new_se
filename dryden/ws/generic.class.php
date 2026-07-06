@@ -36,38 +36,6 @@ class ws_generic {
     }
 
     /**
-     * Generic method to send POST data to a web service and then return its response (without the need to use cURL or another HTTP client).
-     * @author Bobby Allen (ballen@bobbyallen.me)
-     * @param string $url The URL of which to POST the data too.
-     * @param string $data The data content of which to send.
-     * @param string $optional_headers Option headers if you require to send them.
-     * @return string The response recieved. 
-     */
-    static function DoPostRequest($url, $data, $optional_headers = null) {
-//$ws_log = new debug_logger();
-//$ws_log->logcode = "904";
-        $params = array('http' => array(
-                'method' => 'POST',
-                'content' => $data
-                ));
-        if ($optional_headers !== null) {
-            $params['http']['header'] = $optional_headers;
-        }
-        $ctx = stream_context_create($params);
-        $fp = @fopen($url, 'rb', false, $ctx);
-        if (!$fp) {
-//$ws_log->detail = "Problem with " .$url. ", ".$php_errormsg."";
-//$ws_log->writeLog();
-        }
-        $response = @stream_get_contents($fp);
-        if ($response == false) {
-//$ws_log->detail = "Problem reading data from ".$url. ", ".$php_errormsg."";
-//$ws_log->writeLog();
-        }
-        return $response;
-    }
-
-    /**
      * Captures the RAW POST data passed to this script.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @return string The raw request data.

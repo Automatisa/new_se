@@ -161,7 +161,7 @@ class module_controller extends ctrl_module
         $destination = strtolower(str_replace(' ', '', $destination));
         self::$create = true;
         // Include mail server specific file here.
-        include("modules/" . $controller->GetControllerRequest('URL', 'module') . "/code/" . ctrl_options::GetSystemOption('mailserver_php') . "");
+        include(__DIR__ . "/" . basename(ctrl_options::GetSystemOption('mailserver_php')));
 
         $bindArray = array(
             ':userid' => $currentuser['userid'],
@@ -186,26 +186,26 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function ExecuteDeleteAlias($al_id_pk)
+    static function ExecuteDeleteAlias($al_id_pk, $uid)
     {
         global $zdbh;
         global $controller;
         self::$delete = true;
         runtime_hook::Execute('OnBeforeDeleteAlias');
-        //$rowalias = $zdbh->query("SELECT * FROM x_aliases WHERE al_id_pk=" . $al_id_pk . "")->Fetch();
-        $bindArray = array(
-            ':id' => $al_id_pk,
-        );
-        $sqlStatment = $zdbh->bindQuery("SELECT * FROM x_aliases WHERE al_id_pk=:id", $bindArray);
+        // AND al_acc_fk=:uid en el SELECT evita leer datos de alias ajenos
+        $bindArray = array(':id' => $al_id_pk, ':uid' => $uid);
+        $sqlStatment = $zdbh->bindQuery("SELECT * FROM x_aliases WHERE al_id_pk=:id AND al_acc_fk=:uid", $bindArray);
         $rowalias = $zdbh->returnRow();
 
         // Include mail server specific file here.
-        if (file_exists("modules/" . $controller->GetControllerRequest('URL', 'module') . "/code/" . ctrl_options::GetSystemOption('mailserver_php') . "")) {
-            include("modules/" . $controller->GetControllerRequest('URL', 'module') . "/code/" . ctrl_options::GetSystemOption('mailserver_php') . "");
+        if (file_exists(__DIR__ . "/" . basename(ctrl_options::GetSystemOption('mailserver_php')))) {
+            include(__DIR__ . "/" . basename(ctrl_options::GetSystemOption('mailserver_php')));
         }
-        $sqlStatmentUpdate = "UPDATE x_aliases SET al_deleted_ts=:time WHERE al_id_pk=:id";
+        // AND al_acc_fk=:uid impide borrar aliases ajenos
+        $sqlStatmentUpdate = "UPDATE x_aliases SET al_deleted_ts=:time WHERE al_id_pk=:id AND al_acc_fk=:uid";
         $sql = $zdbh->prepare($sqlStatmentUpdate);
         $sql->bindParam(':id', $al_id_pk);
+        $sql->bindParam(':uid', $uid);
         $sql->bindParam(':time', time());
         $sql->execute();
         runtime_hook::Execute('OnAfterDeleteAlias');
@@ -337,8 +337,9 @@ class module_controller extends ctrl_module
     {
         global $controller;
         runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
-        if (self::ExecuteDeleteAlias($formvars['inDelete']))
+        if (self::ExecuteDeleteAlias($formvars['inDelete'], $currentuser['userid']))
             return true;
         return false;
     }
@@ -442,9 +443,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('forwarders', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

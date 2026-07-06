@@ -29,15 +29,8 @@ function GenerateWebalizerStats()
           @mkdir( $basedir, 0755, TRUE );
         }
 
-        /** set webalizer command dependant on OS */
-        if ( sys_versions::ShowOSPlatformVersion() == "Windows" ) {
-            $command = ctrl_options::GetSystemOption( 'sentora_root' ) .
-                'modules/webalizer_stats/bin/webalizer.exe';
-        }
-        else {
-            chmod( ctrl_options::GetSystemOption( 'sentora_root' ) . "modules/webalizer_stats/bin/webalizer", 4777 );
-            $command = "webalizer";
-        }
+        chmod( ctrl_options::GetSystemOption( 'sentora_root' ) . "modules/webalizer_stats/bin/webalizer", 4777 );
+        $command = "webalizer";
 
         /** all other args and flags are the same so keep them outsite to avoid duplication */
         $flag        = '-o';

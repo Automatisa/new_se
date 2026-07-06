@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -14,6 +14,7 @@
     <% if IsShowModuleInfo %>
     <div class="zgrid_wrapper">
         <h2><: Module Information :></h2>
+        <div class="table-responsive">
         <table class="table table-striped">
             <tr>
                 <th><: Module name :></th>
@@ -40,7 +41,7 @@
                 <td><@ ModuleType @></td>
             </tr>
         </table>
-        <br>
+        </div>
         <p><a href="./?module=moduleadmin">Return to Module Admin</a></p>
     </div>
     <% else %>
@@ -55,13 +56,14 @@
         <h2><: Install a new module :></h2>
         <p><: You can automatically install a new module by uploading your sentora package archive (.zpp file) and then click 'Install' to begin the process. :></p>
         <form action="./?module=moduleadmin&action=InstallModule" method="post" enctype="multipart/form-data">
-            <table class="table table-striped">
-                <tr>
-                    <th>Module Archive:</th>
-                    <td> <input type="file" name="modulefile" id="modulefile" /></td>
-                    <td><button class="button-loader btn btn-primary" type="submit" name="submit"><: Install! :></button></td>
-                </tr>
-            </table>
+            <@ CSFR_Tag @>
+            <div class="mb-3">
+                <label class="form-label fw-semibold"><: Module Archive :></label>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="file" name="modulefile" id="modulefile" class="form-control" style="max-width:320px;">
+                    <button class="button-loader btn btn-primary" type="submit" name="submit"><i class="bi bi-download me-1"></i><: Install! :></button>
+                </div>
+            </div>
         </form>
     </div>
     <% endif %>

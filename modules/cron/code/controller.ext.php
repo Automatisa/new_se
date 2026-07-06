@@ -114,10 +114,10 @@ class module_controller extends ctrl_module
                 $line .= "</tr>";
                 while ($rowcrons = $sql->fetch()) {
                     $line .= "<tr>";
-                    $line .= "<td>" . $rowcrons['ct_script_vc'] . "</td>";
+                    $line .= "<td>" . htmlspecialchars($rowcrons['ct_script_vc'], ENT_QUOTES, 'UTF-8') . "</td>";
                     $line .= "<td>" . ui_language::translate(self::TranslateTiming($rowcrons['ct_timing_vc'])) . "</td>";
-                    $line .= "<td>" . $rowcrons['ct_description_tx'] . "</td>";
-                    $line .= "<td><button class=\"button-loader delete btn btn-danger\" type=\"submit\" name=\"inDelete_" . $rowcrons['ct_id_pk'] . "\" id=\"button\" value=\"inDelete_" . $rowcrons['ct_id_pk'] . "\">" . ui_language::translate("Delete") . "</button></td>";
+                    $line .= "<td>" . htmlspecialchars($rowcrons['ct_description_tx'], ENT_QUOTES, 'UTF-8') . "</td>";
+                    $line .= "<td><button class=\"button-loader delete btn btn-danger\" type=\"submit\" name=\"inDelete_" . $rowcrons['ct_id_pk'] . "\" id=\"button\" value=\"inDelete_" . $rowcrons['ct_id_pk'] . "\"><i class=\"bi bi-trash me-1\"></i>" . ui_language::translate("Delete") . "</button></td>";
                     $line .= "</tr>";
                 }
                 $line .= "</table>";
@@ -142,9 +142,10 @@ class module_controller extends ctrl_module
         $line .= "<tr valign=\"top\">";
         $line .= "<th>" . ui_language::translate("Script") . ":</th>";
         $line .= '<td><input name="inScript" type="text" id="inScript" size="50" /><br />'
-                . ui_language::translate("example") . ': /folder/task.php<br>'
+                . ui_language::translate("example") . ': /web/domain_com/task.php<br>'
                 . ui_language::translate('Note 1 : Script path is relative to your sentora-user root directory:') . '<br>'
-                . ' &nbsp; <b>' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/</b><br>'
+                . ' &nbsp; <b>' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/</b>'
+                . ' (' . ui_language::translate('domains are under') . ' <b>web/</b>)<br>'
                 . ui_language::translate('Note 2 : Each file access in your script must use absolute directory path as above.')
                 . '</td>';
         $line .= "</tr>";
@@ -172,7 +173,7 @@ class module_controller extends ctrl_module
         $line .= "<th colspan=\"2\" align=\"right\"><input type=\"hidden\" name=\"inReturn\" value=\"GetFullURL\" />";
         $line .= "<input type=\"hidden\" name=\"inUserID\" value=\"" . $currentuser['userid'] . "\" />";
         $line .= runtime_csfr::Token();
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\">" . ui_language::translate("Create") . "</button></th>";
+        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\"><i class=\"bi bi-plus-circle me-1\"></i>" . ui_language::translate("Create") . "</button></th>";
         $line .= "</tr>";
         $line .= "</table>";
         $line .= "</form>";
@@ -189,7 +190,8 @@ class module_controller extends ctrl_module
         if (fs_director::CheckForEmptyValue(self::CheckCronForErrors())) {
             // If the user submitted a 'new' request then we will simply add the cron task to the database...
             $sql = $zdbh->prepare("INSERT INTO x_cronjobs (ct_acc_fk, ct_script_vc, ct_description_tx, ct_timing_vc, ct_fullpath_vc, ct_created_ts) VALUES (:userid, :script, :desc, :timing, :fullpath, " . time() . ")");
-            $sql->bindParam(':userid', $controller->GetControllerRequest('FORM', 'inUserID'));
+            // Siempre usar el usuario de sesión autenticado — nunca el valor inUserID del formulario.
+            $sql->bindParam(':userid', $currentuser['userid']);
             $sql->bindParam(':script', $controller->GetControllerRequest('FORM', 'inScript'));
             $sql->bindParam(':desc', $controller->GetControllerRequest('FORM', 'inDescription'));
             $sql->bindParam(':timing', $controller->GetControllerRequest('FORM', 'inTiming'));
@@ -285,6 +287,15 @@ class module_controller extends ctrl_module
                 $retval = TRUE;
             }
         }
+        // Comprobar cuota de cron jobs del paquete (-1 = ilimitado, 0 = ninguno permitido)
+        $quota = (int)$currentuser['cronjobquota'];
+        if ($quota !== -1) {
+            $used = (int)ctrl_users::GetQuotaUsages('cronjobs', $currentuser['userid']);
+            if ($used >= $quota) {
+                self::$error = TRUE;
+                $retval = TRUE;
+            }
+        }
         return $retval;
     }
 
@@ -296,33 +307,19 @@ class module_controller extends ctrl_module
         $sql = "SELECT * FROM x_cronjobs WHERE ct_deleted_ts IS NULL";
         $numrows = $zdbh->query($sql);
 
-        //common header whatever there are some cron task or not
-        if (sys_versions::ShowOSPlatformVersion() != "Windows") {
-            $line .= 'SHELL=/bin/bash' . fs_filehandler::NewLine();
-            $line .= 'PATH=/sbin:/bin:/usr/sbin:/usr/bin' . fs_filehandler::NewLine();
-            $line .= 'HOME=/' . fs_filehandler::NewLine();
-            $line .= fs_filehandler::NewLine();
-        }
+        //common header
+        $line .= 'SHELL=/bin/bash' . fs_filehandler::NewLine();
+        $line .= 'PATH=/sbin:/bin:/usr/sbin:/usr/bin' . fs_filehandler::NewLine();
+        $line .= 'HOME=/' . fs_filehandler::NewLine();
+        $line .= fs_filehandler::NewLine();
 		
-		# Cron fix for snuff
-		if (extension_loaded('suhosin') == true ) {	
-			$restrictinfos = ctrl_options::GetSystemOption('php_exer') . " -d suhosin.executor.func.blacklist=\"passthru, show_source, shell_exec, system, pcntl_exec, popen, pclose, proc_open, proc_nice, proc_terminate, proc_get_status, proc_close, leak, apache_child_terminate, posix_kill, posix_mkfifo, posix_setpgid, posix_setsid, posix_setuid, escapeshellcmd, escapeshellarg, exec\" -d open_basedir=\"" . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/" . ctrl_options::GetSystemOption('openbase_seperator') . ctrl_options::GetSystemOption('openbase_temp') . "\" ";
-		} else {
-			
-        	$restrictinfos = ctrl_options::GetSystemOption('php_exer') . " -d sp.configuration_file=\"/etc/sentora/configs/php/sp/cron.rules\" -d open_basedir=\"" . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/" . ctrl_options::GetSystemOption('openbase_seperator') . ctrl_options::GetSystemOption('openbase_temp') . "\" ";
-		
-		};
+		$restrictinfos = ctrl_options::GetSystemOption('php_exer') . ' -d open_basedir="' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/:/tmp/" ';
 
 
         $line .= "#################################################################################" . fs_filehandler::NewLine();
         $line .= "# CRONTAB FOR SENTORA CRON MANAGER MODULE                                        " . fs_filehandler::NewLine();
         $line .= "# Module Developed by Bobby Allen, 17/12/2009                                    " . fs_filehandler::NewLine();
         $line .= "# File automatically generated by Sentora " . sys_versions::ShowSentoraVersion() . fs_filehandler::NewLine();
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            $line .= "# Cron Debug infomation can be found in file C:\WINDOWS\System32\crontab.txt " . fs_filehandler::NewLine();
-            $line .= "#################################################################################" . fs_filehandler::NewLine();
-            $line .= "" . ctrl_options::GetSystemOption('daemon_timing') . " " . $restrictinfos . ctrl_options::GetSystemOption('daemon_exer') . fs_filehandler::NewLine();
-        }
         $line .= "#################################################################################" . fs_filehandler::NewLine();
         $line .= "# NEVER MANUALLY REMOVE OR EDIT ANY OF THE CRON ENTRIES FROM THIS FILE,          " . fs_filehandler::NewLine();
         $line .= "#  -> USE SENTORA INSTEAD! (Menu -> Advanced -> Cron Manager)                    " . fs_filehandler::NewLine();
@@ -355,16 +352,7 @@ class module_controller extends ctrl_module
             }
         }
         if (fs_filehandler::UpdateFile(ctrl_options::GetSystemOption('cron_file'), 0644, $line)) {
-            if (sys_versions::ShowOSPlatformVersion() != "Windows") {
-                // Security fix (June 2026): replace the 4-argument zsudo
-                // call (cron_reload_command, _flag, _user, _path) with
-                // privilege::run('cron_reload'), which hands off to sudo
-                // with a single fixed command. The legacy 4 separate
-                // options are no longer used (they could be attacker-
-                // influenced via the `cron_*` x_settings rows in
-                // principle, although in practice they are installer-set).
-                $returnValue = privilege::run('cron_reload');
-            }
+            privilege::run('cron_reload');
             return true;
         } else {
             return false;

@@ -13,13 +13,8 @@
 // /js/jquery.cookie.js
 // /js/jquery.sortable-custom.js
 // /js/spin.min.js
-// /js/bootstrap-alert.js
-// /js/bootstrap-modal.js
-// /js/bootstrap-dropdown.js
-// /js/bootstrap-tab.js
-// /js/bootstrap-tooltip.js
-// /js/bootstrap-popover.js
-// /js/typeahead.js
+// /js/bootstrap.bundle.min.js   (Bootstrap 5 — reemplaza a los bootstrap-*.js de BS3)
+// /js/typeahead.min.js
 
 var Sentora = {
 
@@ -33,19 +28,19 @@ var Sentora = {
         Sentora.modules.dragDrop();
         Sentora.modules.boxes();
 
-        // Enable Bootstrap Pop-overs
-        $('body').popover({
-            selector: '[rel^=popover]',
-            container: 'body',
-            trigger: 'hover'
-        });
+        // Enable Bootstrap Pop-overs (BS5: per-element initialization)
+        if (typeof bootstrap !== 'undefined') {
+            document.querySelectorAll('[rel^=popover]').forEach(function(el) {
+                new bootstrap.Popover(el, { container: 'body', trigger: 'hover' });
+            });
+        }
         
         // When Client Notice is Closed Hide Until it Changes
         var Notice_Cookie = $('.notice-manager-alert').find('p').text().replace(/[^a-z0-9\s]/gi, '').replace(/[_\s]/g, '-').substring(0, 64);
         if($.cookie(Notice_Cookie) != 'closed') {
-            $('.notice-manager-alert').removeClass('hidden');
+            $('.notice-manager-alert').removeClass('d-none');
         }
-        $('.notice-manager-alert > .close').click( function () {
+        $('.notice-manager-alert .btn-close').click( function () {
             $.cookie(Notice_Cookie, 'closed', {path: '/'});
         });
 
@@ -201,11 +196,11 @@ var Sentora = {
                 }
             }
 
-            var closeTmpl = (this.options.closeButton) ? '<button type="button" class="close" data-dismiss="alert">&times;</button>' : '';
+            var closeTmpl = (this.options.closeButton) ? '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' : '';
             var selector = $(this.options.selector);
 
             // Append Notice Div
-            selector.append($('<div class="alert alert-' + this.options.type + ' fade in" data-alert>' + closeTmpl + '' + this.options.message + '</div>'));
+            selector.append($('<div class="alert alert-' + this.options.type + ' alert-dismissible fade show" data-alert>' + closeTmpl + '' + this.options.message + '</div>'));
 
             // If Autoclose is enabled then Close/remove the Notice Div after X seconds
             if (this.options.autoClose) {
@@ -248,7 +243,7 @@ var Sentora = {
                 cancelButton: {
                     show: true,
                     text: 'default cancel',
-                    class: 'btn-default'
+                    class: 'btn-secondary'
                 },
                 okButton: {
                     show: true,
@@ -271,8 +266,8 @@ var Sentora = {
             // Create Dialog Div
             dialogTemplate = document.createElement('div');
             dialogTemplate.innerHTML +=
-                '<div class="modal-content confirm panel panel-primary" style="width: ' + this.options.width + 'px; border: 1px solid #428BCA;">' +
-                '<div class="panel-heading">' + this.options.title + '</div>' +
+                '<div class="modal-content confirm card border-primary" style="width: ' + this.options.width + 'px;">' +
+                '<div class="card-header">' + this.options.title + '</div>' +
                 '<div class="modal-body">' +
                 '<div>' + this.options.message + '</div>' +
                 '</div>' +
@@ -288,7 +283,7 @@ var Sentora = {
 
             // Create Backdrop Div
             backdropDiv = document.createElement('div');
-            backdropDiv.className = 'modal-backdrop fade in';
+            backdropDiv.className = 'modal-backdrop fade show';
             document.body.appendChild(backdropDiv);
 
             //OK button click event
@@ -322,13 +317,9 @@ var Sentora = {
 
     stats: {
         init: function() {
-            //Account Stats Tabs
-            // Requires Bootstrap tabs
-            $('#stats-tab a').click(function(e) {
-                Sentora.utils.log('Sentora.stats.init Click Event - Toggle Stats Tabs');
-                e.preventDefault();
-                $(this).tab('show');
-            })
+            // BS5: tabs are handled via data-bs-toggle="tab" in HTML
+            // No JS needed — Bootstrap 5 handles tab activation natively
+            Sentora.utils.log('Sentora.stats.init() ran - BS5 tabs via data-bs-toggle');
         }
 
     },
@@ -388,9 +379,9 @@ var Sentora = {
                 onChangeOrder: function() {
                     Sentora.modules.addFloats($(".sortable"))
                 }
-            }).bind('sortupdate', function() {
+            }).on('sortupdate', function() {
 
-                var sortorder = new Array();
+                var sortorder = [];
                 Sentora.modules.addFloats($(".sortable"));
 
                 $('.sortable li.module-box').each(function() {
@@ -506,8 +497,8 @@ var Sentora = {
         // Show Twitter typeAhead with Redirect.
         // Pass in JSON object with Names and URLs
         typeAhead: function(moduleNames) {
-            var moduleNames = new Array();
-            var moduleUrls = new Object();
+            var moduleNames = [];
+            var moduleUrls = {};
 
             // Build Arrays
             $.each(moduleJsonData, function(index, module) {

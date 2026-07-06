@@ -90,7 +90,7 @@ class module_controller extends ctrl_module
                     $line .= "<tr valign=\"top\"><th nowrap=\"nowrap\">" . ui_language::translate($row['so_cleanname_vc']) . "</th><td>" . $fieldhtml . "</td><td>" . ui_language::translate($row['so_desc_tx']) . "</td></tr>";
                 }
                 $line .= "<tr><th>" . ui_language::translate("Force Update") . "</th><td><input type=\"checkbox\"></td><td>" . ui_language::translate("Force vhost.conf to be updated on next daemon run. Any change in settings also triggers vhost.conf to be updated.") . "</td></tr>";
-                $line .= "<tr><th colspan=\"3\"><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSaveSystem\">" . ui_language::translate("Save Changes") . "</button><button class=\"button-loader btn btn-default\" type=\"button\" onclick=\"window.location.href='./?module=moduleadmin';return false;\">" . ui_language::translate("Cancel") . "</button></th></tr>";
+                $line .= "<tr><th colspan=\"3\"><button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSaveSystem\"><i class=\"bi bi-floppy me-1\"></i>" . ui_language::translate("Save Changes") . "</button><button class=\"button-loader btn btn-secondary\" type=\"button\" onclick=\"window.location.href='./?module=moduleadmin';return false;\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Cancel") . "</button></th></tr>";
             }
         }
         $line .= "</table>";
@@ -106,7 +106,7 @@ class module_controller extends ctrl_module
         $line .= "<form action=\"./?module=apache_admin&action=DisplayVhost\" method=\"post\">";
         $line .= "<table class=\"zform\">";
         $line .= "<tr><td>";
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\">" . ui_language::translate("Select Vhost") . "</button>";
+        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\"><i class=\"bi bi-check-square me-1\"></i>" . ui_language::translate("Select Vhost") . "</button>";
         $line .= "</td><td>";
         $line .= "<select name=\"inVhost\" id=\"inVhost\">";
         $line .= "<option value=\"\" selected=\"selected\">-- " . ui_language::translate("Select a domain") . " --</option>";
@@ -149,7 +149,7 @@ class module_controller extends ctrl_module
         $line .= "<form action=\"./?module=apache_admin&action=DisplayVhost\" method=\"post\">";
         $line .= "<table class=\"zform\">";
         $line .= "<tr><td>";
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\">" . ui_language::translate("Select Vhost") . "</button>";
+        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\"><i class=\"bi bi-check-square me-1\"></i>" . ui_language::translate("Select Vhost") . "</button>";
         $line .= "</td><td>";
         $line .= "<select name=\"inVhost\" id=\"inVhost\">";
         $line .= "<option value=\"\" selected=\"selected\">-- " . ui_language::translate("Select a domain") . " --</option>";
@@ -162,11 +162,9 @@ class module_controller extends ctrl_module
 
                 while ($row = $sql->fetch()) {
                     if (
-                            $row['vh_suhosin_in'] == 0 ||
                             $row['vh_obasedir_in'] == 0 ||
 							$row['vh_ssl_tx'] != null ||
 							$row['vh_ssl_port_in'] != null ||
-							$row['vh_custom_sp_tx'] != null ||
                             $row['vh_custom_tx'] != "" ||
                             !fs_director::CheckForEmptyValue($row['vh_custom_port_in']) ||
                             $row['vh_portforward_in'] == 1 ||
@@ -196,11 +194,9 @@ class module_controller extends ctrl_module
 
                 while ($row = $sql->fetch()) {
                     if (
-                            $row['vh_suhosin_in'] == 0 ||
                             $row['vh_obasedir_in'] == 0 ||
 							$row['vh_ssl_tx'] != null ||
 							$row['vh_ssl_port_in'] != null ||
-							$row['vh_custom_sp_tx'] != null ||
                             $row['vh_custom_tx'] != "" ||
                             !fs_director::CheckForEmptyValue($row['vh_custom_port_in']) ||
                             $row['vh_portforward_in'] == 1 ||
@@ -222,7 +218,7 @@ class module_controller extends ctrl_module
         $line .= "<form action=\"./?module=apache_admin&action=DisplayVhost\" method=\"post\">";
         $line .= "<table class=\"zform\">";
         $line .= "<tr><td>";
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\">" . ui_language::translate("Select Vhost") . "</button>";
+        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"inSelectVhost\"><i class=\"bi bi-check-square me-1\"></i>" . ui_language::translate("Select Vhost") . "</button>";
         $line .= "</td><td>";
         $line .= "<select name=\"inVhost\" id=\"inVhost\">";
         $line .= "<option value=\"\" selected=\"selected\">-- " . ui_language::translate("Select a domain") . " --</option>";
@@ -271,7 +267,6 @@ class module_controller extends ctrl_module
                 $row = $sql->fetch();
 
                 $line .= "<tr><th>" . ui_language::translate("Domain Enabled") . ":</th><td><input type=\"checkbox\" name=\"vh_enabled_in\" id=\"vh_enabled_in\" value=\"1\" " . fs_director::IsChecked($row['vh_enabled_in']) . "/></td></tr>";
-                $line .= "<tr><th>" . ui_language::translate("Suhosin/Snuffleupagus Enabled") . ":</th><td><input type=\"checkbox\" name=\"vh_suhosin_in\" id=\"vh_suhosin_in\" value=\"1\" " . fs_director::IsChecked($row['vh_suhosin_in']) . "/></td></tr>";
                 $line .= "<tr><th>" . ui_language::translate("OpenBase Enabled") . ":</th><td><input type=\"checkbox\" name=\"vh_obasedir_in\" id=\"vh_obasedir_in\" value=\"1\" " . fs_director::IsChecked($row['vh_obasedir_in']) . "/></td></tr>";
                 $line .= "<tr><th>" . ui_language::translate("Port Override") . "</th><td><input type=\"text\" name=\"vh_custom_port_in\" id=\"vh_custom_port_in\" maxlength=\"6\" value=\"" . $row['vh_custom_port_in'] . "\"/>";
                 $line .= "<tr><th>" . ui_language::translate("Forward Port 80 to Overriden Port") . ":</th><td><input type=\"checkbox\" name=\"vh_portforward_in\" id=\"vh_portforward_in\" value=\"1\" " . fs_director::IsChecked($row['vh_portforward_in']) . "/>" . ui_language::translate("Warning requires Apache mod_rewrite to be installed on the server.") . "</td></tr>";
@@ -280,14 +275,11 @@ class module_controller extends ctrl_module
 				$line .= "<tr><th>" . ui_language::translate("<u>SSL Settings Options - Below</u>");
 				$line .= "<tr><th>" . ui_language::translate("SSL Port") . "</th><td><input type=\"text\" name=\"vh_ssl_port_in\" id=\"vh_ssl_port_in\" maxlength=\"6\" value=\"" . $row['vh_ssl_port_in'] . "\"/>";
 				$line .= "<tr><th>" .  ui_language::translate("SSL Cert Settings") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_ssl_tx\">" . $row['vh_ssl_tx'] . "</textarea></td></tr>";
-				//$line .= "<tr><th>" . ui_language::translate("<u>Snuffleupagus Custom settings - Below</u>");
-				//$line .= "<tr><th>" .  ui_language::translate("Snuffleupagus Custom settings") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_custom_sp_tx\">" . $row['vh_custom_sp_tx'] . "</textarea></td></tr>";
-				
             }
         }
 
         $line .= "<tr><td colspan=\"2\">";
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"vh_id_pk\" value=\"" . $row['vh_id_pk'] . "\">" . ui_language::translate("Save Vhost") . "</button><button class=\"button-loader btn btn-default\" type=\"button\" onclick=\"window.location.href='./?module=apache_admin';return false;\">" . ui_language::translate("Cancel") . "</button>";
+        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\" name=\"vh_id_pk\" value=\"" . $row['vh_id_pk'] . "\"><i class=\"bi bi-floppy me-1\"></i>" . ui_language::translate("Save Vhost") . "</button><button class=\"button-loader btn btn-secondary\" type=\"button\" onclick=\"window.location.href='./?module=apache_admin';return false;\"><i class=\"bi bi-x-circle me-1\"></i>" . ui_language::translate("Cancel") . "</button>";
         $line .= "</td></tr>";
         $line .= "</table>";
         $line .= runtime_csfr::Token();
@@ -360,13 +352,6 @@ class module_controller extends ctrl_module
 		
 		
 		
-		$custom_sp_tx = $controller->GetControllerRequest('FORM', 'vh_custom_sp_tx');
-        if (empty($custom_sp_tx)) {
-            $custom_sp_tx = NULL;
-        } else {
-            $custom_sp_tx = $controller->GetControllerRequest('FORM', 'vh_custom_sp_tx');
-        }
-		
 		
 		
 		
@@ -402,11 +387,9 @@ class module_controller extends ctrl_module
 
         $sql = $zdbh->prepare("UPDATE x_vhosts SET
 			vh_enabled_in  = ?,
-			vh_suhosin_in  = ?,
 			vh_obasedir_in = ?,
 			vh_ssl_tx = ?,
 			vh_ssl_port_in = ?,
-			vh_custom_sp_tx = ?,
 			vh_custom_port_in  = ?,
                         vh_portforward_in   = ?,
                         vh_custom_ip_vc   = ?,
@@ -417,11 +400,9 @@ class module_controller extends ctrl_module
         $sql->execute(
                 array(
                     fs_director::GetCheckboxValue($controller->GetControllerRequest('FORM', 'vh_enabled_in')),
-                    fs_director::GetCheckboxValue($controller->GetControllerRequest('FORM', 'vh_suhosin_in')),
                     fs_director::GetCheckboxValue($controller->GetControllerRequest('FORM', 'vh_obasedir_in')),
 					$ssl_tx,
 					$ssl_port_in,
-					$custom_sp_tx,
                     $port,
                     $forward,
                     $ip,

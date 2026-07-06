@@ -68,7 +68,7 @@ input[type=submit] {
 </style>
 
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -90,11 +90,12 @@ input[type=submit] {
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ EditCurrentID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=ftp_management';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=ftp_management';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -104,7 +105,7 @@ input[type=submit] {
     <div class="zform_wrapper">
         <h2><: Reset FTP Password for user :>: <@ EditCurrentName @></h2>
         <form action="./?module=ftp_management&action=ResetPassword" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Username :>:</th>
                     <td><@ EditCurrentName @></td>
@@ -114,11 +115,12 @@ input[type=submit] {
                     <th><: New password :>:</th>
                     <td><input class="inPassword" name="inPassword" type="password" id="inPassword" size="30" maxlength="50" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{<@ MinPassLength @>,}" required /><a href="#" class="link-password" id="generate" onclick="passwordShow(), check()" ><: Generate Password :></a></td>
 					<td><input id="showPassword" type="checkbox" onclick="passwordShowHide()" >Show Password</td>
-                    <td><button class="button-nonloader btn btn-default" type="submit" name="inReset" id="button_nonloader" value="<@ EditCurrentID @>"><: Reset Password :>
+                    <td><button class="button-nonloader btn btn-secondary" type="submit" name="inReset" id="button_nonloader" value="<@ EditCurrentID @>"><i class="bi bi-arrow-clockwise me-1"></i><: Reset Password :>
                         </button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=ftp_management';return false;"><: Cancel :></button></td>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=ftp_management';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button></td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
 										
 			<div class="check_container">
 				<div id="message">
@@ -139,32 +141,26 @@ input[type=submit] {
         <h2><: Current FTP accounts :></h2>
         <% if ClientList %>
         <form action="./?module=ftp_management&action=EditFTP" method="post">
-            <table class="table table-striped">
-                <col />
-                <col />
-                <col />
-                <col id="ColPass" style="visibility:visiable" />
-                <col />
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Account name :></th>
                     <th><: Home directory :></th>
                     <th><: Permission :></th>
-                    <th><: Password :></th>
-                    <th id="ColPass" style="visibility:visiable" ><button class="button btn btn-default" id="btn_sh">Show Passwords</button></th>
+                    <th></th>
                 </tr>
                 <% loop ClientList %>
                 <tr>
                     <td><& username &></td>
                     <td><& directory &></td>
                     <td><& access &></td>
-                    <td><span class="passRow" style="visibility: collapse"><& password &></span></td>
                     <td>
-                        <button class="button-loader btn btn-default" type="submit" name="inReset_<& id &>" id="button" value="inReset_<& id &>"><: Reset Password :></button>
-                        <button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& id &>" id="button" value="inDelete_<& id &>"><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="submit" name="inReset_<& id &>" id="button" value="inReset_<& id &>"><i class="bi bi-arrow-clockwise me-1"></i><: Reset Password :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& id &>" id="button" value="inDelete_<& id &>"><i class="bi bi-trash me-1"></i><: Delete :></button>
                     </td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %>
@@ -180,7 +176,7 @@ input[type=submit] {
                     <h2><: Create a new FTP Account :></h2>
                     <% if QuotaLimit %>
                     <form action="./?module=ftp_management&action=CreateFTP" method="post" >
-                        <table class="table table-striped">
+                        <div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th nowrap="nowrap"><: Username :>:</th>
                                 <td nowrap="nowrap"><@ CurrentUserName @>_<input name="inFTPUsername" type="text" id="inFTPUsername" size="30" value="" maxlength="50" required/></td>
@@ -192,6 +188,7 @@ input[type=submit] {
 								<td><input id="showPassword" type="checkbox" onclick="passwordShowHide()" >Show Password</td>
                             </tr>					
 						</table>
+</div><!-- /table-responsive -->
 						
 						<div class="check_container">
 							<div id="message">
@@ -203,7 +200,7 @@ input[type=submit] {
 							</div>
 						</div>
 						
-						<table class="table table-striped">
+						<div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th nowrap="nowrap"><: Access type :>:</th>
                                 <td><select name="inAccess" size="1">
@@ -244,7 +241,7 @@ input[type=submit] {
                                         <select name="inDomainDestination" id="inDomainDestination">
                                             <option value="">/ (root)</option>
                                             <% loop DomainDirsList %>
-                                            <option value="public_html/<& domains &>">/<& domains &></option>
+                                            <option value="<& domains &>/public_html">/<& domains &>/public_html</option>
                                             <% endloop %>
                                         </select>
                                     </div>
@@ -253,10 +250,11 @@ input[type=submit] {
                             <tr>
                                 <th colspan="2" align="right">
 
-                                    <button class=" btn btn-primary" type="submit" name="inSubmit" id="inSubmit" value="" " ><: Create :></button></th>
+                                    <button class=" btn btn-primary" type="submit" name="inSubmit" id="inSubmit" value="" " ><i class="bi bi-plus-circle me-1"></i><: Create :></button></th>
 																		
                             </tr>
                         </table>
+</div><!-- /table-responsive -->
                         <@ CSFR_Tag @>
                     </form>
                     <% else %>
@@ -266,6 +264,7 @@ input[type=submit] {
                 <td align="right"><@ FTPUsagepChart @></td>
             </tr>
         </table>
+</div><!-- /table-responsive -->
     </div>
     <% endif %>
 
@@ -333,22 +332,6 @@ input[type=submit] {
             }
             e.preventDefault();
         });
-		$('#btn_sh').click(function(e){
-		  if (!ShowPass)
-		  { 
-			  $('.passRow').css({'visibility': 'visible'});
-			  $('#btn_sh').innerHTML = 'Hide passwords';
-			  ShowPass = true;
-		  }
-		  else 
-		  {
-			  $('.passRow').css({'visibility': 'collapse'});
-			  $('#btn_sh').innerHTML = 'Show passwords';
-			  ShowPass = false;
-		  }
-		  e.preventDefault();
-		});
-		
     });
 
 </script>

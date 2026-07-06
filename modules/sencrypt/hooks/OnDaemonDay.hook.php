@@ -5,7 +5,7 @@
 	* Author : TGates
 	* Additional work by Diablo925, Jettaman
  */
- 
+
 // Lescript automatic updating script.
 //
 // This is an example of how Lescript can be used to automatically update
@@ -18,7 +18,7 @@
 //
 // In addition, Stanislav Humplik <sh@analogic.cz> is explicitly granted permission
 // to relicence this code under the open source licence of their choice.
- 
+
 
 # for LEscript you can use any logger according to Psr\Log\LoggerInterface
     if (!class_exists('privilege')) {
@@ -33,29 +33,29 @@ $logger = new Logger();
 
 echo fs_filehandler::NewLine() . "START Sencrypt Manager SSL Renewal Hook." . fs_filehandler::NewLine();
 if (ui_module::CheckModuleEnabled('Sencrypt SSL')) {
-	
+
     echo "Sencrypt Manager module ENABLED..." . fs_filehandler::NewLine();
-	
+
 	if ( ctrl_options::GetSystemOption('panel_ssl_tx') != null) {
-		
+
 		echo fs_filehandler::NewLine() . "RENEWING Control Panel certificates..." . fs_filehandler::NewLine();
 			# Run renew panel cert function
 			renewPanelCertificates();
-			
+
 		echo fs_filehandler::NewLine()."RENEWING Control Panel certificates completed." . fs_filehandler::NewLine();
 	}
-	
+
 	echo fs_filehandler::NewLine() . "RENEWING client certificates..." . fs_filehandler::NewLine();
 		# Run renew cert function
 		renewCertificates();
-		
+
 	echo "RENEWING client certificates completed." . fs_filehandler::NewLine();
-	
-	# Restart Apache service
-	RestartHttpdServicesForSSL();
+
+	# El reload de Apache lo gestiona apache_admin/OnDaemonRun al detectar apache_changed='true'.
+	# No llamamos RestartHttpdServicesForSSL() aquí para evitar el doble reload (FIX-60).
 
 } else {
-	
+
     echo "Sencrypt Manager module DISABLED...nothing to do." . fs_filehandler::NewLine();
 }
 
@@ -70,57 +70,40 @@ function renewCertificates() {
 	$rowvhost->execute();
 	$sslVhosts = $rowvhost->fetchAll();
 	$result = "";
-	
+
 	foreach($sslVhosts as $sslVhost) {
-		//if (strpos($sslVhost['vh_ssl_tx'], 'Sencrypt') !== false) {
 		if ($sslVhost['vh_ssl_tx'] !== false) {
-			
+
 			$vhostOwner = ctrl_users::GetUserDetail($sslVhost['vh_acc_fk']);
 			$_vhp_ssl = ctrl_options::GetVhostPaths($vhostOwner['username'], $sslVhost['vh_directory_vc']);
 			$domainPath = $_vhp_ssl['public_html'];
 			echo "Checking certificate for Client: " . $vhostOwner['username'] . " / Domain: " . $sslVhost['vh_name_vc'] . fs_filehandler::NewLine();
-			//echo "At location: " . $domainPath . fs_filehandler::NewLine(); - For DEBUGGING
-			
+
 			// Configuration:
 			$domains = $sslVhost['vh_name_vc'];
 			$domains = array($domains);
 			$domain = $sslVhost['vh_name_vc'];
 			$webroot = $domainPath;
-			
+
 			$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/letsencrypt/";
 			# Changed to help with backup and compability
 			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/letsencrypt/" . $sslVhost['vh_name_vc'] . "/";
-			
+
 			# Require Lescript for renewal of SSL certs
 			require_once 'modules/sencrypt/code/Lescript.php';
-			
+
 			// Always use UTC
 			date_default_timezone_set("UTC");
-			
+
 			// Do we need to create or upgrade our cert? Assume no to start with.
 			$needsgen = false;
-			
-			# Set country/state - tg & Jettaman	
+
 			$user_ip = ctrl_options::GetSystemOption('server_ip');
-			$ip_response = file_get_contents('http://ip-api.com/json/'.$user_ip);
-			$ip_array = json_decode($ip_response);
-			$countryCode = $ip_array->countryCode; 
-			$state = $ip_array->regionName;
-			$ipStatus = $ip_array->status;
-			$querydata = $ip_array->query;
-			
-			# Default if API failed
-			//$countryCode = "US";
-			//$state = "NM";
-			//$ipStatus = "sucess";
-			
-			# Check if Domain is LIVE and Pointing to this server
-			# Check DNS before continuing
-			if (checkDNSIsLive($domain, $ipStatus, $querydata, $user_ip) == false) {
-				//$dnsInvalid = true;
-				//return false;
+
+			# Check if Domain is LIVE and Pointing to this server using local DNS
+			if (!checkDNSIsLive($domain, $user_ip)) {
 				echo "   DNS is not LIVE or POINTING to server. SKIPPING." . fs_filehandler::NewLine();
-				
+
 			} else {
 				// Do we HAVE a certificate for all our domains?
 				foreach ($domains as $d) {
@@ -134,22 +117,21 @@ function renewCertificates() {
 						echo "   Checking certificate for renewal: " . $d . "..." . fs_filehandler::NewLine();
 						// If it expires in less than a month, we want to renew it.
 						$renewafter = $certdata['validTo_time_t']-(86400*30);
-						
+
 						if (time() > $renewafter) {
 							// Less than a month left, we need to renew.
 							echo "   --- Renewing certificate : " . $d . " for ... 90 Days" . fs_filehandler::NewLine();
 							$needsgen = true;
-						}					
+						}
 					}
 				}
 			}
-			
+
 			// Do we need to generate a certificate?
 			if ($needsgen) {
 				try {
-					//$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger);
 					# or without logger:
-					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL, $countryCode, $state);
+					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
 					$le->initAccount();
 
 					# Check if domain is a subdomain
@@ -158,10 +140,10 @@ function renewCertificates() {
 					$query->bindParam(':userid', $sslVhost['vh_acc_fk']);
 					$query->bindParam(':domain', $domain);
 					$query->execute();
-				
+
 					# Get domain type
 					$domainType = $query->fetchColumn();
-											
+
 					if ($domainType == 2 ) {
 						// Create domain without www. becuase its a subdomain
 						$le->signDomains(array($domain));
@@ -172,209 +154,147 @@ function renewCertificates() {
 
 				}
 				catch (\Exception $e) {
-					echo "ERROR!";
-					$logger->error($e->getMessage());
-					$logger->error($e->getTraceAsString());
-					$errorCatahed = $e->getMessage();
-					# Throw error and log to file
-					error_log( date('Y-m-d H:i:s') . " - DOMAIN: "  . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
-					// Exit with an error code, something went wrong.
-					exit(1);
+					echo "ERROR: " . $e->getMessage() . fs_filehandler::NewLine();
+					# Log error but continue with remaining domains (do NOT exit)
+					error_log( date('Y-m-d H:i:s') . " - DOMAIN: " . $domain . " - " . $e->getMessage() . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
 				}
 			}
-			
+
 			echo "Domain: " . $sslVhost['vh_name_vc'] . " analyzed." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 		}
 	}
-	
+
 }
 
 function renewPanelCertificates() {
 	global $zdbh, $controller;
 	$logger = new Logger();
-	
+
 	$result = "";
-	
+
 		if ((ctrl_options::GetSystemOption('panel_ssl_tx') != NULL) && (ctrl_options::GetSystemOption('sentora_port' ) == 443 )) {
-			
-			# Other panel subomains to include - BETA DONT NOT ENABLE
-			//$otherSubDomains = "ftp, webmail, mail, smtp, imap, pop";
-			
+
 			# Renew values
 			$panelOwner = "zadmin";
 			$domainPath = ctrl_options::GetSystemOption('sentora_root');
 			echo "Checking certificate for Control Panel Domain: " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
-			//echo "At location: " . $domainPath . fs_filehandler::NewLine();  - For DEBUGGING
-			
+
 			// Configuration:
 			$domains = ctrl_options::GetSystemOption('sentora_domain');
 			$domains = array($domains);
 			$domain = ctrl_options::GetSystemOption('sentora_domain');
 			$webroot = $domainPath;
-			
+
 			$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/letsencrypt/";
 			# Changed to help with backup and compability
 			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/letsencrypt/" . $domain . "/";
-			
+
 			# Require Lescript for renewal of SSL certs
 			require_once 'modules/sencrypt/code/Lescript.php';
-			
+
 			// Always use UTC
 			date_default_timezone_set("UTC");
-			
+
 			// Do we need to create or upgrade our cert? Assume no to start with.
 			$needsgen = false;
-			
-			# Set country/state - tg & Jettaman	
+
 			$user_ip = ctrl_options::GetSystemOption('server_ip');
-			$ip_response = file_get_contents('http://ip-api.com/json/'.$user_ip);
-			$ip_array = json_decode($ip_response);
-			$countryCode = $ip_array->countryCode; 
-			$state = $ip_array->regionName;
-			$ipStatus = $ip_array->status;
-			$querydata = $ip_array->query;
-			
-			# Default if API failed
-			//$countryCode = "US";
-			//$state = "NM";
-			//$ipStatus = "sucess";
-			
-			# Check if Domain is LIVE and Pointing to this server
-			# Check DNS before continuing
-			if (checkDNSIsLive($domain, $ipStatus, $querydata, $user_ip) == false) {
-				//$dnsInvalid = true;
-				//return false;
+
+			# Check if Domain is LIVE and Pointing to this server using local DNS
+			if (!checkDNSIsLive($domain, $user_ip)) {
 				echo "   DNS is not LIVE or POINTING to server. SKIPPING." . fs_filehandler::NewLine();
-				
+
 			} else {
 				// Do we HAVE a certificate for all our domains?
 				$certfile = "$certlocation/cert.pem";
 				if (!file_exists($certfile)) {
-					// We don't have a cert, so we need to request one.
-					$needsgen = true;
+					// Cert is autofirmado or third-party — skip auto-renewal
+					echo "   No Let's Encrypt cert found at $certfile. Skipping auto-renewal (autofirmado or commercial cert)." . fs_filehandler::NewLine();
 				} else {
-					// We DO have a certificate.
+					// We DO have a Let's Encrypt certificate.
 					$certdata = openssl_x509_parse(file_get_contents($certfile));
 					echo "   Checking certificate for renewal: " . $domain . "..." . fs_filehandler::NewLine();
 					// If it expires in less than a month, we want to renew it.
 					$renewafter = $certdata['validTo_time_t']-(86400*30);
-					
+
 					if (time() > $renewafter) {
 						// Less than a month left, we need to renew.
 						echo "   --- Renewing certificate : " . $domain . " for ... 90 Days" . fs_filehandler::NewLine();
 						$needsgen = true;
-					} 				
+					} else {
+						echo "   Certificate still valid for more than 30 days. No renewal needed." . fs_filehandler::NewLine();
+					}
 				}
 			}
-			
+
 			// Do we need to generate a certificate?
 			if ($needsgen) {
 				try {
-					//$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger);
 					# or without logger:
-					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL, $countryCode, $state);
+					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
 					$le->initAccount();
-									
-					# Create panel SSL if no other sub domains are listed
-					//if ($otherSubDomain == NULL ) {
-						
-						// Create panel domain cart
-						$le->signDomains(array($domain));
-						
-					/*	
-					} else {
-						
-						# Create a SSL for panel domain and other subdomains - BETA code DO NOT ENABLE
-						
-						# Checks if domain is sub or root by checking how many dots(.) there are. Returns dot(.) count
-						if (substr_count($domain, '.') == 2 ) {
-							# If panel domain is a sub domain
-							$removeNeedle = ".";
-							$pos = strpos($domain, $removeNeedle);
-							$rootDomain = substr($domain, $pos . ".");
-							
-						} else {
-							# If panel domain is a root domain
-							$rootDomain = "." . $domain;
-						
-						}
-						
-						# If other panel subdomains are listed include them in SSL cert
-						if ($otherSubDomains) {
-						 
-							$str_arr = preg_split ("/\,/", $otherSubDomains);
-							
-							# Set subdomain array
-							$subList = array("");
-							
-							# Push each subdomain domain into an array for SSL
-							foreach ($str_arr as $value) {
-								array_push($subList, ', ' . $value.$rootDomain);
-							}
-							
-							# Put list into string format for letsencrypt
-							$subFinalList = implode($subList);
-							
-						}
-						
-						# Sign panel domain plus other subdomain
-						$le->signDomains(array($domain . $subFinalList));
-						
+
+					// Create panel domain cert (only the panel domain, no www)
+					$le->signDomains(array($domain));
+
+					// After successful renewal, update panel_ssl_tx in DB to point to new cert
+					$newCert = $certlocation . "cert.pem";
+					$newKey  = $certlocation . "private.pem";
+					if (file_exists($newCert) && file_exists($newKey)) {
+						$ssl_tx  = "SSLEngine On\n";
+						$ssl_tx .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n";
+						$ssl_tx .= "SSLCipherSuite ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384\n";
+						$ssl_tx .= "SSLCertificateFile " . $newCert . "\n";
+						$ssl_tx .= "SSLCertificateKeyFile " . $newKey . "\n";
+						$upd = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='panel_ssl_tx'");
+						$upd->bindValue(':v', $ssl_tx);
+						$upd->execute();
+						$upd2 = $zdbh->prepare("UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='apache_changed'");
+						$upd2->execute();
+						echo "   panel_ssl_tx updated in DB." . fs_filehandler::NewLine();
 					}
-					*/
-					
+
 				}
 				catch (\Exception $e) {
-					echo "ERROR!";
-					$logger->error($e->getMessage());
-					$logger->error($e->getTraceAsString());
-					$errorCatahed = $e->getMessage();
-					# Throw error and log to file
-					error_log( date('Y-m-d H:i:s') . " - PANEL DOMAIN: "  . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
-					// Exit with an error code, something went wrong. Disable because it stops Daemon from completing.
-					exit(1);
+					echo "ERROR: " . $e->getMessage() . fs_filehandler::NewLine();
+					# Log error but do NOT exit — daemon must continue
+					error_log( date('Y-m-d H:i:s') . " - PANEL DOMAIN: " . $domain . " - " . $e->getMessage() . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
 				}
 			}
 
 			echo "Control Panel Domain: " . $domain . " analyzed." . fs_filehandler::NewLine();
 		}
-		
+
 }
 
 function RestartHttpdServicesForSSL() {
-	   
+
     global $zdbh;
-   
-	# Restart Apache after SSL renewal	
+
 	echo "Finished Renewing Sencrypt SSL's... Now reloading Apache..." . fs_filehandler::NewLine();
 
-	$returnValue = 0;
+	$result      = privilege::run('apache_reload');
+	$returnValue = $result[0]; // privilege::run devuelve [$exitCode, $output]
 
-	if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-		system("" . ctrl_options::GetSystemOption('httpd_exe') . " " . ctrl_options::GetSystemOption('apache_restart') . "", $returnValue);
-	} else {
-		// Security fix (June 2026): replace zsudo with privilege::run().
-		$returnValue = privilege::run('apache_restart');
-	}
-
-	echo "Apache reload " . ((0 === $returnValue ) ? "suceeded" : "failed") . "." . fs_filehandler::NewLine();
+	echo "Apache reload " . ((0 === $returnValue) ? "suceeded" : "failed") . "." . fs_filehandler::NewLine();
 
 }
 
-function checkDNSIsLive ($domain, $ipStatus, $querydata, $server_ip) {
-	 
-	# Check DNS for domain is live and public before continuing
-	# Pull IP from Sentora DB
-	ctrl_options::GetSystemOption('server_ip');
-	
-	# Check Ip's match
-	if(checkdnsrr($domain,"A")) {
-		if (($ipStatus == "success") && ($querydata == $server_ip)) {
-			return true;		
-		}
-	} else {
+// Verificar que el dominio resuelve a la IP del servidor usando DNS local (sin servicios externos)
+function checkDNSIsLive($domain, $server_ip) {
+	if (!checkdnsrr($domain, "A")) {
 		return false;
 	}
+	$records = dns_get_record($domain, DNS_A);
+	if (empty($records)) {
+		return false;
+	}
+	foreach ($records as $record) {
+		if (isset($record['ip']) && $record['ip'] === $server_ip) {
+			return true;
+		}
+	}
+	return false;
 }
 
 ?>

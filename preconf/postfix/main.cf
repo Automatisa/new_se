@@ -1,32 +1,30 @@
-# postfix config file
-
-# uncomment for debugging if needed
-soft_bounce=yes
+# Postfix main config — FreeBSD / Sentora
 
 # postfix main
 mail_owner = postfix
-setgid_group = postdrop
+setgid_group = maildrop
 delay_warning_time = 4
 
-# postfix paths
+# postfix paths (FreeBSD)
 html_directory = no
-command_directory = /usr/sbin
-daemon_directory = !USR_LIB!/postfix
+command_directory = /usr/local/sbin
+daemon_directory = /usr/local/libexec/postfix
 queue_directory = /var/spool/postfix
-sendmail_path = /usr/sbin/sendmail.postfix
-newaliases_path = /usr/bin/newaliases.postfix
-mailq_path = /usr/bin/mailq.postfix
-manpage_directory = /usr/share/man
-sample_directory = /usr/share/doc/postfix-2.2.2/samples
-readme_directory = /usr/share/doc/postfix-2.2.2/README_FILES
+sendmail_path = /usr/local/sbin/sendmail
+newaliases_path = /usr/local/bin/newaliases
+mailq_path = /usr/local/bin/mailq
+manpage_directory = /usr/local/man
+sample_directory = no
+readme_directory = no
 
 # network settings
 inet_interfaces = all
+inet_protocols = ipv4
 mydomain = !PANEL_FQDN!
 myhostname = !PANEL_FQDN!
-mynetworks = 127.0.0.1, !SERVER_IP!
+mynetworks = 127.0.0.0/8, !SERVER_IP!/32
 mydestination = localhost.$mydomain, localhost
-relay_domains = proxy:mysql:/etc/sentora/configs/postfix/mysql-relay_domains_maps.cf
+relay_domains = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-relay_domains_maps.cf
 
 # mail delivery
 recipient_delimiter = +
@@ -34,27 +32,19 @@ recipient_delimiter = +
 # mappings
 alias_maps = hash:/etc/aliases
 alias_database = hash:/etc/aliases
-#transport_maps = hash:/etc/postfix/transport
-#local_recipient_maps =
 
 # virtual setup
-virtual_alias_maps = proxy:mysql:/etc/sentora/configs/postfix/mysql-virtual_alias_maps.cf,
-                     regexp:/etc/sentora/configs/postfix/virtual_regexp
+virtual_alias_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_alias_maps.cf,
+                     regexp:/usr/local/etc/sentora/configs/postfix/virtual_regexp
 virtual_mailbox_base = /var/sentora/vmail
-virtual_mailbox_domains = proxy:mysql:/etc/sentora/configs/postfix/mysql-virtual_domains_maps.cf
-virtual_mailbox_maps = proxy:mysql:/etc/sentora/configs/postfix/mysql-virtual_mailbox_maps.cf
-virtual_mailbox_limit_maps = proxy:mysql:/etc/sentora/configs/postfix/mysql-virtual_mailbox_limit_maps.cf
+virtual_mailbox_domains = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_domains_maps.cf
+virtual_mailbox_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_mailbox_maps.cf
+virtual_mailbox_limit_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_mailbox_limit_maps.cf
 virtual_minimum_uid = !POS_UID!
 virtual_uid_maps = static:!POS_UID!
 virtual_gid_maps = static:!POS_GID!
 virtual_transport = dovecot
 dovecot_destination_recipient_limit = 1
-
-# debugging
-debug_peer_level = 2
-debugger_command =
-         PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
-         xxgdb $daemon_directory/$process_name $process_id & sleep 5
 
 # authentication
 smtpd_sasl_auth_enable = yes
@@ -64,19 +54,18 @@ broken_sasl_auth_clients = yes
 smtpd_sasl_type = dovecot
 smtpd_sasl_path = private/auth
 
-# tls config
-smtp_use_tls = no
-smtpd_use_tls = no
-#smtp_tls_note_starttls_offer = yes
-#smtpd_tls_loglevel = 1
-#smtpd_tls_received_header = yes
-#smtpd_tls_session_cache_timeout = 3600s
-#tls_random_source = dev:/dev/urandom
-#smtp_tls_session_cache_database = btree:$data_directory/smtp_tls_session_cache
-# Change mail.example.com.* to your host name
-#smtpd_tls_key_file = /etc/pki/tls/private/mail.example.com.key
-#smtpd_tls_cert_file = /etc/pki/tls/certs/mail.example.com.crt
-# smtpd_tls_CAfile = /etc/pki/tls/root.crt
+# TLS — STARTTLS offered; enforce on submission port (master.cf)
+smtp_use_tls = yes
+smtp_tls_security_level = may
+smtp_tls_loglevel = 1
+smtpd_use_tls = yes
+smtpd_tls_security_level = may
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+smtpd_tls_session_cache_timeout = 3600s
+smtpd_tls_key_file = /usr/local/etc/ssl/sentora/mail.key
+smtpd_tls_cert_file = /usr/local/etc/ssl/sentora/mail.crt
+# smtpd_tls_CAfile = /usr/local/etc/ssl/sentora/ca.crt
 
 # rules restrictions
 smtpd_client_restrictions =
@@ -88,10 +77,9 @@ smtpd_recipient_restrictions = permit_sasl_authenticated,
         reject_non_fqdn_sender,
         reject_non_fqdn_recipient,
         reject_unknown_recipient_domain
-# uncomment for realtime black list checks. (Warn: will also reject false positive)
+# Uncomment for realtime block list checks (may produce false positives):
 #       ,reject_rbl_client zen.spamhaus.org
 #       ,reject_rbl_client bl.spamcop.net
-#       ,reject_rbl_client dnsbl.sorbs.net
 
 smtpd_helo_required = yes
 unknown_local_recipient_reject_code = 550
@@ -100,3 +88,6 @@ smtpd_data_restrictions = reject_unauth_pipelining
 smtpd_banner = $myhostname ESMTP
 
 message_size_limit = 20480000
+
+# soft_bounce = yes only for testing — NEVER in production (defers all bounces)
+soft_bounce = no

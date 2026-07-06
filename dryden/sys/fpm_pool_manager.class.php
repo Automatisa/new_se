@@ -1,0 +1,245 @@
+<?php
+
+if (!class_exists('fpm_pool_manager')) {
+
+/**
+ * Gestiona los pools PHP-FPM por dominio.
+ *
+ * Genera un fichero de pool en POOL_DIR por cada vhost activo,
+ * con los valores php_value leídos de x_domain_php.
+ * Los sockets generados se usan en los vhosts Apache via SetHandler.
+ */
+class fpm_pool_manager
+{
+    const POOL_DIR   = '/usr/local/etc/php-fpm.d/';
+    const SOCKET_DIR = '/var/run/php-fpm/';
+    const PREFIX     = 'sentora_';
+
+    /**
+     * Regenera todos los pools FPM desde la BD y recarga FPM.
+     * Debe llamarse desde el daemon (root) o desde un contexto con doas.
+     *
+     * @return int Número de pools activos generados
+     */
+    static function Regenerate()
+    {
+        global $zdbh;
+
+        $hostedDir = ctrl_options::GetSystemOption('hosted_dir');
+
+        try {
+            $sql = $zdbh->prepare("
+                SELECT v.vh_directory_vc, u.ac_user_vc AS username,
+                       COALESCE(p.dp_upload_max_vc,    q.qt_php_upload_vc,  '50M')  AS upload_max_raw,
+                       COALESCE(p.dp_post_max_vc,      q.qt_php_post_vc,    '50M')  AS post_max_raw,
+                       COALESCE(p.dp_memory_limit_vc,  q.qt_php_memory_vc,  '128M') AS memory_limit_raw,
+                       COALESCE(p.dp_max_exec_in,      q.qt_php_exec_in,    30)     AS max_exec_raw,
+                       COALESCE(p.dp_max_input_in,     q.qt_php_maxinput_in,60)     AS max_input_raw,
+                       COALESCE(p.dp_display_errors_in, 0)                          AS display_errors,
+                       COALESCE(q.qt_php_memory_vc,  '128M') AS pkg_memory,
+                       COALESCE(q.qt_php_upload_vc,  '50M')  AS pkg_upload,
+                       COALESCE(q.qt_php_post_vc,    '50M')  AS pkg_post,
+                       COALESCE(q.qt_php_exec_in,    30)     AS pkg_exec,
+                       COALESCE(q.qt_php_maxinput_in,60)     AS pkg_maxinput
+                FROM x_vhosts v
+                JOIN x_accounts u ON v.vh_acc_fk = u.ac_id_pk
+                LEFT JOIN x_domain_php p ON p.dp_vhost_fk = v.vh_id_pk
+                LEFT JOIN x_packages pk ON pk.pk_id_pk = u.ac_package_fk AND pk.pk_deleted_ts IS NULL
+                LEFT JOIN x_quotas q ON q.qt_package_fk = pk.pk_id_pk
+                WHERE v.vh_deleted_ts IS NULL AND v.vh_type_in IN (1, 2)
+            ");
+            $sql->execute();
+            $vhosts = $sql->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // La tabla x_domain_php o x_quotas aún no existe; no hacer nada
+            return 0;
+        }
+
+        $active  = [];
+        $changed = false;
+
+        foreach ($vhosts as $vh) {
+            $name   = self::PREFIX . preg_replace('/[^a-zA-Z0-9_]/', '_', $vh['vh_directory_vc']);
+            $socket = self::SOCKET_DIR . $name . '.sock';
+            $base   = rtrim($hostedDir, '/') . '/' . $vh['username'] . '/' . ctrl_options::DOMAINS_SUBDIR . '/' . $vh['vh_directory_vc'];
+            $tmp    = $base . '/tmp';
+            $errors = $vh['display_errors'] ? 'on' : 'off';
+
+            // Usar usuario de sistema h_USERNAME si existe, fallback a www
+            $sysuser    = 'h_' . $vh['username'];
+            $fpm_user   = self::sysuserExists($sysuser) ? $sysuser : 'www';
+
+            // Aplicar cap del paquete: el valor efectivo nunca supera el límite del paquete.
+            $upload_max   = self::capSize($vh['upload_max_raw'],   $vh['pkg_upload']);
+            $post_max     = self::capSize($vh['post_max_raw'],     $vh['pkg_post']);
+            $memory_limit = self::capSize($vh['memory_limit_raw'], $vh['pkg_memory']);
+            $max_exec     = min((int)$vh['max_exec_raw'],   (int)$vh['pkg_exec']);
+            $max_input    = min((int)$vh['max_input_raw'],  (int)$vh['pkg_maxinput']);
+
+            $conf  = "[{$name}]\n";
+            $conf .= "user = {$fpm_user}\n";
+            $conf .= "group = www\n";
+            $conf .= "listen = {$socket}\n";
+            $conf .= "listen.owner = www\n";
+            $conf .= "listen.group = www\n";
+            $conf .= "listen.mode = 0660\n";
+            $conf .= "pm = ondemand\n";
+            $conf .= "pm.max_children = 10\n";
+            $conf .= "pm.process_idle_timeout = 60s\n";
+            $conf .= "pm.max_requests = 500\n";
+            // php_admin_value/flag: el cliente NO puede sobreescribir con .user.ini.
+            // Los valores están caps al límite máximo del paquete asignado.
+            $conf .= "php_admin_value[upload_max_filesize] = {$upload_max}\n";
+            $conf .= "php_admin_value[post_max_size] = {$post_max}\n";
+            $conf .= "php_admin_value[memory_limit] = {$memory_limit}\n";
+            $conf .= "php_admin_value[max_execution_time] = {$max_exec}\n";
+            $conf .= "php_admin_value[max_input_time] = {$max_input}\n";
+            $conf .= "php_admin_flag[display_errors] = {$errors}\n";
+            $conf .= "php_admin_value[session.save_path] = {$tmp}/\n";
+            $conf .= "php_admin_value[upload_tmp_dir] = {$tmp}/\n";
+            $conf .= "php_admin_value[open_basedir] = {$base}/public_html/:{$base}/tmp/:/tmp/\n";
+            $conf .= "php_admin_value[error_log] = {$base}/logs/php-error.log\n";
+
+            $file = self::POOL_DIR . $name . '.conf';
+            // Solo escribir y marcar cambio si el contenido es diferente al disco
+            if (!file_exists($file) || file_get_contents($file) !== $conf) {
+                file_put_contents($file, $conf);
+                chmod($file, 0644);
+                $changed = true;
+            }
+            $active[] = $name . '.conf';
+
+            // Asegurar que el directorio del dominio pertenece al sysuser correcto.
+            // El panel crea los directorios como www:www (corre como www); el daemon
+            // corre como root y puede corregirlo para que h_USERNAME sea el dueño.
+            if ($fpm_user !== 'www' && is_dir($base)) {
+                self::chownDomainDir($base, $fpm_user);
+            }
+        }
+
+        // Eliminar pools obsoletos
+        foreach (glob(self::POOL_DIR . self::PREFIX . '*.conf') as $f) {
+            if (!in_array(basename($f), $active)) {
+                @unlink($f);
+                @unlink(self::SOCKET_DIR . basename($f, '.conf') . '.sock');
+                $changed = true;
+            }
+        }
+
+        // Solo recargar FPM si los ficheros de pool cambiaron realmente
+        if ($changed) {
+            if (!class_exists('privilege')) {
+                require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            }
+            try {
+                privilege::run('phpfpm_reload');
+            } catch (Exception $e) {
+                // fallback: SIGUSR2 directo si posix disponible
+                $pidFile = '/var/run/php-fpm.pid';
+                if (file_exists($pidFile) && function_exists('posix_kill')) {
+                    $pid = (int)trim(file_get_contents($pidFile));
+                    if ($pid > 0) posix_kill($pid, SIGUSR2);
+                }
+            }
+        }
+
+        return count($active);
+    }
+
+    /**
+     * Comprueba si un usuario de sistema existe leyendo /etc/passwd.
+     * No usa exec() — lectura directa de fichero.
+     */
+    private static function sysuserExists(string $sysuser): bool
+    {
+        $handle = @fopen('/etc/passwd', 'r');
+        if (!$handle) return false;
+        while (($line = fgets($handle)) !== false) {
+            if (strpos($line, $sysuser . ':') === 0) {
+                fclose($handle);
+                return true;
+            }
+        }
+        fclose($handle);
+        return false;
+    }
+
+    /**
+     * Cambia recursivamente el dueño del directorio de un dominio a sysuser:www.
+     * Solo se llama cuando el daemon corre como root.
+     */
+    private static function chownDomainDir(string $dir, string $sysuser): void
+    {
+        chown($dir, $sysuser);
+        chgrp($dir, 'www');
+        $items = @scandir($dir);
+        if (!$items) return;
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $dir . '/' . $item;
+            chown($path, $sysuser);
+            chgrp($path, 'www');
+            if (is_dir($path) && !is_link($path)) {
+                self::chownDomainDir($path, $sysuser);
+            }
+        }
+    }
+
+    /**
+     * Convierte una cadena de tamaño PHP ('128M', '2G', '512K') a bytes.
+     */
+    private static function parseSize(string $s): int
+    {
+        $s    = trim($s);
+        $unit = strtolower(substr($s, -1));
+        $val  = (int)$s;
+        switch ($unit) {
+            case 'g': return $val * 1073741824;
+            case 'm': return $val * 1048576;
+            case 'k': return $val * 1024;
+            default:  return $val;
+        }
+    }
+
+    /**
+     * Devuelve el menor de dos valores de tamaño PHP.
+     * Si domain_val <= pkg_val devuelve domain_val (personalización del admin permitida).
+     * Si domain_val > pkg_val devuelve pkg_val (cap del paquete).
+     */
+    private static function capSize(string $domain_val, string $pkg_val): string
+    {
+        if (self::parseSize($domain_val) <= self::parseSize($pkg_val)) {
+            return $domain_val;
+        }
+        return $pkg_val;
+    }
+
+    /**
+     * Retorna la ruta del socket Unix para un directorio de vhost.
+     */
+    static function GetSocketPath($vh_directory_vc)
+    {
+        $name = self::PREFIX . preg_replace('/[^a-zA-Z0-9_]/', '_', $vh_directory_vc);
+        return self::SOCKET_DIR . $name . '.sock';
+    }
+
+    /**
+     * Inserta filas por defecto en x_domain_php para vhosts sin configuración.
+     * Idempotente: usa INSERT IGNORE.
+     */
+    static function InsertDefaults()
+    {
+        global $zdbh;
+        try {
+            $zdbh->exec("
+                INSERT IGNORE INTO x_domain_php (dp_vhost_fk)
+                SELECT vh_id_pk FROM x_vhosts
+                WHERE vh_deleted_ts IS NULL AND vh_type_in IN (1, 2)
+            ");
+        } catch (PDOException $e) {
+            // Tabla puede no existir aún
+        }
+    }
+}
+
+}

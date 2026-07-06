@@ -1,0 +1,556 @@
+<div class="zmodule_content panel api-mgr" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+        <div class="zmodule_title"><@ ModuleName @></div>
+        <div class="zmodule_desc"><@ ModuleDesc @></div>
+    </div>
+
+    <style>
+    /* ── API Manager — solo ajustes específicos del módulo ──────────── */
+    /* (el estilo de tarjetas/cabeceras/tablas es global, ver default.css) */
+    .api-mgr .table-sm th,
+    .api-mgr .table-sm td { padding:7px 10px; }
+    .api-mgr .table .btn-sm { font-size:12px; padding:3px 9px; }
+    /* Pestañas Resellers / Usuarios */
+    .api-mgr .nav-tabs .nav-link { font-size:13px; color:#667085; }
+    .api-mgr .nav-tabs .nav-link.active { color:#1f2733; font-weight:600; }
+    .api-mgr .tab-content {
+        border:1px solid #e2e5ea !important;
+        border-radius:0 0 8px 8px;
+        background:#fff !important;
+    }
+    /* Token recién creado: destacar el valor copiable */
+    .api-mgr #api-token-display {
+        display:inline-block;
+        background:#fff;
+        border:1px solid #b7e0c4;
+        border-radius:5px;
+        padding:4px 8px;
+    }
+    </style>
+
+    <@ Result @>
+    <@ Error @>
+
+    <!-- ── Aviso API deshabilitada (visible para todos los roles) ────────── -->
+    <% if ApiDisabled %>
+    <div class="zgrid_wrapper">
+        <div class="alert alert-danger" style="margin-bottom:0">
+            <strong>&#9888; La API REST está deshabilitada globalmente.</strong>
+            Ninguna petición a la API será atendida hasta que el administrador del servidor la reactive.
+            Tus tokens y configuración se conservan pero no funcionarán mientras dure esta situación.
+        </div>
+    </div>
+    <% endif %>
+
+    <!-- ── Estado global de la API (solo admin) ──────────────────────────── -->
+    <% if ShowGlobalToggle %>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-globe2"></i>Estado global de la API REST</h2>
+        <div class="table-responsive"><table class="table table-striped" style="max-width:600px">
+            <tr>
+                <th width="200px">Estado actual:</th>
+                <td><@ ApiEnabledText @></td>
+                <td>
+                    <form action="./?module=api_manager&action=ToggleApi" method="post" style="margin:0">
+                        <@ CSFR_Tag @>
+                        <% if ApiEnabled %>
+                        <button class="btn btn-sm btn-warning" type="submit"><i class="bi bi-toggle-on me-1"></i>Desactivar API</button>
+                        <% else %>
+                        <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-toggle-on me-1"></i>Activar API</button>
+                        <% endif %>
+                    </form>
+                </td>
+            </tr>
+        </table>
+</div><!-- /table-responsive -->
+        <h4 style="margin-top:16px">Mensaje cuando la API está desactivada</h4>
+        <p class="help-block">Si se deja vacío se usa el mensaje por defecto del sistema.</p>
+        <form action="./?module=api_manager&action=SaveApiMessage" method="post">
+            <@ CSFR_Tag @>
+            <div class="input-group" style="max-width:640px">
+                <input type="text" name="inApiDisabledMessage" class="form-control" maxlength="512"
+                       placeholder="La API se encuentra temporalmente deshabilitada por el administrador del servidor."
+                       value="<@ ApiDisabledMessage @>">
+                <button class="btn btn-secondary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar mensaje</button>
+            </div>
+        </form>
+    </div>
+    <% endif %>
+
+    <!-- ── Delegación admin: pestañas Resellers / Usuarios ───────────────── -->
+    <% if IsAdmin %>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-people"></i>Gestión de acceso a la API</h2>
+        <p class="help-block" style="margin-bottom:8px">
+            <span class="badge bg-success">Autorizado</span> el reseller/usuario puede usar la API y crear tokens.
+            &nbsp;
+            <span class="badge bg-default">Sin acceso</span> no puede usar la API.
+            &nbsp;
+            <span class="badge bg-danger">Revocado</span> bloqueo administrativo — desactiva todos los tokens activos.
+        </p>
+        <ul class="nav nav-tabs" id="apiDelegationTabs" role="tablist" style="margin-bottom:0">
+            <li class="nav-item">
+                <a class="nav-link active" href="#tab-resellers" data-bs-toggle="tab" role="tab">Resellers</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#tab-users" data-bs-toggle="tab" role="tab">Usuarios</a>
+            </li>
+        </ul>
+        <div class="tab-content" style="border:1px solid #ddd;border-top:0;padding:16px;background:#fff">
+
+            <!-- Pestaña Resellers -->
+            <div role="tabpanel" class="tab-pane active show" id="tab-resellers">
+                <div style="margin-bottom:10px">
+                    <input type="text" class="form-control" style="max-width:320px;display:inline-block"
+                           placeholder="Buscar reseller..."
+                           oninput="apiFilterTable(this,'tbl-resellers',0)">
+                </div>
+                <div class="table-responsive"><table class="table table-striped table-sm" id="tbl-resellers">
+                    <thead>
+                        <tr>
+                            <th>Reseller</th>
+                            <th>Estado</th>
+                            <th style="min-width:240px">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% loop ResellersWithApiStatus %>
+                        <tr>
+                            <td><& username &></td>
+                            <td>{! status_label !}</td>
+                            <td style="white-space:nowrap">
+                                <form action="./?module=api_manager&action=ToggleAccountApi" method="post" style="display:inline-block;margin:0 2px 2px 0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_toggle !}
+                                </form>
+                                <form action="./?module=api_manager&action=RevokeAccountApi" method="post" style="display:inline-block;margin:0 2px 2px 0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_revoke !}
+                                </form>
+                                <form action="./?module=api_manager&action=UnrevokeAccountApi" method="post" style="display:inline-block;margin:0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_unrevoke !}
+                                </form>
+                            </td>
+                        </tr>
+                        <% endloop %>
+                    </tbody>
+                </table>
+</div><!-- /table-responsive -->
+                <hr style="margin:10px 0">
+                <form action="./?module=api_manager&action=BulkDisableApi" method="post" style="display:inline"
+                      onsubmit="return confirm('¿Quitar acceso a la API a TODOS los resellers no revocados?')">
+                    <input type="hidden" name="inBulkTarget" value="resellers">
+                    <@ CSFR_Tag @>
+                    <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-dash-circle me-1"></i>&#9888;&nbsp; Quitar acceso a todos los resellers</button>
+                </form>
+            </div>
+
+            <!-- Pestaña Usuarios -->
+            <div role="tabpanel" class="tab-pane" id="tab-users">
+                <div style="margin-bottom:10px">
+                    <input type="text" class="form-control" style="max-width:320px;display:inline-block"
+                           placeholder="Buscar usuario..."
+                           oninput="apiFilterTable(this,'tbl-users',0)">
+                </div>
+                <div class="table-responsive"><table class="table table-striped table-sm" id="tbl-users">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Reseller</th>
+                            <th>Estado</th>
+                            <th style="min-width:240px">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% loop UsersWithApiStatus %>
+                        <tr>
+                            <td><& username &></td>
+                            <td><& reseller &></td>
+                            <td>{! status_label !}</td>
+                            <td style="white-space:nowrap">
+                                <form action="./?module=api_manager&action=ToggleAccountApi" method="post" style="display:inline-block;margin:0 2px 2px 0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_toggle !}
+                                </form>
+                                <form action="./?module=api_manager&action=RevokeAccountApi" method="post" style="display:inline-block;margin:0 2px 2px 0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_revoke !}
+                                </form>
+                                <form action="./?module=api_manager&action=UnrevokeAccountApi" method="post" style="display:inline-block;margin:0">
+                                    <input type="hidden" name="inTargetId" value="<& id &>">
+                                    <@ CSFR_Tag @>
+                                    {! btn_unrevoke !}
+                                </form>
+                            </td>
+                        </tr>
+                        <% endloop %>
+                    </tbody>
+                </table>
+</div><!-- /table-responsive -->
+                <hr style="margin:10px 0">
+                <form action="./?module=api_manager&action=BulkDisableApi" method="post" style="display:inline"
+                      onsubmit="return confirm('¿Quitar acceso a la API a TODOS los usuarios no revocados?')">
+                    <input type="hidden" name="inBulkTarget" value="users">
+                    <@ CSFR_Tag @>
+                    <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-dash-circle me-1"></i>&#9888;&nbsp; Quitar acceso a todos los usuarios</button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    <% endif %>
+
+    <!-- ── Reseller: su estado + gestión de clientes ─────────────────────── -->
+    <% if IsReseller %>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-person-check"></i>Tu acceso a la API</h2>
+        <% if SelfApiRevoked %>
+        <div class="alert alert-danger">
+            <strong>&#9888; Acceso revocado por el administrador del servidor</strong><br>
+            Todos tus tokens están desactivados. Contacta con el administrador para restaurar el acceso.
+        </div>
+        <% else %>
+        <div class="table-responsive"><table class="table table-striped" style="max-width:560px">
+            <tr>
+                <th width="200px">Permiso del administrador:</th>
+                <td><@ SelfApiAllowedText @></td>
+            </tr>
+            <tr>
+                <th>Tu acceso personal:</th>
+                <td>
+                    <@ SelfApiEnabledText @>
+                    <% if ShowSelfToggle %>
+                    &nbsp;
+                    <form action="./?module=api_manager&action=ToggleSelfApi" method="post" style="display:inline">
+                        <@ CSFR_Tag @>
+                        <% if SelfApiEnabled %>
+                        <button class="btn btn-sm btn-warning" type="submit"><i class="bi bi-toggle-on me-1"></i>Desactivar mi acceso</button>
+                        <% else %>
+                        <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-toggle-on me-1"></i>Activar mi acceso</button>
+                        <% endif %>
+                    </form>
+                    <% endif %>
+                </td>
+            </tr>
+        </table>
+</div><!-- /table-responsive -->
+        <% endif %>
+    </div>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-diagram-3"></i>Acceso a la API — Tus clientes</h2>
+        <p class="help-block" style="margin-bottom:10px">
+            Concede o retira el acceso a la API a cada cliente.
+            Si un cliente muestra estado <span class="badge bg-danger">Revocado (admin)</span>
+            solo el administrador del servidor puede restaurarlo.
+        </p>
+        <div style="margin-bottom:10px">
+            <input type="text" class="form-control" style="max-width:320px;display:inline-block"
+                   placeholder="Buscar cliente..."
+                   oninput="apiFilterTable(this,'tbl-clients',0)">
+        </div>
+        <div class="table-responsive"><table class="table table-striped table-sm" id="tbl-clients">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Estado</th>
+                    <th style="width:130px">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% loop ClientsWithApiStatus %>
+                <tr>
+                    <td><& username &></td>
+                    <td>{! status_label !}</td>
+                    <td>
+                        <form action="./?module=api_manager&action=ToggleAccountApi" method="post" style="margin:0">
+                            <input type="hidden" name="inTargetId" value="<& id &>">
+                            <@ CSFR_Tag @>
+                            {! btn_toggle !}
+                        </form>
+                    </td>
+                </tr>
+                <% endloop %>
+            </tbody>
+        </table>
+</div><!-- /table-responsive -->
+        <hr style="margin:10px 0">
+        <form action="./?module=api_manager&action=BulkDisableApi" method="post" style="display:inline"
+              onsubmit="return confirm('¿Quitar acceso a la API a TODOS tus clientes no revocados?')">
+            <input type="hidden" name="inBulkTarget" value="clients">
+            <@ CSFR_Tag @>
+            <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-dash-circle me-1"></i>&#9888;&nbsp; Quitar acceso a todos mis clientes</button>
+        </form>
+    </div>
+    <% endif %>
+
+    <!-- ── Usuario: estado y auto-toggle ─────────────────────────────────── -->
+    <% if IsUser %>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-person-check"></i>Tu acceso a la API</h2>
+        <% if SelfApiRevoked %>
+        <div class="alert alert-danger">
+            <strong>&#9888; Acceso revocado por el administrador del servidor</strong><br>
+            Todos tus tokens están desactivados. Contacta con tu reseller o con el administrador para restaurar el acceso.
+        </div>
+        <% else %>
+        <div class="table-responsive"><table class="table table-striped" style="max-width:560px">
+            <tr>
+                <th width="200px">Permiso del reseller:</th>
+                <td><@ SelfApiAllowedText @></td>
+            </tr>
+            <tr>
+                <th>Tu acceso personal:</th>
+                <td>
+                    <@ SelfApiEnabledText @>
+                    <% if ShowSelfToggle %>
+                    &nbsp;
+                    <form action="./?module=api_manager&action=ToggleSelfApi" method="post" style="display:inline">
+                        <@ CSFR_Tag @>
+                        <% if SelfApiEnabled %>
+                        <button class="btn btn-sm btn-warning" type="submit"><i class="bi bi-toggle-on me-1"></i>Desactivar mi acceso</button>
+                        <% else %>
+                        <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-toggle-on me-1"></i>Activar mi acceso</button>
+                        <% endif %>
+                    </form>
+                    <% endif %>
+                </td>
+            </tr>
+        </table>
+</div><!-- /table-responsive -->
+        <% endif %>
+    </div>
+    <% endif %>
+
+    <!-- ── Token visible tras creación o rotación ────────────────────────── -->
+    <% if NewToken %>
+    <div class="zgrid_wrapper">
+        <div class="alert alert-success" style="word-break:break-all">
+            <strong>&#9888; Copia el token ahora — no se volverá a mostrar nunca más:</strong><br><br>
+            <code id="api-token-display" style="font-size:1.1em;user-select:all"><@ NewToken @></code>
+            &nbsp;
+            <button type="button" class="btn btn-sm btn-secondary" onclick="copyApiToken()"><i class="bi bi-clipboard me-1"></i>Copiar</button>
+        </div>
+    </div>
+    <% endif %>
+
+    <!-- ── Crear token ────────────────────────────────────────────────────── -->
+    <% if ShowTokenForm %>
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-plus-circle"></i>Crear nuevo token</h2>
+        <form action="./?module=api_manager&action=CreateToken" method="post">
+            <@ CSFR_Tag @>
+            <div class="table-responsive"><table class="table table-striped">
+                <tr>
+                    <th width="200px">Nombre del token:</th>
+                    <td>
+                        <input type="text" name="inTokenName" class="form-control" style="max-width:420px"
+                               placeholder="Ej: WHMCS, Tryton, automatizacion..." required maxlength="128">
+                    </td>
+                </tr>
+                <tr>
+                    <th>Scope:</th>
+                    <td>
+                        <select name="inTokenScope" id="inTokenScope" class="form-control" style="max-width:260px"
+                                onchange="checkUnboundWarning()">
+                            <@ ScopeOptionsHtml @>
+                        </select>
+                        <p class="help-block" style="margin-top:4px">
+                            <% if IsAdmin %>
+                            <strong>admin</strong>: acceso completo + sistema &nbsp;|&nbsp;
+                            <% endif %>
+                            <% if ShowBindField %>
+                            <strong>reseller</strong>: crear/gestionar usuarios y dominios &nbsp;|&nbsp;
+                            <% endif %>
+                            <strong>write</strong>: GET + POST + PATCH + DELETE sobre recursos propios &nbsp;|&nbsp;
+                            <strong>read</strong>: solo GET
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th>IP autorizada <small>(opcional)</small>:</th>
+                    <td>
+                        <input type="text" name="inTokenAllowedIp" class="form-control" style="max-width:220px"
+                               placeholder="192.168.1.10  (vacío = cualquier IP)" maxlength="45">
+                        <p class="help-block">Si se especifica, el token solo funciona desde esa IP.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Expiración <small>(opcional)</small>:</th>
+                    <td>
+                        <input type="datetime-local" name="inTokenExpires" class="form-control" style="max-width:220px">
+                        <p class="help-block">Vacío = sin expiración.</p>
+                    </td>
+                </tr>
+                <% if ShowBindField %>
+                <tr>
+                    <th>Vincular a usuario <small>(opcional)</small>:</th>
+                    <td>
+                        <input type="text" id="inTokenUser" name="inTokenUser" class="form-control" style="max-width:260px"
+                               placeholder="username (vacío = sin vincular)"
+                               oninput="checkUnboundWarning()">
+                        <p class="help-block">
+                            Si se especifica, el token opera solo sobre los recursos de ese usuario.<br>
+                            <span id="unbound-warning" style="display:none;color:#c0392b;font-weight:bold">
+                                &#9888; Sin usuario vinculado, un token <em>write</em> o <em>reseller</em>
+                                tiene acceso de escritura sobre <strong>todas</strong> las cuentas.
+                            </span>
+                        </p>
+                    </td>
+                </tr>
+                <% endif %>
+                <tr>
+                    <th></th>
+                    <td><button class="btn btn-primary" type="submit"><i class="bi bi-plus-circle me-1"></i>Crear token</button></td>
+                </tr>
+            </table>
+</div><!-- /table-responsive -->
+        </form>
+    </div>
+    <% endif %>
+
+    <!-- ── Lista de tokens ───────────────────────────────────────────────── -->
+    <div class="zgrid_wrapper">
+        <h2><i class="bi bi-key"></i>Tokens activos</h2>
+        <div style="margin-bottom:10px">
+            <input type="text" class="form-control" style="max-width:320px;display:inline-block"
+                   placeholder="Buscar token..."
+                   oninput="apiFilterTable(this,'tbl-tokens',0)">
+        </div>
+        <div style="overflow-x:auto">
+        <div class="table-responsive"><table class="table table-striped table-sm" id="tbl-tokens">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Scope</th>
+                    <th>Usuario</th>
+                    <th>Estado</th>
+                    <th>IP autorizada</th>
+                    <th>Última IP</th>
+                    <th>Expira</th>
+                    <th>Último uso</th>
+                    <th>Creado por</th>
+                    <th style="min-width:190px">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% loop Tokens %>
+                <tr>
+                    <td>{! name !}</td>
+                    <td>{! scope_label !}</td>
+                    <td>{! bound_user !}</td>
+                    <td>{! status_label !}</td>
+                    <td>{! ip_allowed_html !}</td>
+                    <td>{! ip_last_html !}</td>
+                    <td>{! expires_html !}</td>
+                    <td>{! lastused !}</td>
+                    <td>{! creator !}</td>
+                    <td style="white-space:nowrap">
+                        <form action="./?module=api_manager&action=ToggleToken" method="post" style="display:inline-block;margin:0 2px 2px 0">
+                            <input type="hidden" name="inTokenId" value="<& id &>">
+                            <@ CSFR_Tag @>
+                            <button class="btn btn-sm btn-warning" type="submit">{! toggle_label !}</button>
+                        </form>
+                        <form action="./?module=api_manager&action=RotateToken" method="post" style="display:inline-block;margin:0 2px 2px 0"
+                              onsubmit="return confirm('¿Rotar el token? El valor actual quedará invalidado al instante.')">
+                            <input type="hidden" name="inTokenId" value="<& id &>">
+                            <@ CSFR_Tag @>
+                            <button class="btn btn-sm btn-info" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Rotar</button>
+                        </form>
+                        <form action="./?module=api_manager&action=RevokeToken" method="post" style="display:inline-block;margin:0"
+                              onsubmit="return confirm('¿Eliminar este token permanentemente?')">
+                            <input type="hidden" name="inTokenId" value="<& id &>">
+                            <@ CSFR_Tag @>
+                            <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                <% endloop %>
+            </tbody>
+        </table>
+</div><!-- /table-responsive -->
+        </div>
+    </div>
+
+    <!-- ── Registro de auditoría ─────────────────────────────────────────── -->
+    <div class="zgrid_wrapper">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+            <h2 style="margin:0"><i class="bi bi-journal-text"></i>Registro de auditoría</h2>
+            <form action="./?module=api_manager&action=CleanAuditLog" method="post" style="margin:0"
+                  onsubmit="return confirm('¿Limpiar tus entradas del registro de auditoría? Esta acción no se puede deshacer.')">
+                <@ CSFR_Tag @>
+                <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-trash me-1"></i>&#128465;&nbsp; Limpiar mis registros</button>
+            </form>
+        </div>
+        <div style="overflow-x:auto">
+        <div class="table-responsive"><table class="table table-sm table-striped" style="font-size:12px">
+            <thead>
+                <tr>
+                    <th style="width:140px">Fecha</th>
+                    <th>Actor</th>
+                    <th>Acción</th>
+                    <th>Destino</th>
+                    <th>Detalle</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% loop AuditLog %>
+                <tr>
+                    <td>{! ts !}</td>
+                    <td>{! actor !}</td>
+                    <td>{! action !}</td>
+                    <td>{! target !}</td>
+                    <td><small class="text-muted">{! detail !}</small></td>
+                    <td><code>{! ip !}</code></td>
+                </tr>
+                <% endloop %>
+            </tbody>
+        </table>
+</div><!-- /table-responsive -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+function apiFilterTable(input, tableId, colIndex) {
+    var filter = input.value.toLowerCase();
+    var rows   = document.getElementById(tableId).tBodies[0].rows;
+    for (var i = 0; i < rows.length; i++) {
+        var cell = rows[i].cells[colIndex];
+        var text = cell ? (cell.textContent || cell.innerText) : '';
+        rows[i].style.display = text.toLowerCase().indexOf(filter) > -1 ? '' : 'none';
+    }
+}
+function copyApiToken() {
+    var token = document.getElementById('api-token-display').textContent.trim();
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(token).then(function() { alert('Token copiado al portapapeles.'); });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = token; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        alert('Token copiado al portapapeles.');
+    }
+}
+function checkUnboundWarning() {
+    var userEl  = document.getElementById('inTokenUser');
+    var scopeEl = document.getElementById('inTokenScope');
+    var warn    = document.getElementById('unbound-warning');
+    if (!userEl || !warn) return;
+    var scope = scopeEl ? scopeEl.value : 'read';
+    warn.style.display = (userEl.value.trim() === '' && scope !== 'read') ? 'block' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var scopeSel = document.getElementById('inTokenScope');
+    if (scopeSel) scopeSel.addEventListener('change', checkUnboundWarning);
+});
+</script>

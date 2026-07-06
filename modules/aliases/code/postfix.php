@@ -74,7 +74,15 @@ if (!fs_director::CheckForEmptyValue(self::$delete)) {
 
 // Adding Postfix Alias
 if (!fs_director::CheckForEmptyValue(self::$create)) {
-    //$result = $mail_db->query("SELECT address FROM alias WHERE address='" . $fulladdress . "'")->Fetch();
+    // Ensure domain exists in postfix before inserting alias
+    $numrows = $mail_db->prepare("SELECT domain FROM domain WHERE domain=:domain");
+    $numrows->bindParam(':domain', $domain);
+    $numrows->execute();
+    if (!$numrows->fetch()) {
+        $sql = $mail_db->prepare("INSERT INTO domain (domain, description, aliases, mailboxes, maxquota, quota, transport, backupmx, created, modified, active) VALUES (:domain, '', 0, 0, 0, 0, '', 0, NOW(), NOW(), '1')");
+        $sql->bindParam(':domain', $domain);
+        $sql->execute();
+    }
 
     $bindArray = NULL;
     $bindArray = array(':address' => $fulladdress);
@@ -82,18 +90,7 @@ if (!fs_director::CheckForEmptyValue(self::$create)) {
     $result = $mail_db->returnRow();
 
     if (!$result) {
-        $sqlStatment2 = "INSERT INTO alias  (address,
-										 	goto,
-										 	domain,
-											created,
-										 	modified,
-										 	active) VALUES (
-										 	:fulladdress,
-										 	:destination,
-										 	:domain,
-										 	NOW(),
-										 	NOW(),
-										 	'1')";
+        $sqlStatment2 = "INSERT INTO alias (address, goto, domain, created, modified, active) VALUES (:fulladdress, :destination, :domain, NOW(), NOW(), '1')";
         $sql = $mail_db->prepare($sqlStatment2);
         $sql->bindParam(':domain', $domain);
         $sql->bindParam(':fulladdress', $fulladdress);

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <updateserver>
 	<latestversion>101</latestversion>
-	<downloadurl>http://zppy-repo.mach-hosting.com/repo/user_logviewer.zpp</downloadurl>
 	<desc>View your website's error and access logs.</desc>
 	<updatedesc>Changed repository. Minor updates.</updatedesc>
 	<authorname>samt2497</authorname>

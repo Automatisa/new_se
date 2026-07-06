@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+    <name>Firewall Admin</name>
+    <version>100</version>
+    <defaultcat>Admin</defaultcat>
+    <desc>Gestión del cortafuegos pf y de SSHGuard para protección frente a ataques de fuerza bruta. Permite bloquear IPs manualmente (IPv4/IPv6/CIDR), gestionar la lista blanca y visualizar los bans automáticos de SSHGuard.</desc>
+    <authorname>Sentora Fork</authorname>
+    <authoremail>admin@sentora.local</authoremail>
+    <authorurl>https://sentora.local/</authorurl>
+</module>

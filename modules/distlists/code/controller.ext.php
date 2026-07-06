@@ -185,7 +185,7 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnBeforeAddDistList');
         self::$create = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
 
@@ -211,13 +211,17 @@ class module_controller extends ctrl_module
         global $controller;
         runtime_hook::Execute('OnBeforeDeleteDistList');
         self::$delete = true;
-        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:dl_id_pk AND dl_deleted_ts IS NULL");
+        // LOW-3 FIX: enforce ownership before delete
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:dl_id_pk AND dl_acc_fk=:uid AND dl_deleted_ts IS NULL");
         $numrows->bindParam(':dl_id_pk', $dl_id_pk);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowdl = $numrows->fetch();
+        if (!$rowdl) { return false; }
 
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
 
@@ -252,7 +256,7 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnBeforeAddDistListUser');
         self::$createuser = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
 
@@ -291,7 +295,7 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnBeforeDeleteDistListUser');
         self::$deleteuser = true;
         // Include mail server specific file here.
-        $MailServerFile = 'modules/' . $controller->GetControllerRequest('URL', 'module') . '/code/' . ctrl_options::GetSystemOption('mailserver_php');
+        $MailServerFile = __DIR__ . '/' . basename(ctrl_options::GetSystemOption('mailserver_php'));
         if (file_exists($MailServerFile))
             include($MailServerFile);
 
@@ -592,9 +596,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('distlists', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

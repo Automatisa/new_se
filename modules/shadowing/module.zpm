@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -15,7 +15,7 @@
         <h2><: Select the client you wish to shadow :></h2>
         <% if ShadowAccounts %>
         <form action="./?module=shadowing&action=ShadowUser" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Username :></th>
                     <th><: Reseller :> <: (ID) :></th>
@@ -33,10 +33,11 @@
                     <td><& usergroup &></td>
                     <td><& currentdisk &></td>
                     <td><& currentbandwidth &></td>
-                    <td><button class="button-loader btn btn-primary" type="submit" name="inShadow_<& clientid &>" id="inShadow_<& clientid &>" value="inShadow_<& clientid &>"><: Shadow :></button></td>
+                    <td><button class="button-loader btn btn-primary" type="submit" name="inShadow_<& clientid &>" id="inShadow_<& clientid &>" value="inShadow_<& clientid &>"><i class="bi bi-person-fill-gear me-1"></i><: Shadow :></button></td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %><!-- ELSE ShadowAccounts -->

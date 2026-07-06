@@ -31,6 +31,16 @@
  */
 class module_controller extends ctrl_module
 {
+    // Módulo exclusivo de administradores — redirige si no es grupo 1
+    private static function requireAdmin(): void
+    {
+        $u = ctrl_users::GetUserDetail();
+        if ((int)($u['usergroupid'] ?? 3) !== 1) {
+            header('Location: ./?module=dashboard');
+            exit;
+        }
+    }
+
     static private function status_port($PortNum, $iconpath)
     {
         $status = sys_monitoring::LocalPortStatus($PortNum);
@@ -55,6 +65,7 @@ class module_controller extends ctrl_module
 
     static public function getServices()
     {
+        self::requireAdmin();
         global $controller;
         if(file_exists(ui_tpl_assetfolderpath::Template() . 'img/modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/up.gif') && file_exists(ui_tpl_assetfolderpath::Template() . 'img/modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/down.gif')) {
             $iconpath = '<img src="' . ui_tpl_assetfolderpath::Template() . 'img/modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/';

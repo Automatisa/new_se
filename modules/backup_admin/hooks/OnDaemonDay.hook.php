@@ -26,38 +26,85 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
             $bsql = $zdbh->prepare($bsql);
             $bsql->execute();
             while ($rowclients = $bsql->fetch()) {
+                // Skip accounts with unsafe usernames (path traversal guard)
+                if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-]{0,63}$/', $rowclients['ac_user_vc'])) {
+                    echo "Skipping account with invalid username." . fs_filehandler::NewLine();
+                    continue;
+                }
                 echo "Backing up client folder: " . $rowclients['ac_user_vc'] . "/public_html..." . fs_filehandler::NewLine();
                 // User loop
                 $username = $rowclients['ac_user_vc'];
-                $userid = $rowclients['ac_id_pk'];
-                $homedir = ctrl_options::GetSystemOption('hosted_dir') . $username;
+                $userid   = $rowclients['ac_id_pk'];
+                $homedir  = ctrl_options::GetSystemOption('hosted_dir') . $username;
                 $backupname = $username . "_" . date("M-d-Y_His", time());
-                $dbstamp = date("dmy_Gi", time());
-                // We now see what the OS is before we work out what compression command to use..
-                if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-                    $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " a -tzip -y-r " . ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip " . $homedir));
-                } else {// Backup todo el home del usuario (nueva estructura: un dir por dominio)
-                    $resault = exec("cd " . $homedir . "/../ && " . ctrl_options::GetSystemOption('zip_exe') . " -r9 " . ctrl_options::GetSystemOption('temp_dir') . $backupname . " " . $username . "/ --exclude=" . $username . "/backups/*");
-                    @chmod(ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip", 0777);
+                $dbstamp    = date("dmy_Gi", time());
+                $temp_dir   = ctrl_options::GetSystemOption('temp_dir');
+                $zip_exe    = ctrl_options::GetSystemOption('zip_exe');
+
+                // File backup: proc_open with bypass_shell=true (no shell injection)
+                $zip_argv = [
+                    $zip_exe, '-r9',
+                    $temp_dir . $backupname,
+                    $username . '/',
+                    '--exclude=' . $username . '/backups/*',
+                ];
+                $zproc = proc_open($zip_argv, [0 => ['pipe','r'], 1 => ['pipe','w'], 2 => ['pipe','w']], $zpipes, dirname($homedir), null, ['bypass_shell' => true]);
+                if (is_resource($zproc)) {
+                    fclose($zpipes[0]);
+                    fclose($zpipes[1]);
+                    fclose($zpipes[2]);
+                    proc_close($zproc);
                 }
-                // Now lets backup all MySQL datbases for the user and add them to the archive...
-                $sql = "SELECT COUNT(*) FROM x_mysql_databases WHERE my_acc_fk=" . $userid . " AND my_deleted_ts IS NULL";
-                if ($numrows = $zdbh->query($sql)) {
-                    if ($numrows->fetchColumn() <> 0) {
-                        $sql = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_acc_fk=:userid AND my_deleted_ts IS NULL");
-                        $sql->bindParam(':userid', $userid);
-                        $sql->execute();
-                        while ($row_mysql = $sql->fetch()) {
-                            $bkcommand = ctrl_options::GetSystemOption('mysqldump_exe') . " -h " . $host . " -u " . $user . " -p" . $pass . " --no-create-db " . $row_mysql['my_name_vc'] . " > " . ctrl_options::GetSystemOption('temp_dir') . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql";
-                            passthru($bkcommand);
-                            // Add it to the ZIP archive...
-                            if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-                                $resault = exec(fs_director::SlashesToWin(ctrl_options::GetSystemOption('zip_exe') . " u " . ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip " . ctrl_options::GetSystemOption('temp_dir') . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql"));
-                            } else {
-                                $resault = exec("cd " . ctrl_options::GetSystemOption('temp_dir') . "/ && " . ctrl_options::GetSystemOption('zip_exe') . " " . ctrl_options::GetSystemOption('temp_dir') . $backupname . "  " . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql");
-                            }
-                            unlink(ctrl_options::GetSystemOption('temp_dir') . $row_mysql['my_name_vc'] . "_" . $dbstamp . ".sql");
+                @chmod($temp_dir . $backupname . ".zip", 0777);
+
+                // Now lets backup all MySQL databases for the user and add them to the archive...
+                $sql = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_databases WHERE my_acc_fk = :uid AND my_deleted_ts IS NULL");
+                $sql->execute([':uid' => (int)$userid]);
+                if ($sql->fetchColumn() > 0) {
+                    $sql = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_acc_fk = :uid AND my_deleted_ts IS NULL");
+                    $sql->execute([':uid' => (int)$userid]);
+                    while ($row_mysql = $sql->fetch()) {
+                        $db_name = $row_mysql['my_name_vc'];
+                        // Validate DB name before using in filesystem paths
+                        if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-]{0,63}$/', $db_name)) {
+                            echo "Skipping DB with invalid name." . fs_filehandler::NewLine();
+                            continue;
                         }
+                        $sql_path = $temp_dir . $db_name . "_" . $dbstamp . ".sql";
+
+                        // Write temporary credentials file to avoid credentials in process list
+                        $cnf_path = tempnam(sys_get_temp_dir(), 'sentora_bu') . '.cnf';
+                        file_put_contents($cnf_path, "[mysqldump]\nhost={$host}\nuser={$user}\npassword={$pass}\n");
+                        chmod($cnf_path, 0600);
+
+                        $dump_argv = [
+                            ctrl_options::GetSystemOption('mysqldump_exe'),
+                            '--defaults-extra-file=' . $cnf_path,
+                            '--no-create-db',
+                            $db_name,
+                        ];
+                        $dproc = proc_open($dump_argv, [0 => ['pipe','r'], 1 => ['file', $sql_path, 'w'], 2 => ['pipe','w']], $dpipes, null, null, ['bypass_shell' => true]);
+                        if (is_resource($dproc)) {
+                            fclose($dpipes[0]);
+                            fclose($dpipes[2]);
+                            proc_close($dproc);
+                        }
+                        unlink($cnf_path);
+
+                        // Add SQL dump to the ZIP archive
+                        $zip2_argv = [
+                            $zip_exe,
+                            $temp_dir . $backupname,
+                            $db_name . "_" . $dbstamp . ".sql",
+                        ];
+                        $z2proc = proc_open($zip2_argv, [0 => ['pipe','r'], 1 => ['pipe','w'], 2 => ['pipe','w']], $z2pipes, $temp_dir, null, ['bypass_shell' => true]);
+                        if (is_resource($z2proc)) {
+                            fclose($z2pipes[0]);
+                            fclose($z2pipes[1]);
+                            fclose($z2pipes[2]);
+                            proc_close($z2proc);
+                        }
+                        unlink($sql_path);
                     }
                 }
                 // We have the backup now lets output it to disk or download
@@ -98,9 +145,6 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                     while (false !== ($file = readdir($handle))) {
                         if ($file != "." && $file != "..") {
                             $filetime = @filemtime($backupdir . $file);
-                            if ($filetime == NULL) {
-                                $filetime = @filemtime(utf8_decode($backupdir . $file));
-                            }
                             $filetime = floor((time() - $filetime) / 86400);
                             echo "" . $file . " - " . $purge_date . " - " . $filetime . "";
                             if ($purge_date < $filetime) {
@@ -129,9 +173,6 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
         while (false !== ($file = readdir($handle))) {
             if ($file != "." && $file != "..") {
                 $filetime = @filemtime($temp_dir . $file);
-                if ($filetime == NULL) {
-                    $filetime = @filemtime(utf8_decode($temp_dir . $file));
-                }
                 $filetime = floor((time() - $filetime) / 86400);
                 echo "" . $file . " - " . $purge_date . " - " . $filetime . "";
                 if (1 <= $filetime) {

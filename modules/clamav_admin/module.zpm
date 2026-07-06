@@ -1,0 +1,132 @@
+<div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+        <div class="zmodule_title"><@ ModuleName @></div>
+        <div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ ModuleDesc @></div>
+    </div>
+
+    <@ Result @>
+
+    <ul class="nav nav-tabs" style="margin:15px 15px 0;" id="cvTabs">
+        <li class="nav-item"><a class="nav-link active" href="#cv-status"  data-bs-toggle="tab">
+            <span class="bi bi-speedometer"></span> Estado
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-email"   data-bs-toggle="tab">
+            <span class="bi bi-envelope"></span> Email
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-scan"    data-bs-toggle="tab">
+            <span class="bi bi-search"></span> Exploración
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-results" data-bs-toggle="tab">
+            <span class="bi bi-list-ul"></span> Resultados
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-quarantine" data-bs-toggle="tab">
+            <span class="bi bi-lock"></span> Cuarentena
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-updates" data-bs-toggle="tab">
+            <span class="bi bi-arrow-clockwise"></span> Actualizaciones
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#cv-restore-requests" data-bs-toggle="tab">
+            <span class="bi bi-share"></span> Solicitudes
+        </a></li>
+    </ul>
+
+    <div class="tab-content" style="padding:15px;">
+
+        <!-- ============================================================ ESTADO -->
+        <div class="tab-pane active show" id="cv-status">
+            <h3>Estado de ClamAV</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                Visión general del servicio antivirus, protección de email y último escaneo de buzones.
+            </p>
+            <@ ClamStatus @>
+        </div>
+
+        <!-- ============================================================ EMAIL -->
+        <div class="tab-pane" id="cv-email">
+            <h3>Protección de email</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                Integración con rspamd: cada email entrante es analizado por clamd antes de ser entregado.
+                Se genera el símbolo <code>CLAM_VIRUS</code> si se detecta malware.
+            </p>
+            <@ EmailConfig @>
+        </div>
+
+        <!-- ========================================================= ESCANEO -->
+        <div class="tab-pane" id="cv-scan">
+            <h3>Exploración de buzones</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                Analiza los buzones de correo almacenados en el servidor en busca de archivos infectados.
+                El escaneo usa <code>clamdscan</code> sobre <code>/var/mail/</code>.
+            </p>
+            <@ ScanConfig @>
+        </div>
+
+        <!-- ======================================================== RESULTADOS -->
+        <div class="tab-pane" id="cv-results">
+            <h3>Resultados del último escaneo</h3>
+            <@ ScanResults @>
+        </div>
+
+        <!-- ======================================================== CUARENTENA -->
+        <div class="tab-pane" id="cv-quarantine">
+            <h3>Cuarentena</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                Archivos infectados detectados por ClamAV y aislados de los buzones.
+                Puedes descargarlos para análisis forense, restaurarlos si son falsos positivos,
+                o eliminarlos definitivamente.
+            </p>
+            <@ QuarantineContent @>
+        </div>
+
+        <!-- ====================================================== ACTUALIZACIONES -->
+        <div class="tab-pane" id="cv-updates">
+            <h3>Actualizaciones de firmas</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                freshclam descarga automáticamente las últimas definiciones de virus desde los servidores de ClamAV.
+                Las firmas cubren virus, malware, ransomware y phishing de adjuntos.
+            </p>
+            <@ UpdateConfig @>
+        </div>
+
+        <!-- =================================================== SOLICITUDES RESTAURACIÓN -->
+        <div class="tab-pane" id="cv-restore-requests">
+            <h3>Solicitudes de restauración de usuarios</h3>
+            <p class="text-muted" style="margin-bottom:20px;">
+                Los usuarios pueden solicitar la restauración de archivos en cuarentena si creen
+                que son falsos positivos. Revisa cada solicitud y aprueba o rechaza.
+            </p>
+            <@ RestoreRequests @>
+        </div>
+
+    </div><!-- /tab-content -->
+
+</div><!-- /zmodule_content -->
+
+<script>
+(function () {
+    "use strict";
+
+    var tabMap = {
+        status:     '#cv-status',
+        email:      '#cv-email',
+        scan:       '#cv-scan',
+        results:    '#cv-results',
+        quarantine:       '#cv-quarantine',
+        updates:          '#cv-updates',
+        restorereq:       '#cv-restore-requests'
+    };
+
+    var cvTabs  = document.getElementById('cvTabs');
+    var phpTab  = cvTabs ? cvTabs.getAttribute('data-active-tab') : '';
+    var urlMatch = window.location.search.match(/[?&]tab=([a-z]+)/);
+    var target   = (phpTab && tabMap[phpTab]) ? phpTab
+                 : (urlMatch && tabMap[urlMatch[1]] ? urlMatch[1] : '');
+    if (target) {
+        $(function () {
+            $('#cvTabs a[href="' + tabMap[target] + '"]').tab('show');
+        });
+    }
+
+}());
+</script>

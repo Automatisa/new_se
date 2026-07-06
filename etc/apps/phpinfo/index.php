@@ -1,35 +1,63 @@
 <?php
-
-/**
- * @copyright 2014 Sentora Project (http://www.sentora.org/) 
- * Sentora is a GPL fork of the ZPanel Project whose original header follows:
- *
- * ZPanel - A Cross-Platform Open-Source Web Hosting Control panel.
- * 
- * @package ZPanel
- * @version $Id$
- * @author Bobby Allen - ballen@bobbyallen.me
- * @copyright (c) 2008-2014 ZPanel Group - http://www.zpanelcp.com/
- * @license http://opensource.org/licenses/gpl-3.0.html GNU Public License v3
- *
- * This program (ZPanel) is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
 session_start();
-if (isset($_SESSION['zpuid'])) {
-    echo phpinfo();
-} else {
-    echo "<h1>Unauthorised request!</h1><p>You must be logged in before you are able to view PHP configuration on this server.</p>";
+if (empty($_SESSION['zpuid']) || (int)$_SESSION['zpuid'] <= 0) {
+    header('Location: /');
+    exit;
 }
+
+$extensions = get_loaded_extensions();
+sort($extensions, SORT_STRING | SORT_FLAG_CASE);
+
+$ini_keys = [
+    'memory_limit', 'max_execution_time', 'upload_max_filesize',
+    'post_max_size', 'max_input_vars', 'default_charset',
+    'display_errors', 'log_errors', 'opcache.enable',
+    'date.timezone',
+];
 ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>PHP Info — Sentora</title>
+<style>
+  body { font-family: sans-serif; margin: 2em; background: #f5f5f5; color: #333; }
+  h1   { font-size: 1.4em; border-bottom: 2px solid #337ab7; padding-bottom:.4em; color:#337ab7; }
+  h2   { font-size: 1.1em; margin-top: 1.8em; color: #555; }
+  table { border-collapse: collapse; width: 100%; max-width: 760px; background:#fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  th, td { padding: .45em .8em; text-align: left; border-bottom: 1px solid #e0e0e0; font-size:.9em; }
+  th { background: #337ab7; color: #fff; font-weight: normal; }
+  .grid { display: flex; flex-wrap: wrap; gap: .3em; max-width: 760px; margin-top:.5em; }
+  .ext { background:#fff; border:1px solid #ccc; border-radius:3px;
+         padding:.25em .6em; font-size:.82em; font-family:monospace; }
+  .ok  { color: #3a3; }
+  .off { color: #a33; }
+</style>
+</head>
+<body>
+<h1>PHP <?= htmlspecialchars(PHP_VERSION) ?></h1>
+
+<h2>Configuración principal</h2>
+<table>
+  <tr><th>Directiva</th><th>Valor</th></tr>
+<?php foreach ($ini_keys as $k): ?>
+  <?php $v = ini_get($k); ?>
+  <tr>
+    <td><?= htmlspecialchars($k) ?></td>
+    <td class="<?= in_array(strtolower((string)$v), ['1','on','true']) ? 'ok' : (in_array(strtolower((string)$v), ['','0','off','false']) && strpos($k,'enable') !== false ? 'off' : '') ?>">
+      <?= htmlspecialchars((string)$v !== '' ? $v : '(no definido)') ?>
+    </td>
+  </tr>
+<?php endforeach; ?>
+</table>
+
+<h2>Extensiones cargadas (<?= count($extensions) ?>)</h2>
+<div class="grid">
+<?php foreach ($extensions as $ext): ?>
+  <span class="ext"><?= htmlspecialchars($ext) ?></span>
+<?php endforeach; ?>
+</div>
+
+</body>
+</html>

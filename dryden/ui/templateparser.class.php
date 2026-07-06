@@ -27,6 +27,9 @@ class ui_templateparser
         'Lanuage' => "/<:\s([^>\]\"<\?>]*)\s:>/is",
         'EndLoop' => "/<%\s(endloop)\s%>/is",
         'Loop' => "/<%\sloop\s(\w*)\s%>/is",
+        // {! key !} outputs raw HTML (no escaping) — for PHP-generated markup only, never for user data
+        'RawEcho' => "/\{!\s([\w*]*)\s!\}/is",
+        // <& key &> outputs HTML-escaped text — safe for all user-supplied data
         'EchoLoop' => "/<&\s([\w*]*)\s&>/is",
         'If' => " /<%\sif\s([\w*-*_*]*)\s%>/is",
         'Else' => "/<%\s(else)\s%>/is",
@@ -109,7 +112,28 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora echo loop template tags into valid PHP
+     * Compiles {! key !} raw-HTML tags — bypasses escaping.
+     * Use ONLY for PHP-generated markup (buttons, form fields, status icons).
+     * NEVER use for data that originates from user input.
+     */
+    static private function CompileRawEcho($value, $data)
+    {
+        $match = null;
+        preg_match_all($value, $data, $match);
+        if (($match) && (!empty($match[1]))) {
+            $i = 0;
+            foreach ($match[1] as $key) {
+                $data = str_replace($match[0][$i], '<?php echo $value[\'' . $key . '\'] ?? \'\'; ?>', $data);
+                $i++;
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * Compiles <& key &> echo tags into HTML-escaped PHP output (CVE-2012-5684 fix).
+     * All loop variable output is htmlspecialchars()'d — safe for user-supplied data.
+     * For intentional HTML output use {! key !} instead.
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileEchoLoop($value, $data)
@@ -119,7 +143,11 @@ class ui_templateparser
         if (($match) && (!empty($match[1]))) {
             $i = 0;
             foreach ($match[1] as $key) {
-                $data = str_replace($match[0][$i], '<?php echo $value[\'' . $key . '\']; ?>', $data);
+                $data = str_replace(
+                    $match[0][$i],
+                    '<?php echo htmlspecialchars((string)($value[\'' . $key . '\'] ?? \'\'), ENT_QUOTES, \'UTF-8\'); ?>',
+                    $data
+                );
                 $i++;
             }
         }
@@ -358,13 +386,11 @@ class ui_templateparser
         //load from DB or set a default
         $evalOrCache = ui_templateparser::$evalOrCache;
 
-        //selected eval or file cache
-        if ($evalOrCache == 1) {
-            $fileLocation = ui_templateparser::CheckFileCache($template_code);
-            return include($fileLocation);
-        } else {
-            return eval('?>' . $template_code);
-        }
+        // Only the file-cache path is active ($evalOrCache is always 1).
+        // The eval() fallback is removed: executing compiled template code via eval
+        // is the CVE-2013-2097 RCE vector and is never needed in production.
+        $fileLocation = ui_templateparser::CheckFileCache($template_code);
+        return include($fileLocation);
     }
 
     /**

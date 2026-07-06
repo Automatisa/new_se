@@ -1,5 +1,5 @@
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
-    <div class="panel-heading">
+    <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
 
         <div class="zmodule_title">
@@ -21,11 +21,12 @@
                 <tr>
                     <td colspan="2" align="right">
                         <input type="hidden" name="inDelete" value="<@ CurrentID @>">
-                        <button class="button-loader delete btn btn-danger" type="submit" ><: Delete :></button>
-                        <button class="button-loader btn btn-default" type="button" onclick="window.location.href='./?module=sub_domains';return false;"><: Cancel :></button>
+                        <button class="button-loader delete btn btn-danger" type="submit" ><i class="bi bi-trash me-1"></i><: Delete :></button>
+                        <button class="button-loader btn btn-secondary" type="button" onclick="window.location.href='./?module=sub_domains';return false;"><i class="bi bi-x-circle me-1"></i><: Cancel :></button>
                     </td>
                 </tr>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
     </div>
@@ -35,7 +36,7 @@
         <h2><: Current Sub-domains :></h2>
         <% if SubDomainList %>
         <form action="./?module=sub_domains&action=ConfirmDeleteSubDomain" method="post">
-            <table class="table table-striped">
+            <div class="table-responsive"><table class="table table-striped">
                 <tr>
                     <th><: Sub-domain :></th>
                     <th><: Home directory :></th>
@@ -47,11 +48,12 @@
                 <tr>
                     <td><a href="http://<& subname &>/" target="_blank"><& subname &></a></td>
                     <td><& subdirectory &></td>
-                    <& substatus &>
-                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& subid &>" id="inDelete_<& subid &>" value="inDelete_<& subid &>"><: Delete :></button></td>
+                    {! substatus !}
+                    <td><button class="button-loader delete btn btn-danger" type="submit" id="button" name="inDelete_<& subid &>" id="inDelete_<& subid &>" value="inDelete_<& subid &>"><i class="bi bi-trash me-1"></i><: Delete :></button></td>
                 </tr>
                 <% endloop %>
             </table>
+</div><!-- /table-responsive -->
             <@ CSFR_Tag @>
         </form>
         <% else %>
@@ -66,7 +68,7 @@
                     <h2>Create a new sub-domain</h2>
                     <% if CreateSubDomain %>
                     <form action="./?module=sub_domains&action=CreateSubDomain" method="post" name="CreateDomain">
-                        <table class="table table-striped">
+                        <div class="table-responsive"><table class="table table-striped">
                             <tr>
                                 <th nowrap="nowrap"><: Sub-domain :>:</th>
                                 <td nowrap="nowrap"><input name="inSub" type="text" id="inSub" style="width: 48%;" /> . <select name="inDomain" id="inDomain" style="width: 50%;">
@@ -76,32 +78,13 @@
                                     </select>
                                 </td>
                             </tr>
-                            <tr>
-                                <th nowrap="nowrap"><: Home directory :>:</th>
-                                <td><input name="inAutoHome" type="radio" id="inAutoHome" value="1" onclick="hide_div('showdomainselect');" CHECKED />&nbsp;<: Create a new home directory :></td>
-                            </tr>
-                            <tr>
-                                <th>&nbsp;</th>
-                                <td><input name="inAutoHome" type="radio" id="inAutoHome" value="2" onclick="show_div('showdomainselect');" />&nbsp;<: Use existing home directory :></td>
-                            </tr>
-                            <tr>
-                                <th>&nbsp;</th>
-                                <td>
-                                    <div id="showdomainselect" style="display:none;">
-                                        <select name="inDestination" id="inDestination">
-                                            <option value="">/ (root)</option>
-                                            <% loop SubDomainDirsList %>
-                                            <option value="<& domains &>">/<& domains &></option>
-                                            <% endloop %>
-                                        </select>
-                                    </div>
-                                </td>
-                            </tr>
+                            <input type="hidden" name="inAutoHome" value="1">
                             <tr>
                                 <th></th>
-                                <td align="right"><button class="button-loader btn btn-primary" type="submit" id="button" name="CreateSubDomain" value="1">Create</button></td>
+                                <td align="right"><button class="button-loader btn btn-primary" type="submit" id="button" name="CreateSubDomain" value="1"><i class="bi bi-plus-circle me-1"></i>Create</button></td>
                             </tr>
                         </table>
+</div><!-- /table-responsive -->
                         <@ CSFR_Tag @>
                     </form>
                     <% else %>
@@ -110,6 +93,7 @@
                 </td>
                 <td align="right"><@ SubDomainUsagepChart @></td>
             </tr></table>
+</div><!-- /table-responsive -->
     </div>
 
 </div>

@@ -19,8 +19,8 @@ class ui_tpl_modulelistznavbar
     public static function Template()
     {
 
-        $active = isset($_REQUEST['module']) ? '' : 'class="active"';
-        $line = '<li ' . $active . '><a href="."><: Home :></a></li>';
+        $activeClass = isset($_REQUEST['module']) ? '' : 'active';
+        $line = '<li class="nav-item"><a class="nav-link' . ($activeClass ? ' ' . $activeClass : '') . '" href="."><: Home :></a></li>';
 
         $modcats = ui_moduleloader::GetModuleCats();
         rsort($modcats);
@@ -44,51 +44,40 @@ class ui_tpl_modulelistznavbar
                 case 'File Management':
                     $shortName = 'File';
                     break;
-                case 'Server Admin':
-                    $shortName = 'Server';
-                    break;
             }
 
             $shortName = '<: ' . $shortName . ' :>';
             $mods = ui_moduleloader::GetModuleList($modcat['mc_id_pk']);
 
             if ($mods) {
-                $line .= '<li class="dropdown">';
-// IF Account, show Gravatar Image
+                $line .= '<li class="nav-item dropdown">';
                 if ($shortName == '<: Account :>') {
-
                     $currentuser = ctrl_users::GetUserDetail();
                     $image = self::get_gravatar($currentuser['email'], 22, 'mm', 'g', true);
-                    $line .= '<a href="#" class="dropdown-toggle" data-toggle="dropdown">' . $image . ' ' . $shortName . ' <b class="caret"></b></a>';
+                    $line .= '<a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">' . $image . ' ' . $shortName . '</a>';
                 } else {
-                    $line .= '<a href="#" class="dropdown-toggle" data-toggle="dropdown">' . $shortName . ' <b class="caret"></b></a>';
+                    $line .= '<a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">' . $shortName . '</a>';
                 }
 
-                $line .= '<ul class="dropdown-menu">';
+                $line .= '<ul class="dropdown-menu dropdown-menu-dark">';
                 foreach ($mods as $mod) {
 
                     $class_name = str_replace(array(' ', '_'), '-', strtolower($mod['mo_folder_vc']));
+                    $activeItem = (isset($_GET['module']) && $_GET['module'] == $mod['mo_folder_vc']) ? ' active' : '';
 
-                    if (isset($_GET['module']) && $_GET['module'] == $mod['mo_folder_vc']) {
-                        $line .= '<li class="active">';
-                    } else {
-                        $line .= '<li>';
-                    }
                     if ($mod['mo_installed_ts'] != 0) {
-						if (file_exists('etc/styles/' . ui_template::GetUserTemplate() . '/img/modules/'.$mod['mo_folder_vc'].'/assets/icon.png')) {
-                            $line .= '<a href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . ' greyscale"><img src="etc/styles/' . ui_template::GetUserTemplate() . '/img/modules/'.$mod['mo_folder_vc'].'/assets/icon.png" height="16px" width="16px"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
-						} else {
-                            $line .= '<a href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . ' greyscale"><img src="/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png" height="16px" width="16px"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
-						}
-                        
+                        if (file_exists('etc/styles/' . ui_template::GetUserTemplate() . '/img/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png')) {
+                            $line .= '<li><a class="dropdown-item' . $activeItem . '" href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . ' greyscale"><img src="etc/styles/' . ui_template::GetUserTemplate() . '/img/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png" height="16px" width="16px"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
+                        } else {
+                            $line .= '<li><a class="dropdown-item' . $activeItem . '" href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . ' greyscale"><img src="/modules/' . $mod['mo_folder_vc'] . '/assets/icon.png" height="16px" width="16px"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
+                        }
                     } else {
-                        $line .= '<a href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . '"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
+                        $line .= '<li><a class="dropdown-item' . $activeItem . '" href="?module=' . $mod['mo_folder_vc'] . '"><i class="icon-' . $class_name . '"></i> <: ' . $mod['mo_name_vc'] . ' :></a></li>';
                     }
-                    
                 }
-// If Account tab, show Logout Menu Item
                 if ($shortName == '<: Account :>') {
-                    $line .= '<li><a href="?logout"><i class="icon-phpinfo"></i> Logout</a></li>';
+                    $line .= '<li><hr class="dropdown-divider"></li>';
+                    $line .= '<li><a class="dropdown-item" href="?logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>';
                 }
 
                 $line .= '</ul></li>';

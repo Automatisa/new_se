@@ -26,11 +26,13 @@ class ui_tpl_breadcrumbs {
             $catUrl = strtolower(str_replace(' ', '-', $moduleRow['mc_name_vc']));
 
             if($moduleRow){
-                $line .= '<ul class="breadcrumb">';
-                $line .= '  <li><a href=".">Home</a></li>';
-                $line .= '  <li><a href="./#' .$catUrl. '">' .$moduleRow['mc_name_vc']. '</a></li>';
-                $line .= '  <li class="active">' .$moduleRow['mo_name_vc']. '</li>';
-                $line .= '</ul>';
+                $line .= '<nav aria-label="breadcrumb">';
+                $line .= '<ol class="breadcrumb mb-2">';
+                $line .= '  <li class="breadcrumb-item"><a href=".">Home</a></li>';
+                $line .= '  <li class="breadcrumb-item"><a href="./#' .$catUrl. '">' .$moduleRow['mc_name_vc']. '</a></li>';
+                $line .= '  <li class="breadcrumb-item active" aria-current="page">' .$moduleRow['mo_name_vc']. '</li>';
+                $line .= '</ol>';
+                $line .= '</nav>';
             }
         }
 

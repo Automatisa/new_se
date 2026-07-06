@@ -26,7 +26,7 @@ var SentoraDNS = {
         //this.cache.dnsTitleId = $("#dnsTitle");
 
         // Cache some Selectors for increased performance
-        SentoraDNS.cache.dnsTitleId = $("#dnsTitle");
+        SentoraDNS.cache.dnsTitleId = $(".dnsTitle");
 
         SentoraDNS.events.init();
 
@@ -72,7 +72,7 @@ var SentoraDNS = {
                     cancelButton: {
                         text: 'Cancel',
                         show: true,
-                        class: 'btn-default'
+                        class: 'btn-secondary'
                     },
                     okButton: {
                         text: 'Confirm',
@@ -109,7 +109,7 @@ var SentoraDNS = {
                         cancelCallback: function (hostname) {
                             hostnameSelector.val('');
                         },
-                        cancelButton: {text: 'Cancel', show: true, class: 'btn-default'},
+                        cancelButton: {text: 'Cancel', show: true, class: 'btn-secondary'},
                         okButton: {text: 'Confirm', show: true, class: 'btn-primary'},
                     });
                 }
@@ -118,12 +118,15 @@ var SentoraDNS = {
 
             // Activate SAVE and UNDO Buttons when Record Row EDITED
             $(document).on("keydown", "#dnsRecords input", function() {
-                //$("#dnsTitle").find(".save, .undo").removeClass("disabled");
                 Sentora.utils.log(SentoraDNS.cache.dnsTitleId);
                 Sentora.utils.log($("#dnsTitle"));
-                //$("#dnsTitle").find(".save, .undo").removeClass("disabled");
                 SentoraDNS.cache.dnsTitleId.find(".save, .undo").removeClass("disabled");
                 $(".tab-pane > .add").find(".save").removeClass("disabled");
+            });
+            $(document).on("change", "#dnsRecords select", function() {
+                SentoraDNS.cache.dnsTitleId.find(".save, .undo").removeClass("disabled");
+                $(".tab-pane > .add").find(".save").removeClass("disabled");
+                SentoraDNS.unsavedChanges = true;
             });
 
             // Activate SAVE and UNDO Buttons when Record Row DELETED
@@ -132,7 +135,7 @@ var SentoraDNS = {
             // });
 
             // Add new Record Row
-            $("#dnsRecords div.add > .btn").click(function(e) {
+            $("#dnsRecords div.add > .add-row").click(function(e) {
                 Sentora.utils.log('add record button clicked');
                 SentoraDNS.records.addRow($(this));
                 e.preventDefault();
@@ -157,36 +160,39 @@ var SentoraDNS = {
 
             //Save Changes
             //$("#dnsTitle").find(".save").removeClass("disabled");
-            $("#dnsTitle a.save").click(function() {
+            $(document).on("click", ".dnsTitle a.save", function() {
                 if ($(this).hasClass("disabled")) return false;
                 Sentora.loader.showLoader();
-                $("form").submit();
+                $("#dnsRecordsForm").submit();
                 return false;
             });
 
             $(".tab-pane > .add").find(".save").click(function() {
                 if ($(this).hasClass("disabled")) return false;
                 Sentora.loader.showLoader();
-                $("form").submit();
+                $("#dnsRecordsForm").submit();
                 return false;
             });
 
             //Undo ALL Record Type Changes
-            $("#dnsTitle a.undo").click(function() {
+            $(document).on("click", ".dnsTitle a.undo", function() {
                 if ($(this).hasClass("disabled")) return false;
                 $("button.undo").click();
                 $(".tab-pane .new").remove();
-                $("#dnsTitle a.save, #dnsTitle a.undo").addClass("disabled");
+                $(".dnsTitle a.save, .dnsTitle a.undo").addClass("disabled");
+                $(".tab-pane > .add").find(".save").addClass("disabled");
                 SentoraDNS.unsavedChanges = false;
                 return false;
             });
 
-            $("form").submit(function() {
+            $("#dnsRecordsForm").submit(function() {
                 SentoraDNS.unsavedChanges = false;
+                // Combine component fields into hidden target before submission
+                SentoraDNS.records.combineTargetFields($(this));
                 //Remove any entries that have no value for any relevant fields
                 $("div.dnsRecord").each(function() {
                     var hasValue = false;
-                    $("input", $(this)).not("input[name*='ttl'], input[name*='type']").filter(function() {
+                    $("input", $(this)).not("input[name*='ttl'], input[name*='type'], input[type='hidden']").filter(function() {
                         var val = $(this).val();
                         return val != "" || val > 0;
                     }).each(function() {
@@ -223,8 +229,8 @@ var SentoraDNS = {
                 //newRecord.find("label").remove();
             }
 
-            // Set new record name
-            $("input", newRecord).each(function() {
+            // Set new record name (inputs and selects)
+            $("input, select", newRecord).each(function() {
                 var fieldName = $(this).attr("name").replace("proto_", "");
                 $(this).attr("name", fieldName + "[new_" + newId + "]");
             });
@@ -233,7 +239,9 @@ var SentoraDNS = {
             newRecord.addClass("dnsRecord new").removeClass("newRecord");
             newRecord.insertBefore(record.parents("div.add")).fadeIn();
             record.parents("div.records").scrollTop(record.parents("div.records").scrollTop() + 1000);
-            $("#dnsTitle a.undo").removeClass("disabled");
+            $(".dnsTitle a.undo, .dnsTitle a.save").removeClass("disabled");
+            $(".tab-pane > .add").find(".save").removeClass("disabled");
+            SentoraDNS.unsavedChanges = true;
 
         },
 
@@ -273,7 +281,8 @@ var SentoraDNS = {
             row.parents("div.dnsRecord").find("button.undo").fadeIn('slow');
             // Add Disabled class to Deleted inputs
             //row.siblings().children('.input-small').addClass("disabled");
-            $("#dnsTitle a.save, #dnsTitle a.undo").removeClass("disabled");
+            $(".dnsTitle a.save, .dnsTitle a.undo").removeClass("disabled");
+            $(".tab-pane > .add").find(".save").removeClass("disabled");
             SentoraDNS.unsavedChanges = true;
 
         },
@@ -281,6 +290,55 @@ var SentoraDNS = {
 
         delete: function() {
             var target = document.getElementById('zloader_content');
+        },
+
+        combineTargetFields: function($form) {
+            // CAA: <flags> <tag> "<value>"
+            $form.find('[name^="caa_flags["]').each(function() {
+                var id = $(this).attr('name').replace('caa_flags[', '').replace(']', '');
+                var flags = $(this).val().trim() || '0';
+                var tag   = $form.find('[name="caa_tag['   + id + ']"]').val() || 'issue';
+                var value = $form.find('[name="caa_value[' + id + ']"]').val().trim().replace(/"/g, '');
+                $form.find('[name="target[' + id + ']"]').val(flags + ' ' + tag + ' "' + value + '"');
+            });
+            // NAPTR: <order> <pref> "<flags>" "<service>" "<regexp>" <replacement>
+            $form.find('[name^="naptr_order["]').each(function() {
+                var id      = $(this).attr('name').replace('naptr_order[', '').replace(']', '');
+                var order   = $(this).val().trim() || '100';
+                var pref    = $form.find('[name="naptr_pref['        + id + ']"]').val().trim() || '10';
+                var flags   = $form.find('[name="naptr_flags['       + id + ']"]').val().trim().replace(/"/g, '');
+                var service = $form.find('[name="naptr_service['     + id + ']"]').val().trim().replace(/"/g, '');
+                var regexp  = $form.find('[name="naptr_regexp['      + id + ']"]').val().trim().replace(/"/g, '');
+                var repl    = $form.find('[name="naptr_replacement[' + id + ']"]').val().trim() || '.';
+                $form.find('[name="target[' + id + ']"]').val(
+                    order + ' ' + pref + ' "' + flags + '" "' + service + '" "' + regexp + '" ' + repl
+                );
+            });
+            // SSHFP: <algo> <fptype> <fingerprint>
+            $form.find('[name^="sshfp_algo["]').each(function() {
+                var id     = $(this).attr('name').replace('sshfp_algo[', '').replace(']', '');
+                var algo   = $(this).val() || '4';
+                var fptype = $form.find('[name="sshfp_fptype[' + id + ']"]').val() || '2';
+                var fp     = $form.find('[name="sshfp_fp['     + id + ']"]').val().trim();
+                $form.find('[name="target[' + id + ']"]').val(algo + ' ' + fptype + ' ' + fp);
+            });
+            // TLSA: <usage> <selector> <matching> <certdata>
+            $form.find('[name^="tlsa_usage["]').each(function() {
+                var id       = $(this).attr('name').replace('tlsa_usage[', '').replace(']', '');
+                var usage    = $(this).val() || '3';
+                var selector = $form.find('[name="tlsa_selector[' + id + ']"]').val() || '1';
+                var matching = $form.find('[name="tlsa_matching[' + id + ']"]').val() || '1';
+                var cert     = $form.find('[name="tlsa_cert['     + id + ']"]').val().trim();
+                $form.find('[name="target[' + id + ']"]').val(usage + ' ' + selector + ' ' + matching + ' ' + cert);
+            });
+            // URI: <priority> <weight> "<uri>"
+            $form.find('[name^="uri_priority["]').each(function() {
+                var id  = $(this).attr('name').replace('uri_priority[', '').replace(']', '');
+                var pri = $(this).val().trim() || '10';
+                var wt  = $form.find('[name="uri_weight[' + id + ']"]').val().trim() || '1';
+                var uri = $form.find('[name="uri_uri['    + id + ']"]').val().trim().replace(/"/g, '');
+                $form.find('[name="target[' + id + ']"]').val(pri + ' ' + wt + ' "' + uri + '"');
+            });
         },
     }
 

@@ -113,32 +113,29 @@ class module_controller extends ctrl_module
         return $res;
     }
 
-    static function ExecuteDeleteSubDomain($id)
+    static function ExecuteDeleteSubDomain($id, $uid)
     {
         global $zdbh;
 		// NEW - Delete Snuff files for domain
-		$sql2 = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_id_pk=:id");
+		$sql2 = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_id_pk=:id AND vh_acc_fk=:uid");
 		$sql2->bindParam(':id', $id);
+		$sql2->bindParam(':uid', $uid);
     	$sql2->execute();
     	while ($rowvhost = $sql2->fetch()) {
-				
+
 		$vhostuser = ctrl_users::GetUserDetail($rowvhost['vh_acc_fk']);
 		$vhostusername = $vhostuser['username'];
-		$vh_snuff_path = "/etc/sentora/configs/php/sp/";
-		
-			if (file_exists($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules')) {
-				unlink($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules') or print fs_filehandler::NewLine() . "Couldn't delete " . $rowvhost['vh_name_vc'] . "vhost sp file" . fs_filehandler::NewLine();
-			}
 		}
-		
-		// Delete Domain
+
+		// Delete Domain — AND vh_acc_fk=:uid impide borrar subdominios ajenos
         runtime_hook::Execute('OnBeforeDeleteSubDomain');
         $sql = $zdbh->prepare("UPDATE x_vhosts
 							   SET vh_deleted_ts=:time
-							   WHERE vh_id_pk=:id");
+							   WHERE vh_id_pk=:id AND vh_acc_fk=:uid");
         $time = time();
         $sql->bindParam(':time', $time);
         $sql->bindParam(':id', $id);
+        $sql->bindParam(':uid', $uid);
         $sql->execute();
         self::SetWriteApacheConfigTrue();
         $retval = TRUE;
@@ -154,21 +151,16 @@ class module_controller extends ctrl_module
         $currentuser = ctrl_users::GetUserDetail($uid);
         $domain = strtolower(str_replace(' ', '', $domain));
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
-            //** New Home Directory **//
-            if ($autohome == 1) {
-                // Los subdominios viven dentro del public_html del dominio padre
-                // vh_directory_vc = "ejemplo_com/sub" (sin slash inicial)
-                $destination = str_replace(".", "_", $domain);
-                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
-                $vhost_path = $paths['public_html'] . '/';
-                fs_director::CreateDirectory($paths['domain_root']);
-                fs_director::CreateDirectory($paths['public_html']);
-                fs_director::CreateDirectory($paths['tmp']);
-                //** Existing Home Directory **//
-            } else {
-                $destination = str_replace(".", "_", $destination);
-                $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
-                $vhost_path = $paths['public_html'] . '/';
+            $destination = str_replace(".", "_", $domain);
+            $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
+            $vhost_path = $paths['public_html'] . '/';
+            fs_director::CreateDirectory($paths['domain_root']);
+            fs_director::CreateDirectory($paths['public_html']);
+            fs_director::CreateDirectory($paths['tmp']);
+            fs_director::CreateDirectory($paths['logs']);
+            foreach (array('-access.log', '-error.log', '-bandwidth.log') as $_logsuffix) {
+                $_logfile = $paths['logs'] . '/' . $domain . $_logsuffix;
+                if (!file_exists($_logfile)) { @touch($_logfile); }
             }
             // Error documents:- Error pages are added automatically if they are found in the _errorpages directory
             // and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
@@ -208,13 +200,6 @@ class module_controller extends ctrl_module
             $time = time();
             $sql->bindParam(':time', $time);
             $sql->execute();
-            # Only run if the Server platform is Windows.
-            if (sys_versions::ShowOSPlatformVersion() == 'Windows') {
-                if (ctrl_options::GetSystemOption('disable_hostsen') == 'false') {
-                    # Lets add the hostname to the HOSTS file so that the server can view the domain immediately...
-                    @exec("C:/Sentora/bin/zpss/setroute.exe " . $domain . "");
-                }
-            }
             self::SetWriteApacheConfigTrue();
             $retval = TRUE;
             runtime_hook::Execute('OnAfterAddSubDomain');
@@ -233,7 +218,7 @@ class module_controller extends ctrl_module
             return FALSE;
         }
         // Check for invalid characters in the domain...
-        if (!self::IsValidDomainName($domain)) {
+        if (!fs_director::IsValidDomainName($domain)) {
             self::$badname = TRUE;
             return FALSE;
         }
@@ -267,20 +252,6 @@ class module_controller extends ctrl_module
         return in_array($error, $errordocs);
     }
 
-    static function IsValidDomainName($a)
-    {
-        if (stristr($a, '.')) {
-            $part = explode(".", $a);
-            foreach ($part as $check) {
-                if (!preg_match('/^[a-z\d][a-z\d-]{0,62}$/i', $check) || preg_match('/-$/', $check)) {
-                    return false;
-                }
-            }
-        } else {
-            return false;
-        }
-        return true;
-    }
 
     static function IsValidEmail($email)
     {
@@ -356,10 +327,22 @@ class module_controller extends ctrl_module
 
     static function doCreateSubDomain()
     {
-        global $controller;
+        global $controller, $zdbh;
         runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
+
+        // Verificar que el dominio padre pertenece al usuario autenticado
+        $parentDomain = strtolower(trim($formvars['inDomain']));
+        $ownerCheck = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:domain AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL AND vh_type_in IN (1, 3)");
+        $ownerCheck->bindParam(':domain', $parentDomain);
+        $ownerCheck->bindParam(':uid', $currentuser['userid']);
+        $ownerCheck->execute();
+        if ($ownerCheck->fetchColumn() == 0) {
+            self::$error = TRUE;
+            return false;
+        }
+
         if (self::ExecuteAddSubDomain($currentuser['userid'], $formvars['inSub'] . "." . $formvars['inDomain'], $formvars['inDestination'], $formvars['inAutoHome'])) {
             self::$ok = TRUE;
             return true;
@@ -373,10 +356,10 @@ class module_controller extends ctrl_module
     {
         global $controller;
         runtime_csfr::Protect();
-//PP      $currentuser = ctrl_users::GetUserDetail();  assignment never used
+        $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
         if (isset($formvars['inDelete'])) {
-            if (self::ExecuteDeleteSubDomain($formvars['inDelete'])) {
+            if (self::ExecuteDeleteSubDomain($formvars['inDelete'], $currentuser['userid'])) {
                 self::$ok = TRUE;
                 return true;
             }
@@ -447,9 +430,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('subdomains', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

@@ -93,30 +93,27 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function ExecuteDeleteParkedDomain($id)
+    static function ExecuteDeleteParkedDomain($id, $uid)
     {
         global $zdbh;
 		// NEW - Delete Snuff files for domain
-		$sql2 = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_id_pk=:id");
+		$sql2 = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_id_pk=:id AND vh_acc_fk=:uid");
 		$sql2->bindParam(':id', $id);
+		$sql2->bindParam(':uid', $uid);
     	$sql2->execute();
     	while ($rowvhost = $sql2->fetch()) {
-				
+
 		$vhostuser = ctrl_users::GetUserDetail($rowvhost['vh_acc_fk']);
 		$vhostusername = $vhostuser['username'];
-		$vh_snuff_path = "/etc/sentora/configs/php/sp/";
-		
-			if (file_exists($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules')) {
-				unlink($vh_snuff_path . $vhostusername . "/" . $rowvhost['vh_name_vc'] . '.rules') or print fs_filehandler::NewLine() . "Couldn't delete " . $rowvhost['vh_name_vc'] . "vhost sp file" . fs_filehandler::NewLine();
-			}
 		}
-		
-		// Delete Domain
+
+		// Delete Domain — AND vh_acc_fk=:uid impide borrar dominios aparcados ajenos
         runtime_hook::Execute('OnBeforeDeleteParkedDomain');
         $sql = $zdbh->prepare("UPDATE x_vhosts
 							   SET vh_deleted_ts=:time
-							   WHERE vh_id_pk=:id");
+							   WHERE vh_id_pk=:id AND vh_acc_fk=:uid");
         $sql->bindParam(':id', $id);
+        $sql->bindParam(':uid', $uid);
         $time = time();
         $sql->bindParam(':time', $time);
         $sql->execute();
@@ -150,14 +147,6 @@ class module_controller extends ctrl_module
             $time = time();
             $sql->bindParam(':time', $time);
             $sql->execute();
-            # Only run if the Server platform is Windows.
-            if (sys_versions::ShowOSPlatformVersion() == 'Windows') {
-                if (ctrl_options::GetSystemOption('disable_hostsen') == 'false') {
-                    # Lets add the hostname to the HOSTS file so that the server can view the domain immediately...
-                    @exec("C:/Sentora/bin/zpss/setroute.exe " . $domain . "");
-                    @exec("C:/Sentora/bin/zpss/setroute.exe www." . $domain . "");
-                }
-            }
             self::SetWriteApacheConfigTrue();
             $retval = TRUE;
             runtime_hook::Execute('OnAfterAddParkedDomain');
@@ -176,7 +165,7 @@ class module_controller extends ctrl_module
             return FALSE;
         }
         // Check for invalid characters in the domain...
-        if (!self::IsValidDomainName($domain)) {
+        if (!fs_director::IsValidDomainName($domain)) {
             self::$badname = TRUE;
             return FALSE;
         }
@@ -196,32 +185,23 @@ class module_controller extends ctrl_module
                 return FALSE;
             }
         }
-        // Check to make sure user not adding a subdomain and blocks stealing of subdomains....
-        // Get shared domain list
-        $SharedDomains = array();
-        $a = ctrl_options::GetSystemOption('shared_domains');
-        $a = explode(',', $a);
-        foreach ($a as $b) {
-            $SharedDomains[] = $b;
-        }
+        // Check to make sure user not adding a subdomain and blocks stealing of subdomains.
         if (substr_count($domain, ".") > 1) {
             $part = explode('.', $domain);
             foreach ($part as $check) {
-                if (!in_array($check, $SharedDomains)) {
-                    if (strlen($check) > 3) {
-                        $sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc LIKE :Checked AND vh_type_in !=2 AND vh_deleted_ts IS NULL");
-                        $Checked = '%' . $check . '%';
-                        $sql->bindParam(':Checked', $Checked);
-                        $sql->execute();
-                        while ($rowcheckdomains = $sql->fetch()) {
-                            $subpart = explode('.', $rowcheckdomains['vh_name_vc']);
-                            foreach ($subpart as $subcheck) {
-                                if (strlen($subcheck) > 3) {
-                                    if ($subcheck == $check) {
-                                        if (substr($domain, -7) == substr($rowcheckdomains['vh_name_vc'], -7)) {
-                                            self::$nosub = TRUE;
-                                            return FALSE;
-                                        }
+                if (strlen($check) > 3) {
+                    $sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc LIKE :Checked AND vh_type_in !=2 AND vh_deleted_ts IS NULL");
+                    $Checked = '%' . $check . '%';
+                    $sql->bindParam(':Checked', $Checked);
+                    $sql->execute();
+                    while ($rowcheckdomains = $sql->fetch()) {
+                        $subpart = explode('.', $rowcheckdomains['vh_name_vc']);
+                        foreach ($subpart as $subcheck) {
+                            if (strlen($subcheck) > 3) {
+                                if ($subcheck == $check) {
+                                    if (substr($domain, -7) == substr($rowcheckdomains['vh_name_vc'], -7)) {
+                                        self::$nosub = TRUE;
+                                        return FALSE;
                                     }
                                 }
                             }
@@ -244,20 +224,6 @@ class module_controller extends ctrl_module
         return in_array($error, $errordocs);
     }
 
-    static function IsValidDomainName($a)
-    {
-        if (stristr($a, '.')) {
-            $part = explode(".", $a);
-            foreach ($part as $check) {
-                if (!preg_match('/^[a-z\d][a-z\d-]{0,62}$/i', $check) || preg_match('/-$/', $check)) {
-                    return false;
-                }
-            }
-        } else {
-            return false;
-        }
-        return true;
-    }
 
     static function IsValidEmail($email)
     {
@@ -328,10 +294,10 @@ class module_controller extends ctrl_module
     {
         global $controller;
         runtime_csfr::Protect();
-//        $currentuser = ctrl_users::GetUserDetail();
+        $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
         if (isset($formvars['inDelete'])) {
-            if (self::ExecuteDeleteParkedDomain($formvars['inDelete'])) {
+            if (self::ExecuteDeleteParkedDomain($formvars['inDelete'], $currentuser['userid'])) {
                 self::$ok = TRUE;
                 return true;
             }
@@ -402,9 +368,8 @@ class module_controller extends ctrl_module
         } else {
             $used = ctrl_users::GetQuotaUsages('parkeddomains', $currentuser['userid']);
             $free = max($maximum - $used, 0);
-            return '<img src="etc/lib/pChart2/sentora/z3DPie.php?score=' . $free . '::' . $used
-                    . '&labels=Free: ' . $free . '::Used: ' . $used
-                    . '&legendfont=verdana&legendfontsize=8&imagesize=240::190&chartsize=120::90&radius=100&legendsize=150::160"'
+            return '<img src="etc/lib/charts/svg_pie.php?score=' . $free . '::' . $used
+                    . '&labels=Free:_' . $free . '::Used:_' . $used . '&imagesize=320::200"'
                     . ' alt="' . ui_language::translate('Pie chart') . '"/>';
         }
     }

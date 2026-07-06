@@ -18,14 +18,6 @@ function WriteCronFile() {
         $line .= "# WE DO NOT RECOMMEND YOU MODIFY THIS FILE DIRECTLY, PLEASE USE SENTORA INSTEAD! " . fs_filehandler::NewLine();
         $line .= "#################################################################################" . fs_filehandler::NewLine();
 
-        if (sys_versions::ShowOSPlatformVersion() == "Windows") {
-            $line .= "# Cron Debug infomation can be found in this file here:-                        " . fs_filehandler::NewLine();
-            $line .= "# C:\WINDOWS\System32\crontab.txt                                                " . fs_filehandler::NewLine();
-            $line .= "#################################################################################" . fs_filehandler::NewLine();
-            $line .= "" . ctrl_options::GetSystemOption('daemon_timing') . " " . ctrl_options::GetSystemOption('php_exer') . " " . ctrl_options::GetSystemOption('daemon_exer') . "" . fs_filehandler::NewLine();
-            $line .= "#################################################################################" . fs_filehandler::NewLine();
-        }
-
         $line .= "# DO NOT MANUALLY REMOVE ANY OF THE CRON ENTRIES FROM THIS FILE, USE SENTORA     " . fs_filehandler::NewLine();
         $line .= "# INSTEAD! THE ABOVE ENTRIES ARE USED FOR SENTORA TASKS, DO NOT REMOVE THEM!     " . fs_filehandler::NewLine();
         $line .= "#################################################################################" . fs_filehandler::NewLine();

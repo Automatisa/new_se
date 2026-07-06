@@ -1,0 +1,21 @@
+#!/bin/sh
+# update_ip_server — Update Sentora server_ip and cascade to all DNS A records.
+# Usage: update_ip_server <ip-address>
+# Example: update_ip_server 188.92.252.250
+
+SENTORA_ROOT="/usr/local/sentora"
+PHP_SCRIPT="${SENTORA_ROOT}/modules/autoip/update_server_ip.php"
+PHP_BIN="/usr/local/bin/php"
+
+if [ $# -lt 1 ] || [ -z "$1" ]; then
+    echo "Usage: $(basename "$0") <ip-address>"
+    echo "Example: $(basename "$0") 188.92.252.250"
+    exit 1
+fi
+
+if [ ! -f "$PHP_SCRIPT" ]; then
+    echo "Error: PHP script not found at $PHP_SCRIPT"
+    exit 1
+fi
+
+exec "$PHP_BIN" "$PHP_SCRIPT" "$1"
