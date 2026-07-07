@@ -1255,20 +1255,27 @@ pass  quick from <sentora_whitelist>
 block drop quick from <sentora_blocked>
 block drop quick from <sshguard>
 
-# ---- Servicios base SIEMPRE permitidos ----
-# IMPRESCINDIBLE: sin permitir SSH aquí, activar pf deja el servidor sin acceso
-# remoto (block in all bloquea el puerto 22). El resto son los servicios que el
-# panel necesita servir; fw_admin añade reglas extra mediante el anchor de abajo.
+# ---- Red de seguridad SSH (SIEMPRE, no gestionable desde el panel) ----
+# Garantiza acceso remoto pase lo que pase con el anchor: el panel nunca puede
+# dejarte sin SSH. El resto de servicios (web, correo, DNS, FTP...) se gestionan
+# desde fw_admin (tabla x_fw_rules -> anchor sentora_rules).
 pass in quick proto tcp to port 22 keep state
-pass in quick proto tcp to port { 80, 443 } keep state
-pass in quick proto tcp to port { 25, 465, 587, 110, 143, 993, 995 } keep state
-pass in quick proto tcp to port { 20, 21, 49152:65534 } keep state
-pass in quick proto { tcp, udp } to port 53 keep state
-pass in quick inet proto icmp icmp-type echoreq keep state
 
-# ---- Anchor para reglas dinámicas gestionadas por el panel ----
+# ---- Reglas gestionadas por el panel (fw_admin) ----
+# Se cargan desde fichero para que persistan tras reiniciar; bin/fw_rules_apply.sh
+# lo regenera al cambiar reglas y el daemon lo refresca. El instalador crea el
+# fichero tras importar la BD, así que siempre existe al cargar pf.
 anchor "sentora_rules"
+load anchor "sentora_rules" from "$PANEL_DATA/run/pf_custom_rules.txt"
 PFCF
+
+# Generar el fichero del anchor desde las reglas por defecto de x_fw_rules (ya
+# importadas en la BD). DEBE existir antes de arrancar pf: pf.conf hace
+# "load anchor ... from" y fallaría si no existe. touch primero como salvaguarda.
+touch "$PANEL_DATA/run/pf_custom_rules.txt"
+sh "$PANEL_PATH/bin/fw_rules_apply.sh" 2>/dev/null || true
+chown root:www "$PANEL_DATA/run/pf_custom_rules.txt" 2>/dev/null || true
+chmod 640 "$PANEL_DATA/run/pf_custom_rules.txt" 2>/dev/null || true
 
 # SSHGuard: integración con pf
 cat > /usr/local/etc/sshguard.conf << SGCF

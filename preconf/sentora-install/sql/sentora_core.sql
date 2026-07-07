@@ -305,6 +305,28 @@ CREATE TABLE `x_fw_rules` (
   PRIMARY KEY (`fr_id_pk`),
   UNIQUE KEY `uk_rule` (`fr_proto_vc`,`fr_direction_en`,`fr_src_vc`,`fr_port_in`,`fr_port_max_in`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Reglas de cortafuegos por defecto (apertura mínima de un servidor de hosting).
+-- fw_admin las aplica al anchor pf "sentora_rules" (bin/fw_rules_apply.sh). Sin
+-- ellas, con "block in all" en pf.conf, el panel mostraría el cortafuegos vacío.
+INSERT INTO `x_fw_rules`
+    (`fr_action_en`, `fr_proto_vc`, `fr_direction_en`, `fr_src_vc`, `fr_port_in`, `fr_port_max_in`, `fr_desc_vc`, `fr_order_in`, `fr_enabled_in`, `fr_added_ts`)
+VALUES
+  ('pass', 'tcp',  'in', 'any', 22,    0,     'SSH (administración)',        10,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 80,    0,     'HTTP',                        20,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 443,   0,     'HTTPS',                       30,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 53,    0,     'DNS (TCP)',                   40,  1, UNIX_TIMESTAMP()),
+  ('pass', 'udp',  'in', 'any', 53,    0,     'DNS (UDP)',                   50,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 21,    0,     'FTP control',                 60,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 49152, 65534, 'FTP pasivo (datos)',          70,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 25,    0,     'SMTP',                        80,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 587,   0,     'SMTP submission',             90,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 465,   0,     'SMTPS',                      100,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 143,   0,     'IMAP',                       110,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 993,   0,     'IMAPS',                      120,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 110,   0,     'POP3',                       130,  1, UNIX_TIMESTAMP()),
+  ('pass', 'tcp',  'in', 'any', 995,   0,     'POP3S',                      140,  1, UNIX_TIMESTAMP()),
+  ('pass', 'icmp', 'in', 'any', 0,     0,     'ICMP (ping/diagnóstico)',    150,  1, UNIX_TIMESTAMP()),
+  ('pass', 'udp',  'in', 'any', 123,   0,     'NTP (sincronización hora)',  160,  1, UNIX_TIMESTAMP());
 
 DROP TABLE IF EXISTS `x_fw_whitelist`;
 CREATE TABLE `x_fw_whitelist` (
