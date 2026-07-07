@@ -1366,6 +1366,36 @@ if ($method === 'DELETE' && $resource === 'domains' && $res_id && $sub === 'dns'
 //   POST /v1/system/reload/{service}   → recarga apache|phpfpm (cooldown 5 min, máx 3/día)
 //   GET  /v1/system/logs/{service}     → últimas N líneas de log
 
+// ── Cluster DNS (Fase 2) ──────────────────────────────────────────────────────
+//   GET  /v1/cluster/tsig   → clave TSIG del cluster (para que un nodo se una)
+//   POST /v1/cluster/nodes  → registrar un nodo peer en este servidor
+if ($method === 'GET' && $resource === 'cluster' && $res_id === 'tsig') {
+    require_scope('admin');
+    api_respond(200, ['tsig' => ctrl_options::GetSystemOption('dns_tsig_key')]);
+}
+
+if ($method === 'POST' && $resource === 'cluster' && $res_id === 'nodes') {
+    require_scope('admin');
+    $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+    $name  = strtolower(trim($body['name'] ?? ''));
+    $ip    = trim($body['ip'] ?? '');
+    $apiu  = trim($body['api_url'] ?? '');
+    $token = trim($body['token'] ?? '');
+    if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+        api_respond(422, ['error' => 'Unprocessable Entity', 'message' => 'name e ip válidos son obligatorios.', 'code' => 422]);
+    }
+    $ins = $zdbh->prepare(
+        "INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_api_token_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
+         VALUES (:n, :i, :u, :t, 0, 1, :ts)
+         ON DUPLICATE KEY UPDATE nd_ip_vc=:i2, nd_api_url_vc=:u2, nd_api_token_vc=:t2, nd_enabled_in=1"
+    );
+    $ins->execute([
+        ':n' => $name, ':i' => $ip, ':u' => ($apiu ?: null), ':t' => ($token ?: null), ':ts' => time(),
+        ':i2' => $ip, ':u2' => ($apiu ?: null), ':t2' => ($token ?: null),
+    ]);
+    api_respond(201, ['message' => 'Nodo registrado en el cluster.', 'node' => $name]);
+}
+
 if ($resource === 'system') {
     require_scope('admin');
 

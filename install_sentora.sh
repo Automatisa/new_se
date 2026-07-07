@@ -86,6 +86,18 @@ DNS_NS1_IP="${DNS_NS1_IP:-$SERVER_IP}"
 printf "IP de ns2 [%s]: " "$SERVER_IP"; read -r DNS_NS2_IP
 DNS_NS2_IP="${DNS_NS2_IP:-$SERVER_IP}"
 
+# Cluster DNS (Fase 2): rol de este nodo. Primario = crea la zona base y genera la
+# clave TSIG del cluster. Secundario = se une a un cluster existente (no recrea la
+# zona base; añade ns2/panel2 a la del primario y esclaviza sus zonas por AXFR).
+printf "¿Nodo DNS PRIMARIO o SECUNDARIO del cluster? [P/s]: "; read -r NODE_ROLE
+NODE_ROLE=$(printf '%s' "${NODE_ROLE:-P}" | tr '[:lower:]' '[:upper:]')
+if [ "$NODE_ROLE" = "S" ]; then
+    printf "URL de la API del nodo primario (ej: https://panel1.%s/bin/api.php): " "$DNS_PROVIDER_DOMAIN"; read -r PRIMARY_API_URL
+    printf "Token admin de la API del primario: "; read -r PRIMARY_API_TOKEN
+    printf "Nombre (hostname) del primario (ej: panel1.%s): " "$DNS_PROVIDER_DOMAIN"; read -r PRIMARY_NAME
+    printf "IP del nodo primario: "; read -r PRIMARY_IP
+fi
+
 echo ""
 info "Contraseña del administrador del panel (zadmin)"
 printf "Contraseña zadmin: "; stty -echo; read -r ZADMIN_PASSWORD; stty echo; echo
@@ -1740,10 +1752,54 @@ service syslogd restart 2>/dev/null || true
 service apache24 restart 2>/dev/null || service apache24 start
 service php_fpm restart 2>/dev/null || service php_fpm start
 
-# Crear la zona DNS base del dominio proveedor (nameservers compartidos ns1/ns2,
-# panel, correo). Deja el servidor autoritativo de su dominio y permite que el panel
-# resuelva y el correo funcione. Marca apache_changed y dns_hasupdates.
-php "$PANEL_PATH/bin/create_base_zone.php" > "$PANEL_DATA/logs/base-zone-install.log" 2>&1 || true
+# ── Cluster DNS: configuración del nodo (primario / secundario) ──
+if [ "$NODE_ROLE" = "S" ]; then
+    info "Uniendo este servidor al cluster DNS como nodo SECUNDARIO..."
+    # 1. Obtener la clave TSIG del cluster desde el primario
+    CLUSTER_TSIG=$(curl -sk -m15 -H "Authorization: Bearer $PRIMARY_API_TOKEN" "$PRIMARY_API_URL/v1/cluster/tsig" \
+        | php -r '$j=json_decode(stream_get_contents(STDIN),true); echo isset($j["tsig"])?$j["tsig"]:"";' 2>/dev/null)
+    [ -n "$CLUSTER_TSIG" ] || warn "No se pudo obtener la clave TSIG del primario (revisa URL/token de la API)."
+    # 2. Token local para que el primario liste nuestros dominios (esclavizarlos)
+    LOCAL_API_TOKEN=$(openssl rand -hex 32)
+    LOCAL_API_HASH=$(printf '%s' "$LOCAL_API_TOKEN" | openssl dgst -sha256 | awk '{print $NF}')
+    # 3. Guardar TSIG, registrar self + primario en x_dns_nodes y crear el token local
+    $MYSQL sentora_core -e "
+        UPDATE x_settings SET so_value_tx='$CLUSTER_TSIG' WHERE so_name_vc='dns_tsig_key';
+        INSERT IGNORE INTO x_dns_nodes (nd_name_vc,nd_ip_vc,nd_is_self_in,nd_enabled_in,nd_created_ts)
+            VALUES ('$PANEL_FQDN','$SERVER_IP',1,1,UNIX_TIMESTAMP());
+        INSERT INTO x_dns_nodes (nd_name_vc,nd_ip_vc,nd_api_url_vc,nd_api_token_vc,nd_is_self_in,nd_enabled_in,nd_created_ts)
+            VALUES ('$PRIMARY_NAME','$PRIMARY_IP','$PRIMARY_API_URL','$PRIMARY_API_TOKEN',0,1,UNIX_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE nd_ip_vc='$PRIMARY_IP', nd_api_url_vc='$PRIMARY_API_URL', nd_api_token_vc='$PRIMARY_API_TOKEN', nd_enabled_in=1;
+        INSERT INTO x_api_tokens (at_name_vc,at_creator_vc,at_token_hash_vc,at_scope_vc,at_user_fk,at_enabled_in,at_created_ts)
+            VALUES ('cluster-peer','installer','$LOCAL_API_HASH','read',NULL,1,NOW());
+    " 2>/dev/null
+    # 4. Registrar este nodo en el primario (para que esclave nuestras zonas y nos notifique)
+    curl -sk -m15 -X POST -H "Authorization: Bearer $PRIMARY_API_TOKEN" -H "Content-Type: application/json" \
+        -d "{\"name\":\"$PANEL_FQDN\",\"ip\":\"$SERVER_IP\",\"api_url\":\"https://$PANEL_FQDN/bin/api.php\",\"token\":\"$LOCAL_API_TOKEN\"}" \
+        "$PRIMARY_API_URL/v1/cluster/nodes" >/dev/null 2>&1 || warn "No se pudo registrar el nodo en el primario."
+    # 5. Añadir ns2 y el subdominio del panel a la zona del proveedor (vía API del primario)
+    PANEL_SUB=$(printf '%s' "$PANEL_FQDN" | sed "s/\\.${DNS_PROVIDER_DOMAIN}\$//")
+    for REC in "{\"type\":\"A\",\"host\":\"ns2\",\"target\":\"$SERVER_IP\",\"ttl\":172800}" \
+               "{\"type\":\"A\",\"host\":\"$PANEL_SUB\",\"target\":\"$SERVER_IP\",\"ttl\":3600}"; do
+        curl -sk -m15 -X POST -H "Authorization: Bearer $PRIMARY_API_TOKEN" -H "Content-Type: application/json" \
+            -d "$REC" "$PRIMARY_API_URL/v1/domains/$DNS_PROVIDER_DOMAIN/dns/records" >/dev/null 2>&1 || true
+    done
+    ok "Nodo secundario unido al cluster (zona base NO recreada; esclaviza al primario)"
+else
+    # Nodo PRIMARIO: generar la clave TSIG del cluster, registrarse y crear la zona base.
+    _TSIG_OUT=$(tsig-keygen -a hmac-sha256 sentora-cluster 2>/dev/null)
+    _TNAME=$(printf '%s' "$_TSIG_OUT" | grep -oE 'key "[^"]+"' | head -1 | sed 's/key "//;s/"//')
+    _TSECRET=$(printf '%s' "$_TSIG_OUT" | grep -oE 'secret "[^"]+"' | head -1 | sed 's/secret "//;s/"//')
+    $MYSQL sentora_core -e "
+        UPDATE x_settings SET so_value_tx='$_TNAME $_TSECRET' WHERE so_name_vc='dns_tsig_key';
+        INSERT IGNORE INTO x_dns_nodes (nd_name_vc,nd_ip_vc,nd_is_self_in,nd_enabled_in,nd_created_ts)
+            VALUES ('$PANEL_FQDN','$SERVER_IP',1,1,UNIX_TIMESTAMP());
+    " 2>/dev/null
+    # Zona DNS base del dominio proveedor (ns1/ns2, panel, correo). Deja el servidor
+    # autoritativo de su dominio; el panel resuelve y el correo funciona.
+    php "$PANEL_PATH/bin/create_base_zone.php" > "$PANEL_DATA/logs/base-zone-install.log" 2>&1 || true
+    ok "Nodo primario: clave TSIG del cluster generada y zona base creada"
+fi
 
 # Generar la config real de Apache y las zonas DNS ejecutando el daemon una vez: el
 # vhost del panel con SSL (Listen 443, fallback y :443) lo produce apache_admin, y las
