@@ -1174,6 +1174,14 @@ function dnsCreateSubmit() {
         while ($CreateItem = $CreateList->fetch()) {
             $Target = str_replace(':IP:', $targetIP, $CreateItem['dc_target_vc']);
             $Target = str_replace(':DOMAIN:', $domainName, $Target);
+            // Nameservers compartidos del panel (fallback a ns1/ns2.<dominio> si no
+            // se han configurado, para no romper zonas si faltan los ajustes).
+            $ns1 = ctrl_options::GetSystemOption('dns_ns1');
+            $ns2 = ctrl_options::GetSystemOption('dns_ns2');
+            if (fs_director::CheckForEmptyValue($ns1)) { $ns1 = 'ns1.' . $domainName; }
+            if (fs_director::CheckForEmptyValue($ns2)) { $ns2 = 'ns2.' . $domainName; }
+            $Target = str_replace(':NS1:', $ns1, $Target);
+            $Target = str_replace(':NS2:', $ns2, $Target);
 
             $Row = array(
                 'uid' => $userID,

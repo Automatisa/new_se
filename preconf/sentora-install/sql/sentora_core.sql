@@ -188,6 +188,20 @@ CREATE TABLE `x_dns_create` (
   `dc_port_in` int(50) DEFAULT NULL,
   PRIMARY KEY (`dc_id_pk`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+-- Plantilla por defecto de una zona nueva (dc_acc_fk=0). doCreateDefaultRecords()
+-- reemplaza :IP: (server_ip), :DOMAIN: (nombre del dominio), :NS1:/:NS2: (nameservers
+-- compartidos del panel). El registro DKIM (default._domainkey) lo añade el código.
+INSERT INTO `x_dns_create` (`dc_id_pk`, `dc_acc_fk`, `dc_type_vc`, `dc_host_vc`, `dc_ttl_in`, `dc_target_vc`, `dc_priority_in`, `dc_weight_in`, `dc_port_in`) VALUES
+('1', '0', 'NS',    '@',       172800, ':NS1:', NULL, NULL, NULL),
+('2', '0', 'NS',    '@',       172800, ':NS2:', NULL, NULL, NULL),
+('3', '0', 'A',     '@',       3600,   ':IP:', NULL, NULL, NULL),
+('4', '0', 'A',     'www',     3600,   ':IP:', NULL, NULL, NULL),
+('5', '0', 'A',     'mail',    3600,   ':IP:', NULL, NULL, NULL),
+('6', '0', 'MX',    '@',       3600,   'mail.:DOMAIN:', 10, NULL, NULL),
+('7', '0', 'TXT',   '@',       3600,   'v=spf1 a mx ip4::IP: ~all', NULL, NULL, NULL),
+('8', '0', 'TXT',   '_dmarc',  3600,   'v=DMARC1; p=none; rua=mailto:postmaster@:DOMAIN:; fo=1', NULL, NULL, NULL),
+('9', '0', 'CAA',   '@',       3600,   '0 issue "letsencrypt.org"', NULL, NULL, NULL),
+('10','0', 'CAA',   '@',       3600,   '0 issuewild "letsencrypt.org"', NULL, NULL, NULL);
 
 DROP TABLE IF EXISTS `x_dns_dnssec`;
 CREATE TABLE `x_dns_dnssec` (
@@ -775,6 +789,13 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('137', 'antispam_action', 'Antispam Action', 'junk', NULL, 'Acción global por defecto (tag|junk|reject)', 'antispam_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('138', 'antispam_enabled', 'Antispam Enabled', 'true', NULL, 'Activar antispam globalmente', 'antispam_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('139', 'panel_force_https', 'Forzar HTTPS en el panel', 'false', 'true|false', 'Redirige el acceso al panel de HTTP a HTTPS (excluye el challenge ACME de Lets Encrypt). Al guardar, el daemon regenera Apache.', 'Sentora Config', 'true');
+-- Nameservers compartidos del panel (modelo HestiaCP). Los fija el instalador; los
+-- usan las zonas de todos los dominios (NS y SOA). Editables desde Sentora Config.
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('140', 'dns_provider_domain', 'Dominio proveedor (DNS)', '', NULL, 'Dominio autoritativo del servidor (p.ej. tudominio.com) cuya zona base contiene ns1/ns2, panel y correo.', 'Sentora Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('141', 'dns_ns1', 'Nameserver 1', '', NULL, 'Hostname del primer nameserver (p.ej. ns1.tudominio.com). Se usa en NS y SOA de todas las zonas.', 'Sentora Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('142', 'dns_ns2', 'Nameserver 2', '', NULL, 'Hostname del segundo nameserver (p.ej. ns2.tudominio.com).', 'Sentora Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('143', 'dns_ns1_ip', 'IP del nameserver 1', '', NULL, 'IP a la que apunta ns1 (registro A en la zona base). Por defecto la IP del servidor.', 'Sentora Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('144', 'dns_ns2_ip', 'IP del nameserver 2', '', NULL, 'IP a la que apunta ns2 (registro A en la zona base). En multi-servidor, la IP del segundo nodo.', 'Sentora Config', 'true');
 
 TRUNCATE TABLE `x_groups`;
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('1', 'Administrators', 'The main administration group, this group allows access to all areas of Sentora.', '1');

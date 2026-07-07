@@ -72,6 +72,21 @@ printf "Zona horaria (ej: Europe/Madrid) [UTC]: ";    read -r TIMEZONE
 TIMEZONE="${TIMEZONE:-UTC}"
 
 echo ""
+info "Configuración DNS (nameservers compartidos del panel)"
+# Dominio proveedor por defecto = últimos dos segmentos del FQDN (panel.tudominio.com -> tudominio.com)
+_DEF_PROVIDER=$(echo "$PANEL_FQDN" | awk -F. '{if (NF>=2) print $(NF-1)"."$NF; else print $0}')
+printf "Dominio proveedor (zona base autoritativa) [%s]: " "$_DEF_PROVIDER"; read -r DNS_PROVIDER_DOMAIN
+DNS_PROVIDER_DOMAIN="${DNS_PROVIDER_DOMAIN:-$_DEF_PROVIDER}"
+printf "Nameserver 1 [ns1.%s]: " "$DNS_PROVIDER_DOMAIN"; read -r DNS_NS1
+DNS_NS1="${DNS_NS1:-ns1.$DNS_PROVIDER_DOMAIN}"
+printf "Nameserver 2 [ns2.%s]: " "$DNS_PROVIDER_DOMAIN"; read -r DNS_NS2
+DNS_NS2="${DNS_NS2:-ns2.$DNS_PROVIDER_DOMAIN}"
+printf "IP de ns1 [%s]: " "$SERVER_IP"; read -r DNS_NS1_IP
+DNS_NS1_IP="${DNS_NS1_IP:-$SERVER_IP}"
+printf "IP de ns2 [%s]: " "$SERVER_IP"; read -r DNS_NS2_IP
+DNS_NS2_IP="${DNS_NS2_IP:-$SERVER_IP}"
+
+echo ""
 info "Contraseña del administrador del panel (zadmin)"
 printf "Contraseña zadmin: "; stty -echo; read -r ZADMIN_PASSWORD; stty echo; echo
 printf "Confirmar:         "; stty -echo; read -r ZADMIN_PASSWORD2; stty echo; echo
@@ -389,28 +404,17 @@ UPDATE x_settings SET so_value_tx='postfix.php'     WHERE so_name_vc='mailserver
 UPDATE x_settings SET so_value_tx='sentora_postfix' WHERE so_name_vc='mailserver_db';
 UPDATE x_settings SET so_value_tx='$PANEL_FQDN'     WHERE so_name_vc='sentora_domain';
 UPDATE x_settings SET so_value_tx='604800'           WHERE so_name_vc='expire_ttl';
+UPDATE x_settings SET so_value_tx='$DNS_PROVIDER_DOMAIN' WHERE so_name_vc='dns_provider_domain';
+UPDATE x_settings SET so_value_tx='$DNS_NS1'            WHERE so_name_vc='dns_ns1';
+UPDATE x_settings SET so_value_tx='$DNS_NS2'            WHERE so_name_vc='dns_ns2';
+UPDATE x_settings SET so_value_tx='$DNS_NS1_IP'         WHERE so_name_vc='dns_ns1_ip';
+UPDATE x_settings SET so_value_tx='$DNS_NS2_IP'         WHERE so_name_vc='dns_ns2_ip';
+UPDATE x_settings SET so_value_tx='$SERVER_IP'          WHERE so_name_vc='server_ip';
 "
 
-# Corregir registros DNS por defecto (x_dns_create):
-#   - Eliminar tipo SPF obsoleto (RFC 7208, 2014)
-#   - Corregir política SPF: ?all → ~all y quitar mecanismo mx: redundante
-#   - Reducir TTL del registro A de mail (28 días → 1 hora)
-#   - Añadir DMARC y CAA como registros por defecto
-$MYSQL sentora_core -e "
-DELETE FROM x_dns_create WHERE dc_id_pk = 10;
-UPDATE x_dns_create SET
-    dc_ttl_in   = 3600,
-    dc_target_vc = 'v=spf1 a mx ip4::IP: ~all'
-  WHERE dc_id_pk = 11;
-UPDATE x_dns_create SET dc_ttl_in = 3600 WHERE dc_id_pk = 4;
-INSERT IGNORE INTO x_dns_create (dc_acc_fk, dc_type_vc, dc_host_vc, dc_ttl_in, dc_target_vc)
-  VALUES (0, 'TXT', '_dmarc', 3600, 'v=DMARC1; p=none; rua=mailto:postmaster@:DOMAIN:; fo=1');
-INSERT IGNORE INTO x_dns_create (dc_acc_fk, dc_type_vc, dc_host_vc, dc_ttl_in, dc_target_vc)
-  VALUES (0, 'CAA', '@', 3600, '0 issue \"letsencrypt.org\"');
-INSERT IGNORE INTO x_dns_create (dc_acc_fk, dc_type_vc, dc_host_vc, dc_ttl_in, dc_target_vc)
-  VALUES (0, 'CAA', '@', 3600, '0 issuewild \"letsencrypt.org\"');
-"
-ok "x_settings y x_dns_create configurados"
+# La plantilla de zona por defecto (x_dns_create, con :NS1:/:NS2:/:IP:/:DOMAIN:) ya
+# viene completa en sentora_core.sql; aquí no se toca.
+ok "x_settings configurados"
 
 # db.php del panel
 mkdir -p "$PANEL_PATH/cnf"
@@ -1735,14 +1739,20 @@ service syslogd restart 2>/dev/null || true
 service apache24 restart 2>/dev/null || service apache24 start
 service php_fpm restart 2>/dev/null || service php_fpm start
 
-# Generar la config real de Apache ejecutando el daemon una vez: el vhost del panel
-# con SSL (Listen 443, fallback y :443) lo produce apache_admin/OnDaemonRun, pero
-# solo cuando apache_changed='true'. Sin esto, hasta el primer cron (5 min) solo
-# estaria el :80 y Sencrypt avisaria "Port 443 CLOSED".
+# Crear la zona DNS base del dominio proveedor (nameservers compartidos ns1/ns2,
+# panel, correo). Deja el servidor autoritativo de su dominio y permite que el panel
+# resuelva y el correo funcione. Marca apache_changed y dns_hasupdates.
+php "$PANEL_PATH/bin/create_base_zone.php" > "$PANEL_DATA/logs/base-zone-install.log" 2>&1 || true
+
+# Generar la config real de Apache y las zonas DNS ejecutando el daemon una vez: el
+# vhost del panel con SSL (Listen 443, fallback y :443) lo produce apache_admin, y las
+# zonas de BIND las escribe dns_manager, pero solo cuando apache_changed/dns_hasupdates
+# = 'true'. Sin esto, hasta el primer cron (5 min) solo estaria el :80 y sin zonas DNS.
 mysql -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASS" sentora_core \
     -e "UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='apache_changed';" 2>/dev/null
 php "$PANEL_PATH/bin/daemon.php" > "$PANEL_DATA/logs/daemon-install.log" 2>&1 || true
 service apache24 reload 2>/dev/null || true
+service named reload 2>/dev/null || service named restart 2>/dev/null || true
 
 ok "Servicios iniciados"
 

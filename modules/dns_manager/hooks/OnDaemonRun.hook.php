@@ -204,9 +204,14 @@ function WriteDNSZoneRecordsHook()
 
         $zone_file = ctrl_options::GetSystemOption('zone_dir') . $DomainName . ".txt";
 
+        // Nameserver primario del SOA: nameserver compartido del panel (dns_ns1);
+        // si no está configurado, se mantiene el vanity ns1.<dominio> como fallback.
+        $soaNs = ctrl_options::GetSystemOption('dns_ns1');
+        if (fs_director::CheckForEmptyValue($soaNs)) { $soaNs = 'ns1.' . $DomainName; }
+
         // $TTL uses single-quote to avoid PHP interpreting $TTL as variable
         $line  = '$TTL 10800' . fs_filehandler::NewLine();
-        $line .= "@ IN SOA ns1.$DomainName.    postmaster.$DomainName. (" . fs_filehandler::NewLine();
+        $line .= "@ IN SOA $soaNs.    postmaster.$DomainName. (" . fs_filehandler::NewLine();
         $line .= "    $SoaSerial  ;serial" . fs_filehandler::NewLine();
         $line .= "    " . ctrl_options::GetSystemOption('refresh_ttl') . "    ;refresh" . fs_filehandler::NewLine();
         $line .= "    " . ctrl_options::GetSystemOption('retry_ttl')   . "    ;retry" . fs_filehandler::NewLine();

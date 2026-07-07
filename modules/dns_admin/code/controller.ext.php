@@ -1023,7 +1023,9 @@ class module_controller extends ctrl_module
                                                             NULL,
                                                             :time)");
         $sql->bindParam(':userID', $userID);
-        $Domain = 'ns1.' . $domainName['vh_name_vc'];
+        // NS compartido del panel (fallback vanity ns1.<dominio> si no está configurado)
+        $ns1Cfg = ctrl_options::GetSystemOption('dns_ns1');
+        $Domain = !fs_director::CheckForEmptyValue($ns1Cfg) ? $ns1Cfg : ('ns1.' . $domainName['vh_name_vc']);
         $sql->bindParam(':vh_name_vc', $Domain);
         $sql->bindParam(':domainID', $domainID);
         $time = time();
@@ -1053,7 +1055,8 @@ class module_controller extends ctrl_module
                                                             NULL,
                                                             :time)");
         $sql->bindParam(':userID', $userID);
-        $Domain = 'ns2.' . $domainName['vh_name_vc'];
+        $ns2Cfg = ctrl_options::GetSystemOption('dns_ns2');
+        $Domain = !fs_director::CheckForEmptyValue($ns2Cfg) ? $ns2Cfg : ('ns2.' . $domainName['vh_name_vc']);
         $sql->bindParam(':ns2', $Domain);
         $sql->bindParam(':domainID', $domainID);
         $time = time();
