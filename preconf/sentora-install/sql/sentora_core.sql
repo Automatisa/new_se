@@ -215,6 +215,33 @@ CREATE TABLE `x_dns_dnssec` (
   UNIQUE KEY `uq_dd_vhost` (`dd_vhost_fk`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Cluster DNS (Fase 2): nodos del cluster. El nodo local es nd_is_self_in=1.
+DROP TABLE IF EXISTS `x_dns_nodes`;
+CREATE TABLE `x_dns_nodes` (
+  `nd_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `nd_name_vc` varchar(255) NOT NULL COMMENT 'hostname del nodo, p.ej. panel2.dominio.com',
+  `nd_ip_vc` varchar(45) NOT NULL COMMENT 'IP del nodo (para AXFR/notify)',
+  `nd_api_url_vc` varchar(255) DEFAULT NULL COMMENT 'base URL de su API, p.ej. https://panel2.dominio.com/bin/api.php',
+  `nd_api_token_vc` varchar(128) DEFAULT NULL COMMENT 'token Bearer para llamar a su API (scope read)',
+  `nd_is_self_in` tinyint(1) NOT NULL DEFAULT 0,
+  `nd_enabled_in` tinyint(1) NOT NULL DEFAULT 1,
+  `nd_last_sync_ts` int(11) DEFAULT NULL,
+  `nd_created_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`nd_id_pk`),
+  UNIQUE KEY `uq_node_name` (`nd_name_vc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- Cluster DNS: zonas que sirve cada peer como primary (para declararlas secondary aquí).
+DROP TABLE IF EXISTS `x_dns_remote_zones`;
+CREATE TABLE `x_dns_remote_zones` (
+  `rz_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `rz_node_fk` int(11) NOT NULL COMMENT 'FK a x_dns_nodes (el peer que es primary de esta zona)',
+  `rz_domain_vc` varchar(255) NOT NULL,
+  `rz_seen_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`rz_id_pk`),
+  UNIQUE KEY `uq_node_domain` (`rz_node_fk`, `rz_domain_vc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 DROP TABLE IF EXISTS `x_domain_php`;
 CREATE TABLE `x_domain_php` (
   `dp_id_pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -796,6 +823,9 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('142', 'dns_ns2', 'Nameserver 2', '', NULL, 'Hostname del segundo nameserver (p.ej. ns2.tudominio.com).', 'Sentora Config', 'true');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('143', 'dns_ns1_ip', 'IP del nameserver 1', '', NULL, 'IP a la que apunta ns1 (registro A en la zona base). Por defecto la IP del servidor.', 'Sentora Config', 'true');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('144', 'dns_ns2_ip', 'IP del nameserver 2', '', NULL, 'IP a la que apunta ns2 (registro A en la zona base). En multi-servidor, la IP del segundo nodo.', 'Sentora Config', 'true');
+-- Cluster DNS (Fase 2): clave TSIG compartida del cluster (formato "nombre secreto_base64").
+-- La genera el instalador (tsig-keygen). Se usa en allow-transfer/masters entre nodos.
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('145', 'dns_tsig_key', 'Clave TSIG del cluster DNS', '', NULL, 'Clave compartida hmac-sha256 para AXFR entre nodos (nombre y secreto). No compartir fuera del cluster.', 'Sentora Config', 'false');
 
 TRUNCATE TABLE `x_groups`;
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('1', 'Administrators', 'The main administration group, this group allows access to all areas of Sentora.', '1');

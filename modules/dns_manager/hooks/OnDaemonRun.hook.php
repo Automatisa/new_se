@@ -326,14 +326,52 @@ function WriteDNSNamedHook()
 
     echo "Updating $internal_file + $external_file" . fs_filehandler::NewLine();
 
-    $lineInternal = '';
-    $lineExternal = '';
+    // ── Cluster DNS (Fase 2): clave TSIG + peers (allow-transfer / also-notify / secondary) ──
+    $tsig = ctrl_options::GetSystemOption('dns_tsig_key'); // "nombre secreto_base64"
+    $tsigName = ''; $tsigSecret = '';
+    if (!fs_director::CheckForEmptyValue($tsig)) {
+        $parts = preg_split('/\s+/', trim($tsig), 2);
+        $tsigName   = $parts[0];
+        $tsigSecret = isset($parts[1]) ? $parts[1] : '';
+    }
+    $peers = [];
+    if ($pst = $zdbh->query("SELECT nd_ip_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")) {
+        while ($p = $pst->fetch()) { if (!empty($p['nd_ip_vc'])) { $peers[] = $p['nd_ip_vc']; } }
+    }
+    $keyClause = ($tsigName !== '') ? ' key "' . $tsigName . '"' : '';
+
+    // Contenido de allow-transfer. En BIND una address-match-list NO admite "IP key x"
+    // combinado: se restringe por la clave TSIG (el secondary firma su AXFR con ella).
+    // Sin TSIG, se listan las IPs de los peers; sin peers, el allow_xfer configurado.
+    if ($peers && $tsigName !== '') {
+        $xferInner   = 'key "' . $tsigName . '";';
+        $notifyInner = implode('; ', $peers) . ';';
+    } elseif ($peers) {
+        $xferInner   = implode('; ', $peers) . ';';
+        $notifyInner = implode('; ', $peers) . ';';
+    } else {
+        $xferInner   = ctrl_options::GetSystemOption('allow_xfer') . ';';
+        $notifyInner = '';
+    }
+
+    // Declaración de la clave TSIG al principio de ambas vistas
+    $keyBlock = '';
+    if ($tsigName !== '' && $tsigSecret !== '') {
+        $keyBlock  = 'key "' . $tsigName . '" {' . fs_filehandler::NewLine();
+        $keyBlock .= "\talgorithm hmac-sha256;" . fs_filehandler::NewLine();
+        $keyBlock .= "\tsecret \"$tsigSecret\";" . fs_filehandler::NewLine();
+        $keyBlock .= '};' . fs_filehandler::NewLine() . fs_filehandler::NewLine();
+    }
+
+    $lineInternal = $keyBlock;
+    $lineExternal = $keyBlock;
+
+    $localNames = array_map(function ($e) { return $e['name']; }, $domains);
 
     foreach ($domains as $entry) {
         $domain   = $entry['name'];
         $dnssec   = $entry['dnssec'];
         $zoneFile = ctrl_options::GetSystemOption('zone_dir') . $domain . ".txt";
-        $xfer     = ctrl_options::GetSystemOption('allow_xfer');
         echo "CHECKING ZONE FILE: $zoneFile..." . fs_filehandler::NewLine();
 
         $retval = ctrl_system::systemCommand(
@@ -348,7 +386,10 @@ function WriteDNSNamedHook()
             $lineExternal .= "zone \"$domain\" IN {" . fs_filehandler::NewLine();
             $lineExternal .= "\ttype primary;" . fs_filehandler::NewLine();
             $lineExternal .= "\tfile \"$zoneFile\";" . fs_filehandler::NewLine();
-            $lineExternal .= "\tallow-transfer { $xfer; };" . fs_filehandler::NewLine();
+            $lineExternal .= "\tallow-transfer { $xferInner };" . fs_filehandler::NewLine();
+            if ($notifyInner !== '') {
+                $lineExternal .= "\talso-notify { $notifyInner };" . fs_filehandler::NewLine();
+            }
             if ($dnssec) {
                 $keyDir = '/var/sentora/named/keys/' . $domain;
                 if (!is_dir($keyDir)) {
@@ -369,11 +410,39 @@ function WriteDNSNamedHook()
                 $lineInternal .= "zone \"$domain\" IN {" . fs_filehandler::NewLine();
                 $lineInternal .= "\ttype primary;" . fs_filehandler::NewLine();
                 $lineInternal .= "\tfile \"$zoneFile\";" . fs_filehandler::NewLine();
-                $lineInternal .= "\tallow-transfer { $xfer; };" . fs_filehandler::NewLine();
+                $lineInternal .= "\tallow-transfer { $xferInner };" . fs_filehandler::NewLine();
+                if ($notifyInner !== '') {
+                    $lineInternal .= "\talso-notify { $notifyInner };" . fs_filehandler::NewLine();
+                }
                 $lineInternal .= "};" . fs_filehandler::NewLine();
             }
         } else {
             echo "Syntax ERROR. Skipping $domain." . fs_filehandler::NewLine();
+        }
+    }
+
+    // ── Zonas remotas: secondary (AXFR) desde los peers que las sirven como primary ──
+    $slaveDir = rtrim(ctrl_options::GetSystemOption('zone_dir'), '/') . '/slave/';
+    if (!is_dir($slaveDir)) {
+        @mkdir($slaveDir, 0770, true);
+        @chown($slaveDir, 'bind'); @chgrp($slaveDir, 'bind');
+    }
+    if ($rz = $zdbh->query("SELECT n.nd_ip_vc, z.rz_domain_vc
+                            FROM x_dns_remote_zones z
+                            JOIN x_dns_nodes n ON n.nd_id_pk = z.rz_node_fk
+                            WHERE n.nd_enabled_in = 1 AND n.nd_is_self_in = 0")) {
+        while ($row = $rz->fetch()) {
+            $rdom = $row['rz_domain_vc'];
+            $mip  = $row['nd_ip_vc'];
+            // No declarar como secondary una zona que ya servimos como primary (local)
+            if (in_array($rdom, $localNames, true)) { continue; }
+            $blk  = "zone \"$rdom\" IN {" . fs_filehandler::NewLine();
+            $blk .= "\ttype secondary;" . fs_filehandler::NewLine();
+            $blk .= "\tmasters { $mip$keyClause; };" . fs_filehandler::NewLine();
+            $blk .= "\tfile \"" . $slaveDir . $rdom . ".txt\";" . fs_filehandler::NewLine();
+            $blk .= "};" . fs_filehandler::NewLine();
+            $lineInternal .= $blk;
+            $lineExternal .= $blk;
         }
     }
 
