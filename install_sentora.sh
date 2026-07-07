@@ -1323,7 +1323,8 @@ for modspec in \
     "rewrite_module libexec/apache24/mod_rewrite.so" \
     "ssl_module libexec/apache24/mod_ssl.so" \
     "proxy_module libexec/apache24/mod_proxy.so" \
-    "proxy_fcgi_module libexec/apache24/mod_proxy_fcgi.so"
+    "proxy_fcgi_module libexec/apache24/mod_proxy_fcgi.so" \
+    "deflate_module libexec/apache24/mod_deflate.so"
 do
     modname=$(echo "$modspec" | cut -d' ' -f1)
     modpath=$(echo "$modspec" | cut -d' ' -f2)
