@@ -104,6 +104,10 @@ CREATE TABLE `x_autoip` (
   `ai_lastupdate_ts` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`ai_id_pk`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+-- Fila semilla (id 1): sin ella ListAutoIPSettings() devuelve vacío y el módulo
+-- AutoIP oculta el formulario (Server IP + Sync DNS + Sync Vhost).
+INSERT INTO `x_autoip` (`ai_id_pk`, `ai_script_vc`, `ai_email_vc`, `ai_command_vc`, `ai_newip_vc`, `ai_oldip_vc`, `ai_enabled_in`, `ai_lastupdate_ts`) VALUES
+('1', NULL, NULL, NULL, NULL, NULL, '0', NULL);
 
 DROP TABLE IF EXISTS `x_bandwidth`;
 CREATE TABLE `x_bandwidth` (
