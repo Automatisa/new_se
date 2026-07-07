@@ -13,6 +13,13 @@ if (ui_module::CheckModuleEnabled('DNS Config')) {
     // Always try to extract DS records — BIND generates keys asynchronously
     ExtractDSRecordsHook();
 
+    // Cluster DNS (Fase 2): sincronizar la lista de zonas de los peers; si cambia,
+    // marca dns_hasupdates para regenerar named.conf con los bloques `type secondary`.
+    if (!class_exists('dns_cluster')) {
+        require_once '/usr/local/sentora/dryden/sys/dns_cluster.class.php';
+    }
+    dns_cluster::SyncRemoteZones();
+
     if (!fs_director::CheckForEmptyValue(ctrl_options::GetSystemOption('dns_hasupdates'))) {
         echo "DNS Records have changed... Writing new/updated records..." . fs_filehandler::NewLine();
         WriteDNSZoneRecordsHook();
