@@ -157,7 +157,7 @@ pkg install -y apache24 \
     php84 php84-mysqli php84-gd php84-curl \
     php84-mbstring php84-xml php84-zip php84-intl php84-opcache \
     php84-session php84-filter php84-pdo php84-pdo_mysql php84-posix \
-    php84-dom php84-iconv
+    php84-dom php84-iconv php84-pecl-redis
 
 # BIND
 pkg install -y bind920
