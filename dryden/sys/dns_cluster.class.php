@@ -20,12 +20,21 @@ class dns_cluster
         global $zdbh;
         $changed = false;
 
+        // El cluster tiene su propio interruptor, independiente de la API de usuarios.
+        if (ctrl_options::GetSystemOption('dns_cluster_enabled') !== 'true') {
+            return false;
+        }
+        $token = (string)ctrl_options::GetSystemOption('dns_cluster_token');
+        if ($token === '') {
+            return false;
+        }
+
         $peers = $zdbh->query("SELECT * FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")->fetchAll();
         foreach ($peers as $peer) {
-            if (empty($peer['nd_api_url_vc']) || empty($peer['nd_api_token_vc'])) {
+            if (empty($peer['nd_api_url_vc'])) {
                 continue;
             }
-            $domains = self::fetchPeerDomains($peer['nd_api_url_vc'], $peer['nd_api_token_vc']);
+            $domains = self::fetchPeerZones($peer['nd_api_url_vc'], $token);
             if ($domains === null) {
                 error_log('dns_cluster: sin respuesta del peer ' . $peer['nd_name_vc']);
                 continue;
@@ -58,14 +67,15 @@ class dns_cluster
     }
 
     /**
-     * Lista de dominios (primary) que sirve un peer vía su API, o null si error.
+     * Lista de zonas (primary) que sirve un peer vía la API dedicada del cluster
+     * (GET /v1/cluster/zones, autenticada con el token compartido), o null si error.
      */
-    static function fetchPeerDomains($apiUrl, $token)
+    static function fetchPeerZones($apiUrl, $token)
     {
         if (!function_exists('curl_init')) {
             return null;
         }
-        $url = rtrim($apiUrl, '/') . '/v1/domains?per_page=1000';
+        $url = rtrim($apiUrl, '/') . '/v1/cluster/zones';
         $ch  = curl_init($url);
         curl_setopt_array($ch, array(
             CURLOPT_RETURNTRANSFER => true,
@@ -84,13 +94,13 @@ class dns_cluster
             return null;
         }
         $json = json_decode($body, true);
-        if (!is_array($json) || !isset($json['data']) || !is_array($json['data'])) {
+        if (!is_array($json) || !isset($json['zones']) || !is_array($json['zones'])) {
             return null;
         }
         $out = array();
-        foreach ($json['data'] as $row) {
-            if (!empty($row['domain'])) {
-                $out[] = strtolower($row['domain']);
+        foreach ($json['zones'] as $z) {
+            if (!empty($z)) {
+                $out[] = strtolower($z);
             }
         }
         return $out;

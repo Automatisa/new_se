@@ -39,6 +39,33 @@ function get_auth_header(): string
     return '';
 }
 
+// Autenticación DEDICADA del cluster DNS, independiente de los tokens de usuario y
+// del kill-switch de la API de usuarios: exige el flag dns_cluster_enabled, el token
+// COMPARTIDO del cluster (dns_cluster_token) y, opcionalmente, que la IP de origen sea
+// un nodo peer registrado. Así, desactivar la API de usuarios NO aísla el DNS.
+function cluster_auth(bool $requirePeerIp = true): void
+{
+    global $zdbh;
+    if (ctrl_options::GetSystemOption('dns_cluster_enabled') !== 'true') {
+        api_respond(403, ['error' => 'Forbidden', 'message' => 'El cluster DNS está desactivado en este nodo.', 'code' => 403]);
+    }
+    $expected = (string)ctrl_options::GetSystemOption('dns_cluster_token');
+    $presented = '';
+    if (preg_match('/^Bearer\s+(\S+)$/i', get_auth_header(), $mm)) { $presented = $mm[1]; }
+    if ($expected === '' || !hash_equals($expected, $presented)) {
+        header('WWW-Authenticate: Bearer realm="Sentora Cluster"');
+        api_respond(401, ['error' => 'Unauthorized', 'message' => 'Token de cluster ausente o inválido.', 'code' => 401]);
+    }
+    if ($requirePeerIp) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $st = $zdbh->prepare("SELECT COUNT(*) FROM x_dns_nodes WHERE nd_ip_vc=:ip AND nd_is_self_in=0 AND nd_enabled_in=1");
+        $st->execute([':ip' => $ip]);
+        if ((int)$st->fetchColumn() === 0) {
+            api_respond(403, ['error' => 'Forbidden', 'message' => 'La IP de origen no es un nodo del cluster.', 'code' => 403]);
+        }
+    }
+}
+
 // Scope levels: read < write < reseller < admin
 function require_scope(string $required): void
 {
@@ -303,6 +330,69 @@ register_shutdown_function(function () use (&$al_token_id, &$al_resource, $metho
         ]);
     } catch (Throwable $e) { /* el log nunca rompe la respuesta */ }
 });
+
+// ── Cluster DNS: API dedicada, ANTES del auth de usuario. Auth propia (cluster_auth)
+// e independiente del kill-switch de la API de usuarios: desactivar la API de usuarios
+// no aísla el DNS. Rutas: GET /cluster/zones, GET /cluster/tsig, POST /cluster/nodes.
+if ($resource === 'cluster') {
+    if ($method === 'GET' && $res_id === 'zones') {
+        cluster_auth(true);
+        $rows = $zdbh->query("SELECT vh_name_vc FROM x_vhosts WHERE vh_type_in=1 AND vh_deleted_ts IS NULL ORDER BY vh_name_vc")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+        api_respond(200, ['zones' => array_values(array_map('strtolower', $rows))]);
+    }
+    if ($method === 'GET' && $res_id === 'tsig') {
+        cluster_auth(false);
+        api_respond(200, ['tsig' => ctrl_options::GetSystemOption('dns_tsig_key')]);
+    }
+    if ($method === 'POST' && $res_id === 'nodes') {
+        cluster_auth(false);
+        $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name      = strtolower(trim($body['name'] ?? ''));
+        $ip        = trim($body['ip'] ?? '');
+        $apiu      = trim($body['api_url'] ?? '');
+        $panelHost = strtolower(trim($body['panel_host'] ?? ''));
+        $nsHost    = strtolower(trim($body['ns_host'] ?? ''));
+        if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            api_respond(422, ['error' => 'Unprocessable Entity', 'message' => 'name e ip válidos son obligatorios.', 'code' => 422]);
+        }
+        $zdbh->prepare(
+            "INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
+             VALUES (:n, :i, :u, 0, 1, :ts)
+             ON DUPLICATE KEY UPDATE nd_ip_vc=:i2, nd_api_url_vc=:u2, nd_enabled_in=1"
+        )->execute([':n' => $name, ':i' => $ip, ':u' => ($apiu ?: null), ':ts' => time(), ':i2' => $ip, ':u2' => ($apiu ?: null)]);
+
+        // Añadir a la zona del proveedor los A del nuevo nodo (ns y panel), si procede
+        $provider = strtolower((string)ctrl_options::GetSystemOption('dns_provider_domain'));
+        $added = [];
+        if ($provider !== '') {
+            $pv = $zdbh->prepare("SELECT vh_id_pk, vh_acc_fk FROM x_vhosts WHERE vh_name_vc=:d AND vh_deleted_ts IS NULL LIMIT 1");
+            $pv->execute([':d' => $provider]);
+            if ($prow = $pv->fetch()) {
+                $vid = (int)$prow['vh_id_pk']; $uid = (int)$prow['vh_acc_fk'];
+                $suffix = '.' . $provider;
+                $strip = function ($fqdn) use ($suffix) {
+                    return (strlen($fqdn) > strlen($suffix) && substr($fqdn, -strlen($suffix)) === $suffix)
+                        ? substr($fqdn, 0, -strlen($suffix)) : '';
+                };
+                foreach ([[$strip($nsHost), 172800], [$strip($panelHost), 3600]] as $rec) {
+                    $host = $rec[0]; $ttl = $rec[1];
+                    if ($host === '') { continue; }
+                    $ex = $zdbh->prepare("SELECT COUNT(*) FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='A' AND dn_host_vc=:h AND dn_deleted_ts IS NULL");
+                    $ex->execute([':v' => $vid, ':h' => $host]);
+                    if ((int)$ex->fetchColumn() > 0) { continue; }
+                    $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts)
+                                    VALUES (:u,:name,:v,'A',:h,:ttl,:ip,:ts)")
+                         ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':h' => $host, ':ttl' => $ttl, ':ip' => $ip, ':ts' => time()]);
+                    $added[] = $host;
+                }
+                if ($added) { $zdbh->exec("UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='dns_hasupdates'"); }
+            }
+        }
+        api_respond(201, ['message' => 'Nodo registrado en el cluster.', 'node' => $name, 'records_added' => $added]);
+    }
+    api_respond(404, ['error' => 'Not Found', 'message' => 'Ruta de cluster no encontrada.', 'code' => 404]);
+}
 
 // ── 4. Autenticación Bearer ───────────────────────────────────────────────────
 
@@ -1365,36 +1455,6 @@ if ($method === 'DELETE' && $resource === 'domains' && $res_id && $sub === 'dns'
 //   POST /v1/system/daemon/run         → forzar regeneración vhosts
 //   POST /v1/system/reload/{service}   → recarga apache|phpfpm (cooldown 5 min, máx 3/día)
 //   GET  /v1/system/logs/{service}     → últimas N líneas de log
-
-// ── Cluster DNS (Fase 2) ──────────────────────────────────────────────────────
-//   GET  /v1/cluster/tsig   → clave TSIG del cluster (para que un nodo se una)
-//   POST /v1/cluster/nodes  → registrar un nodo peer en este servidor
-if ($method === 'GET' && $resource === 'cluster' && $res_id === 'tsig') {
-    require_scope('admin');
-    api_respond(200, ['tsig' => ctrl_options::GetSystemOption('dns_tsig_key')]);
-}
-
-if ($method === 'POST' && $resource === 'cluster' && $res_id === 'nodes') {
-    require_scope('admin');
-    $body  = json_decode(file_get_contents('php://input'), true) ?? [];
-    $name  = strtolower(trim($body['name'] ?? ''));
-    $ip    = trim($body['ip'] ?? '');
-    $apiu  = trim($body['api_url'] ?? '');
-    $token = trim($body['token'] ?? '');
-    if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
-        api_respond(422, ['error' => 'Unprocessable Entity', 'message' => 'name e ip válidos son obligatorios.', 'code' => 422]);
-    }
-    $ins = $zdbh->prepare(
-        "INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_api_token_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
-         VALUES (:n, :i, :u, :t, 0, 1, :ts)
-         ON DUPLICATE KEY UPDATE nd_ip_vc=:i2, nd_api_url_vc=:u2, nd_api_token_vc=:t2, nd_enabled_in=1"
-    );
-    $ins->execute([
-        ':n' => $name, ':i' => $ip, ':u' => ($apiu ?: null), ':t' => ($token ?: null), ':ts' => time(),
-        ':i2' => $ip, ':u2' => ($apiu ?: null), ':t2' => ($token ?: null),
-    ]);
-    api_respond(201, ['message' => 'Nodo registrado en el cluster.', 'node' => $name]);
-}
 
 if ($resource === 'system') {
     require_scope('admin');
