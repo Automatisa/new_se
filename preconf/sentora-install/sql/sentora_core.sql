@@ -390,8 +390,24 @@ CREATE TABLE `x_mailboxes` (
   `mb_enabled_in` int(1) DEFAULT 1,
   `mb_created_ts` int(30) DEFAULT NULL,
   `mb_deleted_ts` int(30) DEFAULT NULL,
+  `mb_antispam_in` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=antispam activo, 0=desactivado',
+  `mb_spam_score` decimal(4,1) DEFAULT NULL COMMENT 'Umbral personal de spam (NULL=usar global)',
+  `mb_spam_action` varchar(10) DEFAULT NULL COMMENT 'tag|junk|reject|NULL (NULL=usar global)',
   PRIMARY KEY (`mb_id_pk`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- Listas blancas/negras antispam por buzón (módulo antispam)
+DROP TABLE IF EXISTS `x_antispam_lists`;
+CREATE TABLE `x_antispam_lists` (
+  `al_id_pk` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `al_mailbox_fk` int(10) unsigned NOT NULL,
+  `al_address_vc` varchar(255) NOT NULL,
+  `al_type_vc` enum('white','black') NOT NULL DEFAULT 'white',
+  `al_created_ts` int(30) unsigned DEFAULT NULL,
+  PRIMARY KEY (`al_id_pk`),
+  KEY `al_mailbox_fk` (`al_mailbox_fk`),
+  UNIQUE KEY `al_mailbox_address` (`al_mailbox_fk`, `al_address_vc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_modcats`;
 CREATE TABLE `x_modcats` (
@@ -615,6 +631,12 @@ INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('52', '2', 'API Manager', '100', 'api_manager', 'user', 'Gestiona los tokens de acceso a la API REST y activa o desactiva la API.', '1782474766', 'true', NULL, NULL);
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('53', '2', 'System Logs', '100', 'system_log', 'user', 'View, filter and manage internal Sentora system logs. Configure retention period, purge and export as CSV.', NULL, 'true', NULL, NULL);
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('54', '2', 'Firewall Admin', '103', 'fw_admin', 'user', 'Gestión de cortafuegos pf y SSHGuard. Bloqueo de IPs (IPv4/IPv6/CIDR), lista blanca y bans automáticos.', '1782745660', 'true', NULL, NULL);
+-- Módulos de correo/antivirus: se registran aquí (el instalador no ejecuta los install.sql de módulo)
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('55', '6', 'Antispam', '100', 'antispam', 'user', 'Gestiona el filtrado de spam por buzón (listas blancas/negras y umbral).', '1782745660', 'true', NULL, NULL);
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('56', '6', 'Antispam Admin', '100', 'antispam_admin', 'modadmin', 'Administración global de antispam (rspamd): umbral, acción y ajustes.', '1782745660', 'true', NULL, NULL);
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('57', '6', 'ClamAV Admin', '100', 'clamav_admin', 'modadmin', 'ClamAV antivirus: protección email, escaneo de buzones y actualización de firmas.', '1782745660', 'true', NULL, NULL);
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('58', '6', 'Antivirus', '100', 'clamav_user', 'user', 'Analiza tus buzones de correo en busca de virus con ClamAV.', '1782745660', 'true', NULL, NULL);
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('59', '2', 'Hosting Users', '100', 'hosting_users', 'system', 'Módulo de sistema: gestiona los usuarios de hosting mediante hooks (crear/borrar cliente, daemon).', '1782745660', 'true', NULL, NULL);
 
 TRUNCATE TABLE `x_settings`;
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('6', 'dbversion', 'Sentora version', '2.1.0', NULL, 'Database Version', 'Sentora Config', 'false');
@@ -723,6 +745,9 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('133', 'fw_status_json_path', 'Status JSON', '/var/sentora/logs/fw_status.json', NULL, 'Ruta JSON estado cortafuegos', 'fw_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('134', 'fw_login_max', 'Login Max Attempts', '5', NULL, 'Intentos de login fallidos antes de bloquear la IP', 'fw_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('135', 'fw_login_window', 'Login Window (s)', '600', NULL, 'Ventana de tiempo en segundos para contar intentos fallidos', 'fw_admin', 'false');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('136', 'antispam_score', 'Antispam Score', '6.0', NULL, 'Umbral global de puntuación de spam', 'antispam_admin', 'false');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('137', 'antispam_action', 'Antispam Action', 'junk', NULL, 'Acción global por defecto (tag|junk|reject)', 'antispam_admin', 'false');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('138', 'antispam_enabled', 'Antispam Enabled', 'true', NULL, 'Activar antispam globalmente', 'antispam_admin', 'false');
 
 TRUNCATE TABLE `x_groups`;
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('1', 'Administrators', 'The main administration group, this group allows access to all areas of Sentora.', '1');
@@ -754,7 +779,7 @@ INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
     'mailboxes','forwarders','aliases','distlists','ftp_management',
     'mysql_databases','mysql_users','protected_directories','cron','backupmgr',
     'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
-    'sencrypt','dns_manager','user_logviewer');
+    'sencrypt','dns_manager','user_logviewer','antispam','clamav_user');
 -- Resellers (grupo 2): lo de usuario + gestión de clientes/paquetes/grupos.
 INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
   SELECT '2', `mo_id_pk` FROM `x_modules` WHERE `mo_folder_vc` IN (
@@ -763,6 +788,7 @@ INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
     'mysql_databases','mysql_users','protected_directories','cron','backupmgr',
     'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
     'sencrypt','dns_manager','user_logviewer',
+    'antispam','clamav_user',
     'manage_clients','packages','shadowing','client_notices','manage_groups');
 
 TRUNCATE TABLE `x_quotas`;

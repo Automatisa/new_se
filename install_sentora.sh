@@ -1169,17 +1169,8 @@ chmod 500 /usr/local/sentora/bin/clamav_freshclam_update.sh \
 redis-cli HSET sentora:clamav email_enabled 0 email_action reject \
                scan_freq disable scan_hour 3 freshclam_checks 4
 
-# Registro BD: módulo + permiso para Administrators
-mysql -h 127.0.0.1 -u root -p"${MYSQL_ROOT_PASS}" sentora_core -e "
-INSERT IGNORE INTO x_modules
-    (mo_category_fk, mo_name_vc, mo_version_in, mo_folder_vc, mo_type_en, mo_desc_tx, mo_installed_ts, mo_enabled_en)
-VALUES
-    (6, 'ClamAV Admin', 100, 'clamav_admin', 'modadmin',
-     'ClamAV antivirus: protección email, escaneo buzones y actualizaciones de firmas.',
-     UNIX_TIMESTAMP(), 'true');
-SET @cv_id = (SELECT mo_id_pk FROM x_modules WHERE mo_folder_vc='clamav_admin' LIMIT 1);
-INSERT IGNORE INTO x_permissions (pe_group_fk, pe_module_fk) VALUES (1, @cv_id);
-" 2>/dev/null
+# Nota: el registro BD de clamav_admin (y clamav_user/antispam/…) está en
+# sentora_core.sql — se importa con el resto del esquema, no aquí.
 
 # Descargar firmas (en background para no bloquear el instalador)
 freshclam --quiet &
