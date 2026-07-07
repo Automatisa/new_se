@@ -1342,6 +1342,20 @@ fi
 # Asegurar que httpd-vhosts.conf existe vacío para evitar error de Apache
 touch "$PANEL_CONF/apache/httpd-vhosts.conf"
 
+# Cert autofirmado del panel para HTTPS (Listen 443 en apache/httpd.conf).
+# Necesario para que Apache escuche en 443 desde el inicio; si no, Sencrypt
+# avisa "Port 443 CLOSED" y no deja emitir certificados Let's Encrypt.
+mkdir -p "$PANEL_CONF/apache/ssl"
+if [ ! -f "$PANEL_CONF/apache/ssl/panel.crt" ]; then
+    openssl req -x509 -newkey rsa:2048 \
+        -keyout "$PANEL_CONF/apache/ssl/panel.key" \
+        -out    "$PANEL_CONF/apache/ssl/panel.crt" \
+        -days 3650 -nodes -subj "/CN=$PANEL_FQDN/O=Sentora Panel/C=ES" 2>/dev/null
+fi
+chmod 600 "$PANEL_CONF/apache/ssl/panel.key"
+chmod 644 "$PANEL_CONF/apache/ssl/panel.crt"
+chown root:wheel "$PANEL_CONF/apache/ssl/panel.key" "$PANEL_CONF/apache/ssl/panel.crt"
+
 sysrc apache24_enable="YES"
 ok "Apache configurado"
 
