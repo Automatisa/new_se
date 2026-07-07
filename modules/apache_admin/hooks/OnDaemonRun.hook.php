@@ -74,6 +74,9 @@ function BuildVhostReWriteSSL($vhostName, $userEmail) {
     $line .= "ServerAdmin " . $userEmail . fs_filehandler::NewLine();
     $line .= "RewriteEngine On" . fs_filehandler::NewLine();
 	$line .= "RewriteCond %{HTTPS} !=on" . fs_filehandler::NewLine();
+	# Excluir el challenge ACME (Let's Encrypt), que se sirve por HTTP, para no
+	# romper la emision/renovacion de certificados al forzar HTTPS.
+	$line .= "RewriteCond %{REQUEST_URI} !^/\\.well-known/acme-challenge/" . fs_filehandler::NewLine();
 	$line .= "RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]" . fs_filehandler::NewLine();
     $line .= "</virtualhost>" . fs_filehandler::NewLine();
 	$line .= fs_filehandler::NewLine();
@@ -246,8 +249,28 @@ function WriteVhostConfigFile() {
 			$line .= fs_filehandler::NewLine();
 		}
 
-		# Build HTTP to HTTPS Redirect
-		$line .= BuildVhostReWriteSSL(ctrl_options::GetSystemOption('sentora_domain'), $serveremail);
+		# Panel en :80 segun la opcion panel_force_https:
+		#  - true : redirigir HTTP -> HTTPS (fuerza HTTPS; excluye el challenge ACME)
+		#  - false: servir el panel tambien por HTTP (ambos puertos accesibles)
+		if (ctrl_options::GetSystemOption('panel_force_https') == strtolower('true')) {
+			$line .= BuildVhostReWriteSSL(ctrl_options::GetSystemOption('sentora_domain'), $serveremail);
+		} else {
+			$line .= "# DOMAIN: " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
+			$line .= "# PANEL HTTP (sin forzar HTTPS)" . fs_filehandler::NewLine();
+			$line .= "<VirtualHost *:" . ctrl_options::GetSystemOption('apache_port') . ">" . fs_filehandler::NewLine();
+			$line .= "ServerAdmin " . $serveremail . fs_filehandler::NewLine();
+			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
+			$line .= "ServerName " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
+			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
+			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+			$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
+			$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
+			$line .= "    AllowOverride All" . fs_filehandler::NewLine();
+			$line .= "    Require all granted" . fs_filehandler::NewLine();
+			$line .= "</Directory>" . fs_filehandler::NewLine();
+			$line .= "</VirtualHost>" . fs_filehandler::NewLine();
+			$line .= fs_filehandler::NewLine() . "##-------" . fs_filehandler::NewLine() . fs_filehandler::NewLine();
+		}
 		$line .= "# PANEL HAS SSL ENABLED" . fs_filehandler::NewLine();
 		$line .= "<VirtualHost *:" . $panelSslPort . ">" . fs_filehandler::NewLine();
 		$line .= "ServerAdmin " . $serveremail . fs_filehandler::NewLine();

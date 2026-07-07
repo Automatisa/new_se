@@ -1342,19 +1342,21 @@ fi
 # Asegurar que httpd-vhosts.conf existe vacío para evitar error de Apache
 touch "$PANEL_CONF/apache/httpd-vhosts.conf"
 
-# Cert autofirmado del panel para HTTPS (Listen 443 en apache/httpd.conf).
-# Necesario para que Apache escuche en 443 desde el inicio; si no, Sencrypt
-# avisa "Port 443 CLOSED" y no deja emitir certificados Let's Encrypt.
-mkdir -p "$PANEL_CONF/apache/ssl"
-if [ ! -f "$PANEL_CONF/apache/ssl/panel.crt" ]; then
+# Cert de recuperación del panel (HTTPS). El daemon apache_admin ya genera
+# 'Listen 443' + los vhosts SSL del panel (fallback _default_:443 y *:443) usando
+# el cert referenciado en la opción panel_ssl_tx: panel/recovery/selfsigned.{crt,key}.
+# Si este cert no existe, el config de Apache falla y el daemon revierte al
+# placeholder (solo :80) -> Sencrypt avisa "Port 443 CLOSED". Aquí lo generamos.
+mkdir -p "$PANEL_CONF/panel/recovery"
+if [ ! -f "$PANEL_CONF/panel/recovery/selfsigned.crt" ]; then
     openssl req -x509 -newkey rsa:2048 \
-        -keyout "$PANEL_CONF/apache/ssl/panel.key" \
-        -out    "$PANEL_CONF/apache/ssl/panel.crt" \
+        -keyout "$PANEL_CONF/panel/recovery/selfsigned.key" \
+        -out    "$PANEL_CONF/panel/recovery/selfsigned.crt" \
         -days 3650 -nodes -subj "/CN=$PANEL_FQDN/O=Sentora Panel/C=ES" 2>/dev/null
 fi
-chmod 600 "$PANEL_CONF/apache/ssl/panel.key"
-chmod 644 "$PANEL_CONF/apache/ssl/panel.crt"
-chown root:wheel "$PANEL_CONF/apache/ssl/panel.key" "$PANEL_CONF/apache/ssl/panel.crt"
+chmod 600 "$PANEL_CONF/panel/recovery/selfsigned.key"
+chmod 644 "$PANEL_CONF/panel/recovery/selfsigned.crt"
+chown root:wheel "$PANEL_CONF/panel/recovery/selfsigned.key" "$PANEL_CONF/panel/recovery/selfsigned.crt"
 
 sysrc apache24_enable="YES"
 ok "Apache configurado"
@@ -1732,6 +1734,15 @@ service sshguard restart 2>/dev/null || service sshguard start 2>/dev/null || tr
 service syslogd restart 2>/dev/null || true
 service apache24 restart 2>/dev/null || service apache24 start
 service php_fpm restart 2>/dev/null || service php_fpm start
+
+# Generar la config real de Apache ejecutando el daemon una vez: el vhost del panel
+# con SSL (Listen 443, fallback y :443) lo produce apache_admin/OnDaemonRun, pero
+# solo cuando apache_changed='true'. Sin esto, hasta el primer cron (5 min) solo
+# estaria el :80 y Sencrypt avisaria "Port 443 CLOSED".
+mysql -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASS" sentora_core \
+    -e "UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='apache_changed';" 2>/dev/null
+php "$PANEL_PATH/bin/daemon.php" > "$PANEL_DATA/logs/daemon-install.log" 2>&1 || true
+service apache24 reload 2>/dev/null || true
 
 ok "Servicios iniciados"
 

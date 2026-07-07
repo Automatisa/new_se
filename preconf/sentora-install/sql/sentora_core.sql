@@ -774,6 +774,7 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('136', 'antispam_score', 'Antispam Score', '6.0', NULL, 'Umbral global de puntuación de spam', 'antispam_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('137', 'antispam_action', 'Antispam Action', 'junk', NULL, 'Acción global por defecto (tag|junk|reject)', 'antispam_admin', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('138', 'antispam_enabled', 'Antispam Enabled', 'true', NULL, 'Activar antispam globalmente', 'antispam_admin', 'false');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('139', 'panel_force_https', 'Forzar HTTPS en el panel', 'false', 'false', 'Redirige el acceso al panel de HTTP a HTTPS (excluye el challenge ACME de Lets Encrypt). true/false', 'apache_admin', 'false');
 
 TRUNCATE TABLE `x_groups`;
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('1', 'Administrators', 'The main administration group, this group allows access to all areas of Sentora.', '1');
