@@ -16,3 +16,4 @@ etc/zppy-cache/
 
 # Nota: cnf/db.php se mantiene como plantilla (YOUR_ROOT_MYSQL_PASSWORD);
 # el instalador lo rellena con la contraseña real generada en cada despliegue.
+DISENO_JAILS_NIVEL1.md
