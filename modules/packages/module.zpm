@@ -133,6 +133,18 @@
                     <td><input name="inPhpMaxInput" type="text" id="inPhpMaxInput" size="5" maxlength="5" value="<@ EditCurrentPhpMaxInput @>" onkeypress="return isNumberKey(event)"/> segundos</td>
                 </tr>
                 <tr>
+                    <th>Máx. procesos (rctl):</th>
+                    <td><input name="inMaxProc" type="text" id="inMaxProc" size="6" maxlength="6" value="<@ EditCurrentMaxProc @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado)</td>
+                </tr>
+                <tr>
+                    <th>Máx. memoria (rctl):</th>
+                    <td><input name="inMaxMem" type="text" id="inMaxMem" size="8" maxlength="10" value="<@ EditCurrentMaxMem @>"/> (ej. 512M, 1G ; 0 = ilimitado)</td>
+                </tr>
+                <tr>
+                    <th>Máx. CPU % (rctl):</th>
+                    <td><input name="inPcpu" type="text" id="inPcpu" size="5" maxlength="4" value="<@ EditCurrentPcpu @>" onkeypress="return isNumberKey(event)"/> (0-100 ; 0 = ilimitado)</td>
+                </tr>
+                <tr>
                     <th></th>
                     <td>
                         <input type="hidden" name="inPackageID" value="<@ EditCurrentPackageID @>"/>
@@ -258,6 +270,18 @@
                 <tr>
                     <th><: Max input time :>:</th>
                     <td><input name="inPhpMaxInput" type="text" id="inPhpMaxInput" value="60" size="5" maxlength="5" onkeypress="return isNumberKey(event)" /> segundos</td>
+                </tr>
+                <tr>
+                    <th>Máx. procesos (rctl):</th>
+                    <td><input name="inMaxProc" type="text" id="inMaxProc" value="100" size="6" maxlength="6" onkeypress="return isNumberKey(event)" /> (0 = ilimitado)</td>
+                </tr>
+                <tr>
+                    <th>Máx. memoria (rctl):</th>
+                    <td><input name="inMaxMem" type="text" id="inMaxMem" value="1G" size="8" maxlength="10" /> (ej. 512M, 1G ; 0 = ilimitado)</td>
+                </tr>
+                <tr>
+                    <th>Máx. CPU % (rctl):</th>
+                    <td><input name="inPcpu" type="text" id="inPcpu" value="0" size="5" maxlength="4" onkeypress="return isNumberKey(event)" /> (0-100 ; 0 = ilimitado)</td>
                 </tr>
                 <tr>
                     <th></th>

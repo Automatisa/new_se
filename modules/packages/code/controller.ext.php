@@ -154,6 +154,9 @@ class module_controller extends ctrl_module
                     'phppost' => $rowpackages['qt_php_post_vc'],
                     'phpexec' => $rowpackages['qt_php_exec_in'],
                     'phpmaxinput' => $rowpackages['qt_php_maxinput_in'],
+                    'maxproc' => $rowpackages['qt_maxproc_in'],
+                    'maxmem' => $rowpackages['qt_maxmem_vc'],
+                    'pcpu' => $rowpackages['qt_pcpu_in'],
                     'packagename' => stripslashes($rowpackages['pk_name_vc'])));
             }
             return $res;
@@ -279,6 +282,9 @@ class module_controller extends ctrl_module
 										qt_php_post_vc,
 										qt_php_exec_in,
 										qt_php_maxinput_in,
+										qt_maxproc_in,
+										qt_maxmem_vc,
+										qt_pcpu_in,
 										qt_diskspace_bi,
 										qt_bandwidth_bi) VALUES (
 										:pk_id_pk,
@@ -296,6 +302,9 @@ class module_controller extends ctrl_module
 										:PhpPost,
 										:PhpExec,
 										:PhpMaxInput,
+										:MaxProc,
+										:MaxMem,
+										:Pcpu,
 										:DiskQuotaFinal,
 										:BandQuotaFinal)");
         $DiskQuotaFinal = $DiskQuota * 1024000;
@@ -316,6 +325,14 @@ class module_controller extends ctrl_module
         $sql->bindParam(':PhpPost', $PhpPost);
         $sql->bindParam(':PhpExec', $PhpExec);
         $sql->bindParam(':PhpMaxInput', $PhpMaxInput);
+        $MaxProc = max(0, (int)$MaxProc);
+        $Pcpu    = min(100, max(0, (int)$Pcpu));
+        $MaxMem  = preg_match('/^\d+[KMGkmg]?$/', trim((string)$MaxMem)) ? trim((string)$MaxMem) : '1G';
+        // Techo por reseller: no puede asignar más recursos de los que tiene su propio paquete.
+        self::CapLimitsToReseller($uid, $MaxProc, $MaxMem, $Pcpu);
+        $sql->bindParam(':MaxProc', $MaxProc);
+        $sql->bindParam(':MaxMem', $MaxMem);
+        $sql->bindParam(':Pcpu', $Pcpu);
         $sql->bindParam(':pk_id_pk', $package['pk_id_pk']);
         $sql->execute();
         runtime_hook::Execute('OnAfterCreatePackage');
@@ -384,7 +401,10 @@ class module_controller extends ctrl_module
 								qt_php_upload_vc    = :PhpUpload,
 								qt_php_post_vc      = :PhpPost,
 								qt_php_exec_in      = :PhpExec,
-								qt_php_maxinput_in  = :PhpMaxInput
+								qt_php_maxinput_in  = :PhpMaxInput,
+								qt_maxproc_in       = :MaxProc,
+								qt_maxmem_vc        = :MaxMem,
+								qt_pcpu_in          = :Pcpu
                                                                 WHERE qt_package_fk = :pid");
         $DiskQuotaFinal = $DiskQuota * 1024000;
         $BandQuotaFinal = $BandQuota * 1024000;
@@ -404,6 +424,14 @@ class module_controller extends ctrl_module
         $sql->bindParam(':PhpPost', $PhpPost);
         $sql->bindParam(':PhpExec', $PhpExec);
         $sql->bindParam(':PhpMaxInput', $PhpMaxInput);
+        $MaxProc = max(0, (int)$MaxProc);
+        $Pcpu    = min(100, max(0, (int)$Pcpu));
+        $MaxMem  = preg_match('/^\d+[KMGkmg]?$/', trim((string)$MaxMem)) ? trim((string)$MaxMem) : '1G';
+        // Techo por reseller: no puede asignar más recursos de los que tiene su propio paquete.
+        self::CapLimitsToReseller($uid, $MaxProc, $MaxMem, $Pcpu);
+        $sql->bindParam(':MaxProc', $MaxProc);
+        $sql->bindParam(':MaxMem', $MaxMem);
+        $sql->bindParam(':Pcpu', $Pcpu);
         $sql->bindParam(':pid', $pid);
         $sql->execute();
         runtime_hook::Execute('OnAfterUpdatePackage');
@@ -542,6 +570,9 @@ class module_controller extends ctrl_module
             'PhpPost'       => $formvars['inPhpPost'],
             'PhpExec'       => $formvars['inPhpExec'],
             'PhpMaxInput'   => $formvars['inPhpMaxInput'],
+            'MaxProc'       => isset($formvars['inMaxProc']) ? $formvars['inMaxProc'] : '100',
+            'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
+            'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
         ];
         if (self::ExecuteCreatePackage($currentuser['userid'], $pkg))
             return true;
@@ -578,6 +609,9 @@ class module_controller extends ctrl_module
             'PhpPost'       => $formvars['inPhpPost'],
             'PhpExec'       => $formvars['inPhpExec'],
             'PhpMaxInput'   => $formvars['inPhpMaxInput'],
+            'MaxProc'       => isset($formvars['inMaxProc']) ? $formvars['inMaxProc'] : '100',
+            'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
+            'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
         ];
         if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg))
             return true;
@@ -821,6 +855,81 @@ class module_controller extends ctrl_module
             return $current[0]['phpmemory'];
         } else {
             return '128M';
+        }
+    }
+
+    static function getEditCurrentMaxProc()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['maxproc'];
+        }
+        return '100';
+    }
+
+    static function getEditCurrentMaxMem()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['maxmem'];
+        }
+        return '1G';
+    }
+
+    static function getEditCurrentPcpu()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['pcpu'];
+        }
+        return '0';
+    }
+
+    /**
+     * Techo de recursos por reseller: acota maxproc/maxmem/pcpu del paquete a los límites
+     * del PROPIO paquete del reseller (un reseller no puede repartir más de lo que tiene).
+     * Si el dueño no tiene paquete con límites (p.ej. admin), no se aplica techo. 0=ilimitado.
+     */
+    private static function CapLimitsToReseller($uid, &$maxproc, &$maxmem, &$pcpu)
+    {
+        global $zdbh;
+        $st = $zdbh->prepare(
+            "SELECT q.qt_maxproc_in, q.qt_maxmem_vc, q.qt_pcpu_in
+               FROM x_accounts u
+               JOIN x_profiles p ON p.ud_user_fk = u.ac_id_pk
+               JOIN x_quotas   q ON q.qt_package_fk = p.ud_package_fk
+              WHERE u.ac_id_pk = :uid AND u.ac_deleted_ts IS NULL LIMIT 1"
+        );
+        $st->execute([':uid' => (int)$uid]);
+        $r = $st->fetch();
+        if (!$r) {
+            return;  // dueño sin paquete (admin) -> sin techo
+        }
+        $rp = (int)$r['qt_maxproc_in'];
+        if ($rp > 0) { $maxproc = ($maxproc <= 0) ? $rp : min((int)$maxproc, $rp); }
+        $rc = (int)$r['qt_pcpu_in'];
+        if ($rc > 0) { $pcpu = ($pcpu <= 0) ? $rc : min((int)$pcpu, $rc); }
+        $rmem = self::memBytes($r['qt_maxmem_vc']);
+        if ($rmem > 0) {
+            $mmem = self::memBytes($maxmem);
+            if ($mmem <= 0 || $mmem > $rmem) { $maxmem = $r['qt_maxmem_vc']; }
+        }
+    }
+
+    private static function memBytes($s)
+    {
+        if (!preg_match('/^(\d+)\s*([KMGkmg]?)/', trim((string)$s), $m)) {
+            return 0;
+        }
+        $n = (int)$m[1];
+        switch (strtoupper($m[2])) {
+            case 'G': return $n * 1073741824;
+            case 'M': return $n * 1048576;
+            case 'K': return $n * 1024;
+            default:  return $n;
         }
     }
 
