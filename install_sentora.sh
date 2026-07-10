@@ -122,6 +122,7 @@ info "Generando contraseñas..."
 randpass() { LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w "$1" | head -1; }
 
 MYSQL_ROOT_PASS=$(randpass 20)
+SENTORA_DB_PASS=$(randpass 24)
 POSTFIX_DB_PASS=$(randpass 24)
 ROUNDCUBE_DB_PASS=$(randpass 24)
 PROFTPD_DB_PASS=$(randpass 24)
@@ -140,6 +141,7 @@ cat > "$PANEL_DATA/install-passwords.txt" <<PWDEOF
 # Sentora Install — Contraseñas generadas
 # MANTENER ESTE ARCHIVO SEGURO
 MySQL root:         $MYSQL_ROOT_PASS
+Panel DB user:      sentora_panel / $SENTORA_DB_PASS
 Postfix DB user:    postfix / $POSTFIX_DB_PASS
 Roundcube DB user:  roundcube / $ROUNDCUBE_DB_PASS
 ProFTPD DB user:    proftpd / $PROFTPD_DB_PASS
@@ -434,6 +436,13 @@ ok "Esquemas importados"
 # Crear usuarios de DB
 info "Creando usuarios de base de datos..."
 $MYSQL -e "
+-- Usuario del PANEL con privilegios acotados (NO root): puede gestionar bases/usuarios de
+-- cliente (CREATE/DROP/CREATE USER/GRANT/RELOAD) pero NO tiene FILE (no LOAD_FILE/INTO OUTFILE),
+-- ni SUPER/SHUTDOWN. Así, si db.php se filtrara, el daño es mucho menor que con root.
+CREATE USER IF NOT EXISTS 'sentora_panel'@'127.0.0.1' IDENTIFIED BY '$SENTORA_DB_PASS';
+CREATE USER IF NOT EXISTS 'sentora_panel'@'localhost' IDENTIFIED BY '$SENTORA_DB_PASS';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, REFERENCES, CREATE USER, RELOAD, SHOW DATABASES ON *.* TO 'sentora_panel'@'127.0.0.1' WITH GRANT OPTION;
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, REFERENCES, CREATE USER, RELOAD, SHOW DATABASES ON *.* TO 'sentora_panel'@'localhost' WITH GRANT OPTION;
 CREATE USER IF NOT EXISTS 'postfix'@'localhost' IDENTIFIED BY '$POSTFIX_DB_PASS';
 GRANT SELECT ON sentora_postfix.* TO 'postfix'@'localhost';
 CREATE USER IF NOT EXISTS 'roundcube'@'localhost' IDENTIFIED BY '$ROUNDCUBE_DB_PASS';
@@ -471,8 +480,8 @@ cat > "$PANEL_PATH/cnf/db.php" <<DBPHP
 <?php
 \$host   = '127.0.0.1';
 \$dbname = 'sentora_core';
-\$user   = 'root';
-\$pass   = '$MYSQL_ROOT_PASS';
+\$user   = 'sentora_panel';
+\$pass   = '$SENTORA_DB_PASS';
 ?>
 DBPHP
 chmod 640 "$PANEL_PATH/cnf/db.php"
