@@ -49,26 +49,38 @@ class dns_cluster
                 continue;
             }
             foreach ($nodes as $n) {
-                $name = strtolower(trim($n['name'] ?? ''));
-                $ip   = trim($n['ip'] ?? '');
-                $apiu = trim($n['api_url'] ?? '');
+                $name    = strtolower(trim($n['name'] ?? ''));
+                $ip      = trim($n['ip'] ?? '');
+                $enabled = array_key_exists('enabled', $n) ? (bool)$n['enabled'] : true;
                 if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) { continue; }
-                if ($name === $selfName || $ip === $selfIp) { continue; }  // nunca darse de alta a uno mismo
+                if ($name === $selfName || $ip === $selfIp) { continue; }  // nunca tocar el propio nodo
 
-                $st = $zdbh->prepare("SELECT nd_id_pk, nd_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_name_vc=:n");
+                $st = $zdbh->prepare("SELECT nd_id_pk, nd_ip_vc, nd_enabled_in FROM x_dns_nodes WHERE nd_name_vc=:n");
                 $st->execute([':n' => $name]);
                 $existing = $st->fetch();
+
                 if (!$existing) {
+                    // Alta con el estado reportado: si el peer lo da como tombstone, se crea
+                    // deshabilitado (no resucita un nodo ya retirado).
                     $zdbh->prepare("INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
-                                    VALUES (:n, :i, :u, 0, 1, :t)")
-                         ->execute([':n' => $name, ':i' => $ip, ':u' => ($apiu ?: null), ':t' => time()]);
+                                    VALUES (:n, :i, :u, 0, :e, :t)")
+                         ->execute([':n' => $name, ':i' => $ip, ':u' => 'https://' . $ip . '/bin/api.php', ':e' => ($enabled ? 1 : 0), ':t' => time()]);
                     $changed = true;
-                    echo "dns_cluster: nuevo nodo en la malla -> " . $name . " (" . $ip . ")\n";
-                } elseif ((string)$existing['nd_ip_vc'] !== $ip || ($apiu !== '' && (string)$existing['nd_api_url_vc'] !== $apiu)) {
-                    $zdbh->prepare("UPDATE x_dns_nodes SET nd_ip_vc=:i, nd_api_url_vc=COALESCE(:u, nd_api_url_vc), nd_enabled_in=1 WHERE nd_id_pk=:id")
-                         ->execute([':i' => $ip, ':u' => ($apiu ?: null), ':id' => $existing['nd_id_pk']]);
+                    if ($enabled) { echo "dns_cluster: nuevo nodo en la malla -> " . $name . " (" . $ip . ")\n"; }
+                } elseif (!$enabled && (int)$existing['nd_enabled_in'] === 1) {
+                    // TOMBSTONE monotónico: la baja se propaga -> deshabilitar localmente y
+                    // limpiar sus zonas remotas para que salga de named.conf.
+                    $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=0 WHERE nd_id_pk=:id")->execute([':id' => $existing['nd_id_pk']]);
+                    $zdbh->prepare("DELETE FROM x_dns_remote_zones WHERE rz_node_fk=:id")->execute([':id' => $existing['nd_id_pk']]);
+                    $changed = true;
+                    echo "dns_cluster: nodo dado de baja en la malla -> " . $name . "\n";
+                } elseif ($enabled && (int)$existing['nd_enabled_in'] === 1 && (string)$existing['nd_ip_vc'] !== $ip) {
+                    // Nodo activo con IP cambiada: actualizar (NO reactiva tombstones).
+                    $zdbh->prepare("UPDATE x_dns_nodes SET nd_ip_vc=:i WHERE nd_id_pk=:id")->execute([':i' => $ip, ':id' => $existing['nd_id_pk']]);
                     $changed = true;
                 }
+                // 'enabled' reportado sobre un tombstone local -> NO reactivar (sticky): solo
+                // un join explícito (POST /cluster/nodes) o el CLI vuelven a activar un nodo.
             }
         }
 

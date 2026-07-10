@@ -343,17 +343,18 @@ if ($resource === 'cluster') {
         // cualquier nodo construya la malla completa (N nodos). Auth solo por token (sin exigir
         // IP de peer) para no bloquear el bootstrap de un nodo que aún no es peer conocido.
         cluster_auth(false);
-        $rows = $zdbh->query("SELECT nd_name_vc, nd_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_enabled_in=1 ORDER BY nd_name_vc")
+        // Devuelve TODOS los nodos (incl. deshabilitados) con su estado 'enabled', para que
+        // el pruning (tombstone) se propague por la malla. api_url SIEMPRE por IP: el cluster
+        // no debe depender de su propio DNS (TLS entre nodos con VERIFYPEER=false).
+        $rows = $zdbh->query("SELECT nd_name_vc, nd_ip_vc, nd_enabled_in FROM x_dns_nodes ORDER BY nd_name_vc")
                      ->fetchAll(PDO::FETCH_ASSOC);
         $nodes = [];
         foreach ($rows as $r) {
-            // api_url SIEMPRE por IP: el cluster no debe depender de su propio DNS para
-            // sincronizarse (el hostname del nodo puede no resolver durante el bootstrap).
-            // El TLS entre nodos ya usa VERIFYPEER=false (cert autofirmado del panel).
             $nodes[] = [
                 'name'    => strtolower($r['nd_name_vc']),
                 'ip'      => $r['nd_ip_vc'],
                 'api_url' => 'https://' . $r['nd_ip_vc'] . '/bin/api.php',
+                'enabled' => ((int)$r['nd_enabled_in'] === 1),
             ];
         }
         api_respond(200, ['nodes' => $nodes]);
