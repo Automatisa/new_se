@@ -282,17 +282,10 @@ function validate_dns_target(string $type, string $target, int $priority, int $w
     return ['target' => $target, 'priority' => $priority, 'weight' => $weight, 'port' => $port];
 }
 
-// ── 1. API habilitada ─────────────────────────────────────────────────────────
-
-if (ctrl_options::GetSystemOption('api_rest_enabled') !== 'true') {
-    $api_msg = ctrl_options::GetSystemOption('api_disabled_message');
-    if (empty($api_msg)) {
-        $api_msg = 'La API se encuentra temporalmente deshabilitada por el administrador del servidor.';
-    }
-    api_respond(503, ['error' => 'Service Unavailable', 'message' => $api_msg, 'code' => 503]);
-}
-
-// ── 2. Parsear ruta ───────────────────────────────────────────────────────────
+// ── 1. Parsear ruta ───────────────────────────────────────────────────────────
+// El kill-switch de la API de usuarios (api_rest_enabled) se comprueba MÁS ABAJO,
+// después de resolver las rutas del cluster DNS, para que desactivar la API de
+// usuarios NO aísle el DNS (el cluster tiene su propio interruptor dns_cluster_enabled).
 
 $uri      = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
 $parts    = array_values(array_filter(explode('/', $uri), fn($s) => $s !== ''));
@@ -394,7 +387,18 @@ if ($resource === 'cluster') {
     api_respond(404, ['error' => 'Not Found', 'message' => 'Ruta de cluster no encontrada.', 'code' => 404]);
 }
 
-// ── 4. Autenticación Bearer ───────────────────────────────────────────────────
+// ── 4. API de usuarios habilitada ─────────────────────────────────────────────
+// El cluster DNS ya se resolvió arriba (es independiente); este interruptor solo
+// afecta a las rutas de la API de usuarios.
+if (ctrl_options::GetSystemOption('api_rest_enabled') !== 'true') {
+    $api_msg = ctrl_options::GetSystemOption('api_disabled_message');
+    if (empty($api_msg)) {
+        $api_msg = 'La API se encuentra temporalmente deshabilitada por el administrador del servidor.';
+    }
+    api_respond(503, ['error' => 'Service Unavailable', 'message' => $api_msg, 'code' => 503]);
+}
+
+// ── 5. Autenticación Bearer ───────────────────────────────────────────────────
 
 if (!preg_match('/^Bearer\s+(\S+)$/i', get_auth_header(), $m)) {
     header('WWW-Authenticate: Bearer realm="Sentora API v1"');
