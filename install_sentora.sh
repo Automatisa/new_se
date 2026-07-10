@@ -1695,6 +1695,10 @@ chown -R root:www "$PANEL_PATH"
 find "$PANEL_PATH" -type d -exec chmod 755 {} \;
 find "$PANEL_PATH" -type f -exec chmod 644 {} \;
 chmod 640 "$PANEL_PATH/cnf/db.php"
+# IMPRESCINDIBLE: el 'find -exec chmod 644' de arriba deja los scripts .sh sin +x, y
+# privilege::run los ejecuta por doas (execve) -> requieren bit de ejecucion. Sin esto,
+# fallan con "Permission denied" (firewall status/enable, clamav, ftp, hosting...).
+chmod 0755 "$PANEL_PATH/bin/"*.sh
 
 # etc/tmp: PHP escribe aquí (cachés, etc.)
 chown -R www:www "$PANEL_PATH/etc/tmp"
