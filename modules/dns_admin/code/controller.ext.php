@@ -78,6 +78,11 @@ class module_controller extends ctrl_module
             $line .= "<div class=\"alert alert-secondary\">" . ui_language::translate("El cluster DNS está desactivado en este nodo (ajuste dns_cluster_enabled).") . "</div>";
         }
         $line .= "<p class=\"text-muted\">" . ui_language::translate("El sistema marca como <b>posible baja</b> los nodos sin contacto reciente. Dar de baja un nodo lo retira del cluster (deja de replicarse y de notificarse) y se propaga al resto; requiere tu confirmación. Se aplica en el próximo ciclo del daemon.") . "</p>";
+        $line .= "<form action=\"./?module=dns_admin&action=ClusterNodes\" method=\"post\" style=\"margin:0 0 10px 0\">";
+        $line .= runtime_csfr::Token();
+        $line .= "<input type=\"hidden\" name=\"inSyncCluster\" value=\"1\">";
+        $line .= "<button type=\"submit\" class=\"btn btn-sm btn-primary\"><i class=\"bi bi-arrow-repeat\"></i> " . ui_language::translate("Sincronizar ahora") . "</button>";
+        $line .= "</form>";
         $line .= "<table class=\"table table-striped align-middle\"><thead><tr>";
         $line .= "<th>" . ui_language::translate("Nodo") . "</th><th>IP</th><th>" . ui_language::translate("Rol") . "</th><th>" . ui_language::translate("Última sincronización") . "</th><th>" . ui_language::translate("Estado") . "</th><th>" . ui_language::translate("Acción") . "</th>";
         $line .= "</tr></thead><tbody>";
@@ -453,6 +458,18 @@ class module_controller extends ctrl_module
     {
         runtime_csfr::Protect();
         global $zdbh, $controller;
+
+        // Forzar sincronización ahora: malla de nodos + lista de zonas de los peers.
+        // (Corre como www: solo curl + BD; named.conf se regenera en el próximo ciclo del
+        //  daemon, que corre como root y recarga BIND.)
+        if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inSyncCluster'))) {
+            if (!class_exists('dns_cluster')) {
+                require_once ctrl_options::GetSystemOption('sentora_root') . 'dryden/sys/dns_cluster.class.php';
+            }
+            dns_cluster::SyncClusterNodes();
+            dns_cluster::SyncRemoteZones();
+            self::markDnsClusterUpdate();
+        }
 
         $disable = $controller->GetControllerRequest('FORM', 'inDisableNode');
         $enable  = $controller->GetControllerRequest('FORM', 'inEnableNode');

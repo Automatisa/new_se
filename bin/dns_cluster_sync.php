@@ -17,5 +17,14 @@ if (!runtime_controller::IsCLI()) {
     exit(1);
 }
 
-$changed = dns_cluster::SyncRemoteZones();
-echo $changed ? "Zonas remotas actualizadas.\n" : "Sin cambios en las zonas remotas.\n";
+$nodesChanged = dns_cluster::SyncClusterNodes();
+echo $nodesChanged ? "Malla de nodos actualizada.\n" : "Sin cambios en la malla de nodos.\n";
+
+$zonesChanged = dns_cluster::SyncRemoteZones();
+echo $zonesChanged ? "Zonas remotas actualizadas.\n" : "Sin cambios en las zonas remotas.\n";
+
+// Si algo cambió, marcar regeneración de named.conf (se aplica en el próximo ciclo del
+// daemon, que corre como root y recarga BIND). SyncClusterNodes/SyncRemoteZones ya la marcan.
+if ($nodesChanged || $zonesChanged) {
+    echo "Cambios detectados: named.conf se regenerará en el próximo ciclo del daemon.\n";
+}
