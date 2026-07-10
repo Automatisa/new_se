@@ -1,11 +1,10 @@
 <?php
 /**
- * @copyright 2014-2023 Sentora Project (http://www.sentora.org/) 
+ * @copyright 2014-2023 Sentora Project (http://www.sentora.org/)
  * Sentora is a GPL fork of the ZPanel Project whose original header follows:
  *
  * Class provides functionallity to generate secure random strings
  * @package zpanelx
- * @implimentation To be inpliment into zpanel's core fucntions by 10.0.3
  * @subpackage dryden -> runtime
  * @version 1.0.2
  * @author Sam Mottley (smottley@zpanelcp.com)
@@ -16,105 +15,34 @@
 
 class runtime_randomstring{
     /**
-     * Generate a random string
-     * @author Sam Mottley (smottley@zpanelcp.com)
-     * @param int $size The size of the hash default 50 
-     * @param string $charachters list of all allowed chars
-     * @param string $hash True or False or Type of algeritherm to hash the the mixed string with. Hash may break other settings depending on the argirithom selected.
-     * @return string A random string
-     */    
-     static public function randomHash($size = 50, $characters='1234567890qwertyuiopasdfghjklzxcvbnm', $hash = false) {
-        //declare varables
-        $seed = '';
-        $hashMixed = '';
-        $charachters = $characters;
-        $loop = $size / 5;
-        
-        //loop X times random number
-        for($m = 0; $m < $loop; $m++){
-            //random string
-            $seed .= str_replace('-','',crc32(uniqid(sha1(microtime(true) . getmypid() . rand(10000,99999999)), true)));
-        }
-        
-        //randomise string again
-		//mt_srand($seed);
-        mt_srand();
-        mt_rand();
-        
-        //Make the random number into a random string
-        $loopNow = strlen($seed);
-        //loop 
-        for ($i = 0; $i < $loopNow; $i++) {
-            //search for char in chracter list 
-           $char = mt_rand($seed[$i], strlen($charachters));
-           //add it to hash
-           $hashMixed .= @$charachters[$char];
-        }
-        
-        //Just incase php is Pseudo based. I dont think so but double check 
-        $hashMixed = substr($hashMixed, 10);
-        $length = strlen($hashMixed)-10;
-        $hashMixed = substr($hashMixed, 0,$length);
-        
-        //Now we check if size matters
-        if($size != false){
-            //check hash against demanded size
-            if(strlen($hashMixed) >= $size){
-                //trim the hash down to size
-                $hashMixed = substr($hashMixed, 0, $size);
-            }else if(strlen($hashMixed) <= $size){
-                //increase hash length here
-                //Declare varables
-                $needed = $size - strlen($hashMixed);
-                $decimalLoop = $needed / 5;
-                $loops = round($decimalLoop, 0);
-                $seed = '';
-                $hashMixedAdditon = '';
-                
-                //Loop X times Make random number
-                for($m = 0; $m < $loops; $m++){
-                    //random string
-                    $seed .= str_replace('-','',crc32(uniqid(sha1(microtime(true) . getmypid() . rand(10000,99999999)), true)));
-                }
-                //randomise string again
-				//mt_srand($seed);
-                mt_srand();
-                mt_rand();
-                
-                //Change random number into string
-                for ($i = 0; $i < strlen($seed); $i++) {
-                    //search for char in chracter list 
-                   $char = mt_rand($seed[$i], strlen($charachters));
-                   //add it to hash
-                   $hashMixedAdditon .= @$charachters[$char];
-                }
-                
-                //trim to need number of chars
-                $additionalHash = substr($hashMixedAdditon, 0, $needed);
-                
-                //Add the additional hash onto the end to make the correct size
-                $hashMixed = $hashMixed . $additionalHash;
+     * Generate a random string.
+     *
+     * Reescrito para usar un CSPRNG (random_int) en vez de mt_rand/uniqid/microtime/rand,
+     * que eran predecibles. Esta función genera el token CSRF ($_SESSION['zpcsfr']), así que
+     * su calidad es relevante para la seguridad.
+     *
+     * @param int    $size       Longitud de la cadena (por defecto 50).
+     * @param string $characters Alfabeto permitido.
+     * @param bool|string $hash  false = devolver la cadena; true = sha256; o el nombre de un
+     *                           algoritmo para hash($algo, cadena).
+     * @return string
+     */
+    static public function randomHash($size = 50, $characters = '1234567890qwertyuiopasdfghjklzxcvbnm', $hash = false) {
+        $size = (int)$size;
+        if ($size < 1) { $size = 50; }
+        $len = strlen($characters);
+        $out = '';
+        if ($len > 0) {
+            for ($i = 0; $i < $size; $i++) {
+                $out .= $characters[random_int(0, $len - 1)];
             }
         }
-            
-        //check if hashing is needed
-        if($hash == false){
-            //do not hash
-            $hash = $hashMixed;
-        }else{
-            if($hash == true){ $hash = 'sha256'; }
-            //Then hash the hash is sha256
-            $hash = hash($hash, $hashMixed);
+        if ($hash === false) {
+            return $out;
         }
-        
-        //Randomise string again
-        $hash = str_shuffle($hash);
-        
-        //return hash
-        return $hash;
+        $algo = ($hash === true) ? 'sha256' : $hash;
+        return hash($algo, $out);
     }
-
-    
 }
 
 ?>

@@ -134,15 +134,19 @@ function ExecuteBackup($userid, $username, $download = 0) {
                     continue;
                 }
                 $sql_outfile = $temp_dir . $dbname_shell . "_" . $dbstamp . ".sql";
-                // CRIT-2 FIX: escapeshellarg on ALL variables passed to shell
+                // CRIT-2 FIX: escapeshellarg on ALL variables passed to shell.
+                // La contraseña NO va en la línea de comandos (visible por `ps`): se pasa por
+                // un fichero de credenciales temporal 0600 con --defaults-extra-file.
+                $cnf_path = tempnam(sys_get_temp_dir(), 'sentora_bu') . '.cnf';
+                file_put_contents($cnf_path, "[mysqldump]\nhost=\"" . $host . "\"\nuser=\"" . $user . "\"\npassword=\"" . $pass . "\"\n");
+                @chmod($cnf_path, 0600);
                 $bkcommand = escapeshellarg(ctrl_options::GetSystemOption('mysqldump_exe'))
-                    . " -h " . escapeshellarg($host)
-                    . " -u " . escapeshellarg($user)
-                    . " --password=" . escapeshellarg($pass)
+                    . " --defaults-extra-file=" . escapeshellarg($cnf_path)
                     . " --no-create-db "
                     . escapeshellarg($dbname_shell)
                     . " > " . escapeshellarg($sql_outfile);
                 passthru($bkcommand);
+                @unlink($cnf_path);
                 // Add it to the ZIP archive...
                 $resault = exec(
                     "cd " . escapeshellarg($temp_dir) . " && "

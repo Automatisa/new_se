@@ -45,6 +45,15 @@ class runtime_controller
 
         //Set class varables
         $this->vars_get = array($_GET);
+        // Saneo defensivo de los parámetros de enrutado que se reflejan en rutas/HTML
+        // (module/action): solo caracteres válidos de un nombre de módulo/acción. Neutraliza
+        // cualquier XSS reflejado vía ?module= / ?action= sin afectar a nombres reales.
+        if (isset($this->vars_get[0]['module'])) {
+            $this->vars_get[0]['module'] = preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$this->vars_get[0]['module']);
+        }
+        if (isset($this->vars_get[0]['action'])) {
+            $this->vars_get[0]['action'] = preg_replace('/[^A-Za-z0-9_]/', '', (string)$this->vars_get[0]['action']);
+        }
         $this->vars_post = array($_POST);
         $this->vars_session = array($_SESSION);
         $this->vars_cookie = array($_COOKIE);
