@@ -61,7 +61,13 @@ class dns_cluster
         }
 
         if ($changed) {
-            $zdbh->exec("UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='dns_hasupdates'");
+            // Forzar la regeneración de named.conf (bloques `type secondary`) sin pisar los
+            // IDs de dominio ya pendientes: dns_hasupdates es una lista de IDs de vhost, no un
+            // booleano. Solo marcamos si está vacía; si ya tiene ids, el daemon regenera igual.
+            $cur = (string)ctrl_options::GetSystemOption('dns_hasupdates');
+            if (trim($cur) === '') {
+                $zdbh->exec("UPDATE x_settings SET so_value_tx='cluster' WHERE so_name_vc='dns_hasupdates'");
+            }
         }
         return $changed;
     }

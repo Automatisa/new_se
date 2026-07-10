@@ -481,8 +481,12 @@ function PurgeOldZoneDNSRecordsHook()
     $zonefiles = scandir(ctrl_options::GetSystemOption('zone_dir'));
     foreach ($zonefiles as $zonefile) {
         if ($zonefile === '.' || $zonefile === '..') continue;
+        $path = ctrl_options::GetSystemOption('zone_dir') . $zonefile;
+        // No tocar subdirectorios (p.ej. slave/ con las copias AXFR del cluster) ni
+        // ficheros que no sean zonas .txt del panel.
+        if (is_dir($path)) continue;
+        if (substr($zonefile, -4) !== '.txt') continue;
         if (!in_array(substr($zonefile, 0, -4), $domains)) {
-            $path = ctrl_options::GetSystemOption('zone_dir') . $zonefile;
             if (file_exists($path)) {
                 echo "Purging old zone record: " . substr($zonefile, 0, -4) . fs_filehandler::NewLine();
                 unlink($path);

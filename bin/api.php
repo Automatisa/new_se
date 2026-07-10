@@ -379,7 +379,17 @@ if ($resource === 'cluster') {
                          ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':h' => $host, ':ttl' => $ttl, ':ip' => $ip, ':ts' => time()]);
                     $added[] = $host;
                 }
-                if ($added) { $zdbh->exec("UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='dns_hasupdates'"); }
+                if ($added) {
+                    // dns_hasupdates es una LISTA de IDs de vhost separada por comas (no un
+                    // booleano). Poner 'true' era un no-op: no casaba ningún id y el daemon
+                    // nunca reescribía la zona del proveedor con los A de ns/panel del nodo.
+                    // Añadimos el id del vhost proveedor (sin pisar ids ya pendientes).
+                    $cur = (string)ctrl_options::GetSystemOption('dns_hasupdates');
+                    $ids = array_values(array_filter(array_map('trim', explode(',', $cur)), fn($x) => ctype_digit($x)));
+                    if (!in_array((string)$vid, $ids, true)) { $ids[] = (string)$vid; }
+                    $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")
+                         ->execute([':v' => implode(',', $ids)]);
+                }
             }
         }
         api_respond(201, ['message' => 'Nodo registrado en el cluster.', 'node' => $name, 'records_added' => $added]);
