@@ -1312,6 +1312,17 @@ set skip on lo0
 block in  all
 pass  out all keep state
 
+# ---- ANTI-SPAM: bloqueo de correo SALIENTE DIRECTO de los inquilinos  (NO BORRAR) ----
+# Regla "sentora_smtp_egress". QUÉ HACE: impide que los usuarios de HOSTING (uid >= 2001, es
+# decir los h_<cliente>) hagan entrega SMTP DIRECTA al puerto 25 de los MX de destino.
+# PARA QUÉ: si una cuenta se ve comprometida (webshell, app vulnerable), no puede convertir el
+# servidor en un cañón de spam / open-relay saliente (el problema nº1 de abuso en hosting).
+# NO rompe el correo legítimo: el Postfix local corre como 'postfix' (uid 125, NO bloqueado) y
+# las apps que envían por 127.0.0.1 no se filtran (set skip on lo0). Los puertos 587/465 (relays
+# autenticados tipo SendGrid/Gmail) se dejan ABIERTOS a propósito para no romper apps.
+# Si quieres permitir a un cliente concreto enviar directo por 25, exclúyelo aquí.
+block out quick proto tcp from any to any port 25 user >= 2001
+
 # ---- Excepciones de prioridad alta (antes que cualquier bloqueo) ----
 pass  quick from <sentora_whitelist>
 block drop quick from <sentora_blocked>
