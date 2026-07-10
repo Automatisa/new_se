@@ -14,6 +14,16 @@
  */
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
+// Endurecer la cookie de sesión ANTES de session_start(): HttpOnly (que un XSS no
+// pueda leerla), SameSite=Strict (bloquea envío en peticiones cross-site) y Secure
+// solo si la petición actual es HTTPS (para no romper accesos HTTP previos al redirect).
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure'   => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
+]);
 session_start();
 require_once 'dryden/loader.inc.php';
 require_once 'cnf/db.php';

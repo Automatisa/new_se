@@ -247,7 +247,7 @@ class module_controller extends ctrl_module
         global $zdbh;
         global $controller;
         $line = "<h2>" . ui_language::translate("Virtual Host Override") . "</h2>";
-        $line .= ui_language::translate("Set options for virtual host") . ": <b>" . $controller->GetControllerRequest('FORM', 'inVhost') . "</b>";
+        $line .= ui_language::translate("Set options for virtual host") . ": <b>" . htmlspecialchars((string)$controller->GetControllerRequest('FORM', 'inVhost'), ENT_QUOTES, 'UTF-8') . "</b>";
         $line .= "<br><br>";
         $line .= "<form action=\"./?module=apache_admin&action=SaveVhost\" method=\"post\">";
         $line .= "<table class=\"zform\">";

@@ -131,7 +131,7 @@ class module_controller extends ctrl_module
         $line .= "</td>";
         $line .= "</tr>";
         $line .= "</table>";
-        $line .= "<input type=\"hidden\" name=\"inDomain\" value =\"" . $controller->GetControllerRequest('FORM', 'inDomain') . "\" />";
+        $line .= "<input type=\"hidden\" name=\"inDomain\" value =\"" . (int)$controller->GetControllerRequest('FORM', 'inDomain') . "\" />";
         $line .= "<input type=\"hidden\" name=\"inUserID\" value =\"" . $currentuser['userid'] . "\" />";
         $line .= self::getCSFR_Tag();
         $line .= '</form>';
