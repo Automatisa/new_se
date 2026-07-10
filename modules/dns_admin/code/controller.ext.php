@@ -469,6 +469,7 @@ class module_controller extends ctrl_module
             dns_cluster::SyncClusterNodes();
             dns_cluster::SyncRemoteZones();
             self::markDnsClusterUpdate();
+            self::logCluster("Sincronización manual del cluster forzada desde el panel");
         }
 
         $disable = $controller->GetControllerRequest('FORM', 'inDisableNode');
@@ -476,7 +477,7 @@ class module_controller extends ctrl_module
 
         if (!fs_director::CheckForEmptyValue($disable)) {
             $id  = (int)$disable;
-            $row = $zdbh->prepare("SELECT nd_is_self_in FROM x_dns_nodes WHERE nd_id_pk=:id");
+            $row = $zdbh->prepare("SELECT nd_name_vc, nd_is_self_in FROM x_dns_nodes WHERE nd_id_pk=:id");
             $row->execute([':id' => $id]);
             $node = $row->fetch();
             // Nunca dar de baja el propio nodo (self).
@@ -484,12 +485,32 @@ class module_controller extends ctrl_module
                 $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=0 WHERE nd_id_pk=:id")->execute([':id' => $id]);
                 $zdbh->prepare("DELETE FROM x_dns_remote_zones WHERE rz_node_fk=:id")->execute([':id' => $id]);
                 self::markDnsClusterUpdate();
+                self::logCluster("Nodo dado de baja desde el panel: " . $node['nd_name_vc']);
             }
         }
         if (!fs_director::CheckForEmptyValue($enable)) {
-            $id = (int)$enable;
-            $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=1 WHERE nd_id_pk=:id AND nd_is_self_in=0")->execute([':id' => $id]);
-            self::markDnsClusterUpdate();
+            $id  = (int)$enable;
+            $row = $zdbh->prepare("SELECT nd_name_vc FROM x_dns_nodes WHERE nd_id_pk=:id AND nd_is_self_in=0");
+            $row->execute([':id' => $id]);
+            $node = $row->fetch();
+            if ($node) {
+                $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=1 WHERE nd_id_pk=:id AND nd_is_self_in=0")->execute([':id' => $id]);
+                self::markDnsClusterUpdate();
+                self::logCluster("Nodo reactivado desde el panel: " . $node['nd_name_vc']);
+            }
+        }
+    }
+
+    // Auditoría de acciones del cluster desde el panel, en x_logs (con el usuario que actúa).
+    private static function logCluster($detail)
+    {
+        global $zdbh;
+        $uid = (int)(isset($_SESSION['zpuid']) ? $_SESSION['zpuid'] : 0);
+        try {
+            $zdbh->prepare("INSERT INTO x_logs (lg_user_fk, lg_code_vc, lg_module_vc, lg_detail_tx) VALUES (:u, 'CLUSTER', 'dns_admin', :d)")
+                 ->execute([':u' => $uid, ':d' => (string)$detail]);
+        } catch (Exception $e) {
+            // la auditoría no debe abortar la acción
         }
     }
 

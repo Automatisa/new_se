@@ -66,7 +66,10 @@ class dns_cluster
                                     VALUES (:n, :i, :u, 0, :e, :t)")
                          ->execute([':n' => $name, ':i' => $ip, ':u' => 'https://' . $ip . '/bin/api.php', ':e' => ($enabled ? 1 : 0), ':t' => time()]);
                     $changed = true;
-                    if ($enabled) { echo "dns_cluster: nuevo nodo en la malla -> " . $name . " (" . $ip . ")\n"; }
+                    if ($enabled) {
+                        echo "dns_cluster: nuevo nodo en la malla -> " . $name . " (" . $ip . ")\n";
+                        self::logEvent("Nuevo nodo en la malla: " . $name . " (" . $ip . ")");
+                    }
                 } elseif (!$enabled && (int)$existing['nd_enabled_in'] === 1) {
                     // TOMBSTONE monotónico: la baja se propaga -> deshabilitar localmente y
                     // limpiar sus zonas remotas para que salga de named.conf.
@@ -74,6 +77,7 @@ class dns_cluster
                     $zdbh->prepare("DELETE FROM x_dns_remote_zones WHERE rz_node_fk=:id")->execute([':id' => $existing['nd_id_pk']]);
                     $changed = true;
                     echo "dns_cluster: nodo dado de baja en la malla -> " . $name . "\n";
+                    self::logEvent("Nodo dado de baja (propagado en la malla): " . $name);
                 } elseif ($enabled && (int)$existing['nd_enabled_in'] === 1 && (string)$existing['nd_ip_vc'] !== $ip) {
                     // Nodo activo con IP cambiada: actualizar (NO reactiva tombstones).
                     $zdbh->prepare("UPDATE x_dns_nodes SET nd_ip_vc=:i WHERE nd_id_pk=:id")->execute([':i' => $ip, ':id' => $existing['nd_id_pk']]);
@@ -138,6 +142,7 @@ class dns_cluster
                 }
                 $changed = true;
                 echo "dns_cluster: peer " . $peer['nd_name_vc'] . " → " . count($domains) . " zonas (cambio)\n";
+                self::logEvent("Peer " . $peer['nd_name_vc'] . ": " . count($domains) . " zonas (cambio)");
             }
             $zdbh->prepare("UPDATE x_dns_nodes SET nd_last_sync_ts=:t WHERE nd_id_pk=:n")
                  ->execute([':t' => time(), ':n' => $peer['nd_id_pk']]);
@@ -226,5 +231,20 @@ class dns_cluster
             return null;
         }
         return $json['nodes'];
+    }
+
+    /**
+     * Registra un evento del cluster en x_logs (visible en System Log). $user=0 => sistema
+     * (daemon). El log nunca debe romper el flujo de sincronización.
+     */
+    static function logEvent($detail, $user = 0)
+    {
+        global $zdbh;
+        try {
+            $zdbh->prepare("INSERT INTO x_logs (lg_user_fk, lg_code_vc, lg_module_vc, lg_detail_tx) VALUES (:u, 'CLUSTER', 'dns_admin', :d)")
+                 ->execute([':u' => (int)$user, ':d' => (string)$detail]);
+        } catch (Exception $e) {
+            // silencioso: la auditoría no debe abortar el cluster
+        }
     }
 }
