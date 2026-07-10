@@ -160,17 +160,29 @@
     width: 54px;
 }
 
-#dnsRecords div > div.dns-row > div.target {
+/* El target usa el mismo patrón de selector que hostName/TTL (div.dns-row > div.X);
+   el patrón antiguo "div > div.dns-row > div.target" NO casa con la fila real
+   <div class="dnsRecord dns-row"> y dejaba .target sin ancho → el input width:100%
+   colapsaba a una tira invisible y no se veía el cursor al editar (p.ej. registros NS). */
+#dnsRecords div.dns-row > div.target {
     width: 200px;
 }
 
 #dnsRecords div.dnsRecordCNAME > div.dns-row > div.target,
-#dnsRecords div.dnsRecordTXT > div.dns-row > div.target {
+#dnsRecords div.dnsRecordTXT > div.dns-row > div.target,
+#dnsRecords #typeCNAME div.dns-row > div.target,
+#dnsRecords #typeTXT div.dns-row > div.target {
     width: 360px;
 }
 
 #dnsRecords #typeCAA div.dns-row > div.target {
     width: 320px;
+}
+
+/* Red de seguridad: pase lo que pase con el ancho de la columna, los inputs de
+   registro nunca deben colapsar por debajo de un ancho legible/usable. */
+#dnsRecords div.dns-row > div.target > input[type="text"] {
+    min-width: 180px;
 }
 
 #dnsRecords div.dns-row > div.TTL,
