@@ -55,6 +55,97 @@ class module_controller extends ctrl_module
         return $display;
     }
 
+    // ── Cluster DNS: lista de nodos con estado; baja/alta confirmadas por el admin ──
+    static function getClusterNodes()
+    {
+        return self::DisplayClusterNodes();
+    }
+
+    static function DisplayClusterNodes()
+    {
+        global $zdbh;
+        $nodes = $zdbh->query("SELECT nd_id_pk, nd_name_vc, nd_ip_vc, nd_is_self_in, nd_enabled_in, nd_last_sync_ts
+                               FROM x_dns_nodes ORDER BY nd_is_self_in DESC, nd_name_vc")->fetchAll(PDO::FETCH_ASSOC);
+        if (!$nodes) {
+            return '';  // sin cluster configurado: no mostrar la sección
+        }
+        $clusterOn = (ctrl_options::GetSystemOption('dns_cluster_enabled') === 'true');
+        $STALE     = 1800;   // 30 min sin contacto -> el sistema lo propone como posible baja
+        $now       = time();
+
+        $line  = "<hr><h2>" . ui_language::translate("Cluster DNS — Nodos") . "</h2>";
+        if (!$clusterOn) {
+            $line .= "<div class=\"alert alert-secondary\">" . ui_language::translate("El cluster DNS está desactivado en este nodo (ajuste dns_cluster_enabled).") . "</div>";
+        }
+        $line .= "<p class=\"text-muted\">" . ui_language::translate("El sistema marca como <b>posible baja</b> los nodos sin contacto reciente. Dar de baja un nodo lo retira del cluster (deja de replicarse y de notificarse) y se propaga al resto; requiere tu confirmación. Se aplica en el próximo ciclo del daemon.") . "</p>";
+        $line .= "<table class=\"table table-striped align-middle\"><thead><tr>";
+        $line .= "<th>" . ui_language::translate("Nodo") . "</th><th>IP</th><th>" . ui_language::translate("Rol") . "</th><th>" . ui_language::translate("Última sincronización") . "</th><th>" . ui_language::translate("Estado") . "</th><th>" . ui_language::translate("Acción") . "</th>";
+        $line .= "</tr></thead><tbody>";
+
+        foreach ($nodes as $n) {
+            $id     = (int)$n['nd_id_pk'];
+            $name   = htmlspecialchars((string)$n['nd_name_vc'], ENT_QUOTES, 'UTF-8');
+            $ip     = htmlspecialchars((string)$n['nd_ip_vc'], ENT_QUOTES, 'UTF-8');
+            $self   = ((int)$n['nd_is_self_in'] === 1);
+            $isEn   = ((int)$n['nd_enabled_in'] === 1);
+            $ts     = $n['nd_last_sync_ts'] ? (int)$n['nd_last_sync_ts'] : 0;
+            $ago    = $ts ? self::humanAgo($now - $ts) : ui_language::translate("nunca");
+            $stale  = ($ts === 0 || ($now - $ts) > $STALE);
+
+            if ($self) {
+                $rol = "<span class=\"badge bg-primary\">" . ui_language::translate("Este servidor") . "</span>";
+                $estado = "<span class=\"badge bg-secondary\">—</span>";
+                $accion = "";
+                $ago    = "—";
+            } elseif (!$isEn) {
+                $rol = "Peer";
+                $estado = "<span class=\"badge bg-dark\">" . ui_language::translate("Dado de baja") . "</span>";
+                $accion = self::nodeActionForm($id, (string)$n['nd_name_vc'], 'enable');
+            } elseif ($stale) {
+                $rol = "Peer";
+                $estado = "<span class=\"badge bg-warning text-dark\">&#9888; " . ui_language::translate("Sin contacto") . " (" . $ago . ") — " . ui_language::translate("posible baja") . "</span>";
+                $accion = self::nodeActionForm($id, (string)$n['nd_name_vc'], 'disable');
+            } else {
+                $rol = "Peer";
+                $estado = "<span class=\"badge bg-success\">" . ui_language::translate("Activo") . "</span>";
+                $accion = self::nodeActionForm($id, (string)$n['nd_name_vc'], 'disable');
+            }
+            $line .= "<tr><td>" . $name . "</td><td>" . $ip . "</td><td>" . $rol . "</td><td>" . $ago . "</td><td>" . $estado . "</td><td>" . $accion . "</td></tr>";
+        }
+        $line .= "</tbody></table>";
+        return $line;
+    }
+
+    private static function nodeActionForm($id, $rawName, $mode)
+    {
+        // Mensaje de confirmación sin apóstrofos (los hostnames son [a-z0-9.-]).
+        if ($mode === 'disable') {
+            $field   = 'inDisableNode';
+            $confirm = "Confirmas dar de baja el nodo " . $rawName . " del cluster DNS? Dejara de replicarse y se propagara al resto de nodos.";
+            $btn     = "<button type=\"submit\" class=\"btn btn-sm btn-outline-danger\"><i class=\"bi bi-x-circle\"></i> " . ui_language::translate("Dar de baja") . "</button>";
+        } else {
+            $field   = 'inEnableNode';
+            $confirm = "Reactivar el nodo " . $rawName . " en el cluster DNS?";
+            $btn     = "<button type=\"submit\" class=\"btn btn-sm btn-outline-success\"><i class=\"bi bi-arrow-clockwise\"></i> " . ui_language::translate("Reactivar") . "</button>";
+        }
+        $onsub = htmlspecialchars("return confirm('" . $confirm . "');", ENT_QUOTES, 'UTF-8');
+        $f  = "<form action=\"./?module=dns_admin&action=ClusterNodes\" method=\"post\" style=\"margin:0\" onsubmit=\"" . $onsub . "\">";
+        $f .= runtime_csfr::Token();
+        $f .= "<input type=\"hidden\" name=\"" . $field . "\" value=\"" . (int)$id . "\">";
+        $f .= $btn;
+        $f .= "</form>";
+        return $f;
+    }
+
+    private static function humanAgo($secs)
+    {
+        $secs = (int)$secs;
+        if ($secs < 60)    return $secs . "s";
+        if ($secs < 3600)  return (int)floor($secs / 60) . "min";
+        if ($secs < 86400) return (int)floor($secs / 3600) . "h";
+        return (int)floor($secs / 86400) . "d";
+    }
+
     static function DisplayDNSConfig()
     {
         global $zdbh;
@@ -354,6 +445,44 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inForceUpdate'))) {
             self::$forceupdate = true;
             self::TriggerDNSUpdate("0");
+        }
+    }
+
+    // Baja/alta de un nodo del cluster, confirmada por el admin desde la lista de servidores.
+    static function doClusterNodes()
+    {
+        runtime_csfr::Protect();
+        global $zdbh, $controller;
+
+        $disable = $controller->GetControllerRequest('FORM', 'inDisableNode');
+        $enable  = $controller->GetControllerRequest('FORM', 'inEnableNode');
+
+        if (!fs_director::CheckForEmptyValue($disable)) {
+            $id  = (int)$disable;
+            $row = $zdbh->prepare("SELECT nd_is_self_in FROM x_dns_nodes WHERE nd_id_pk=:id");
+            $row->execute([':id' => $id]);
+            $node = $row->fetch();
+            // Nunca dar de baja el propio nodo (self).
+            if ($node && (int)$node['nd_is_self_in'] === 0) {
+                $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=0 WHERE nd_id_pk=:id")->execute([':id' => $id]);
+                $zdbh->prepare("DELETE FROM x_dns_remote_zones WHERE rz_node_fk=:id")->execute([':id' => $id]);
+                self::markDnsClusterUpdate();
+            }
+        }
+        if (!fs_director::CheckForEmptyValue($enable)) {
+            $id = (int)$enable;
+            $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=1 WHERE nd_id_pk=:id AND nd_is_self_in=0")->execute([':id' => $id]);
+            self::markDnsClusterUpdate();
+        }
+    }
+
+    private static function markDnsClusterUpdate()
+    {
+        global $zdbh;
+        // Marcar regeneración de named.conf sin pisar ids de dominio pendientes.
+        $cur = (string)ctrl_options::GetSystemOption('dns_hasupdates');
+        if (trim($cur) === '') {
+            $zdbh->exec("UPDATE x_settings SET so_value_tx='cluster' WHERE so_name_vc='dns_hasupdates'");
         }
     }
 
