@@ -97,7 +97,9 @@ class fpm_pool_manager
             $conf .= "php_admin_flag[display_errors] = {$errors}\n";
             $conf .= "php_admin_value[session.save_path] = {$tmp}/\n";
             $conf .= "php_admin_value[upload_tmp_dir] = {$tmp}/\n";
-            $conf .= "php_admin_value[open_basedir] = {$base}/public_html/:{$base}/tmp/:/tmp/\n";
+            // open_basedir SIN el /tmp compartido: cada dominio usa su propio tmp/ (aislado);
+            // session.save_path y upload_tmp_dir ya apuntan a ese tmp por dominio.
+            $conf .= "php_admin_value[open_basedir] = {$base}/public_html/:{$base}/tmp/\n";
             $conf .= "php_admin_value[error_log] = {$base}/logs/php-error.log\n";
 
             $file = self::POOL_DIR . $name . '.conf';
@@ -170,17 +172,28 @@ class fpm_pool_manager
      */
     private static function chownDomainDir(string $dir, string $sysuser): void
     {
+        // Aislamiento entre inquilinos: propietario = h_USERNAME, grupo = www.
+        //  - Directorios 02750 (setgid + rwxr-x---): Apache (grupo www) puede atravesar y
+        //    servir estáticos; NINGÚN otro inquilino (fuera del grupo www) puede entrar.
+        //    El bit setgid hace que los ficheros que cree el worker FPM del usuario hereden
+        //    el grupo www, para que Apache pueda servirlos.
+        //  - Ficheros 0640 (rw-r-----): dueño escribe, grupo www (Apache) lee, resto nada.
         chown($dir, $sysuser);
         chgrp($dir, 'www');
+        @chmod($dir, 02750);
         $items = @scandir($dir);
         if (!$items) return;
         foreach ($items as $item) {
             if ($item === '.' || $item === '..') continue;
             $path = $dir . '/' . $item;
+            if (is_link($path)) continue;
             chown($path, $sysuser);
             chgrp($path, 'www');
-            if (is_dir($path) && !is_link($path)) {
+            if (is_dir($path)) {
+                @chmod($path, 02750);
                 self::chownDomainDir($path, $sysuser);
+            } else {
+                @chmod($path, 0640);
             }
         }
     }

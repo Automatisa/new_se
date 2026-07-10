@@ -22,9 +22,13 @@ HOSTDIR="${HOSTED_DIR}/${USERNAME}"
 
 # Idempotente: si el usuario ya existe, solo corrige ownership/permisos y sale
 if pw usershow "$SYSUSER" >/dev/null 2>&1; then
+    # Aislamiento entre inquilinos: el usuario NO debe estar en el grupo www (si no,
+    # podría leer los ficheros group-www de otros clientes). Apache (www) sirve los
+    # estáticos porque es el GRUPO de los ficheros, no porque el cliente esté en www.
+    pw groupmod www -d "$SYSUSER" 2>/dev/null || true
     if [ -d "$HOSTDIR" ]; then
         chown "${SYSUSER}:www" "$HOSTDIR"
-        chmod 775 "$HOSTDIR"
+        chmod 2770 "$HOSTDIR"
         chown -R "${SYSUSER}:www" "$HOSTDIR"
         [ -d "${HOSTDIR}/mail" ] && chown -R vmail:vmail "${HOSTDIR}/mail"
     fi
@@ -34,21 +38,22 @@ fi
 # Crear grupo propio del usuario
 pw groupadd -n "$SYSUSER" 2>/dev/null || true
 
-# Crear usuario: sin shell de login, sin home real, miembro del grupo www
+# Crear usuario: sin shell de login, sin home real, SOLO en su propio grupo (NO en www:
+# el aislamiento depende de que el cliente no comparta grupo con los demás).
 pw useradd -n "$SYSUSER" \
            -g "$SYSUSER" \
-           -G www \
            -s /usr/sbin/nologin \
            -d /nonexistent \
            -c "Sentora hosting ${USERNAME}" \
            2>/dev/null || exit 3
 
 # Ajustar propiedad del directorio de hosting.
-# El directorio raíz necesita 775 (grupo www con escritura) para que el panel
-# (corriendo como www) pueda crear subdirectorios de dominio dentro de él.
+# 2770 (setgid, rwxrwx---): dueño h_USERNAME + grupo www (para que el panel, que corre como
+# www, pueda crear los subdirectorios de dominio); sin acceso para "otros" (los demás
+# clientes, que NO están en www). El setgid propaga el grupo www a lo que se cree dentro.
 if [ -d "$HOSTDIR" ]; then
     chown "${SYSUSER}:www" "$HOSTDIR"
-    chmod 775 "$HOSTDIR"
+    chmod 2770 "$HOSTDIR"
     chown -R "${SYSUSER}:www" "$HOSTDIR"
     # El directorio de correo es de vmail, no tocarlo
     [ -d "${HOSTDIR}/mail" ] && chown -R vmail:vmail "${HOSTDIR}/mail"
