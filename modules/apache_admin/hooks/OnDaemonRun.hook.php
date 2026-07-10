@@ -12,6 +12,13 @@ if (ui_module::CheckModuleEnabled('Apache Config')) {
     // Regenerar pools PHP-FPM en cada ciclo del daemon
     $fpmCount = fpm_pool_manager::Regenerate();
     echo "PHP-FPM pools: " . $fpmCount . " activos." . fs_filehandler::NewLine();
+    // Aplicar límites de recursos por usuario (RACCT/RCTL) desde el paquete: contiene DoS
+    // (fork-bombs, RAM/CPU) de un inquilino. No-op si RACCT no está activo en el kernel.
+    if (!class_exists('rctl_manager')) {
+        require_once '/usr/local/sentora/dryden/sys/rctl_manager.class.php';
+    }
+    $rctlCount = rctl_manager::ApplyAll();
+    echo "rctl: limites aplicados a " . $rctlCount . " usuarios." . fs_filehandler::NewLine();
     if (ctrl_options::GetSystemOption('apache_changed') == strtolower("true")) {
         echo "Apache Config has changed..." . fs_filehandler::NewLine();
 		

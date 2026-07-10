@@ -168,6 +168,14 @@ sysrc daily_status_mail_rejects_enable="NO"
 sysrc daily_status_include_submit_mailq="NO"
 sysrc daily_submit_queuerun="NO"
 
+# RACCT/RCTL: contabilidad y límites de recursos por usuario (contiene DoS de un inquilino:
+# fork-bombs, RAM/CPU). Se aplica por-usuario desde el paquete (rctl_manager en el daemon).
+# Requiere reinicio para activarse (es un tunable del loader).
+if ! grep -q '^kern.racct.enable=' /boot/loader.conf 2>/dev/null; then
+    printf 'kern.racct.enable="1"\n' >> /boot/loader.conf
+    warn "RACCT activado en /boot/loader.conf — los limites de recursos por usuario se aplicaran tras el proximo REINICIO."
+fi
+
 # Base de datos
 if [ "$MYSQL_EXISTING" != "true" ]; then
     pkg install -y mysql84-server
