@@ -78,7 +78,11 @@ class fpm_pool_manager
 
             $conf  = "[{$name}]\n";
             $conf .= "user = {$fpm_user}\n";
-            $conf .= "group = www\n";
+            // El grupo del worker es el GRUPO PROPIO del usuario, NO www: si fuera www, el
+            // proceso (y sus hijos exec) heredaría el grupo www y podría LEER los ficheros
+            // h_user:www 0640 de OTROS inquilinos (los hijos exec no respetan open_basedir).
+            // Apache (que sí es www) sigue sirviendo los estáticos; el worker no necesita www.
+            $conf .= "group = {$fpm_user}\n";
             $conf .= "listen = {$socket}\n";
             $conf .= "listen.owner = www\n";
             $conf .= "listen.group = www\n";
