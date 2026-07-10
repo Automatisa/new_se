@@ -18,6 +18,7 @@ if (ui_module::CheckModuleEnabled('DNS Config')) {
     if (!class_exists('dns_cluster')) {
         require_once '/usr/local/sentora/dryden/sys/dns_cluster.class.php';
     }
+    dns_cluster::SyncClusterNodes();
     dns_cluster::SyncRemoteZones();
 
     if (!fs_director::CheckForEmptyValue(ctrl_options::GetSystemOption('dns_hasupdates'))) {
