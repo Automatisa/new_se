@@ -196,9 +196,14 @@ grep -q 'hostdata[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
     printf '/var/sentora/hostdata\t/var/sentora/hostdata\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
 grep -q '^/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
     printf '/tmp\t/tmp\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
+# /var/tmp también es world-writable (1777): sin noexec, un inquilino podría subir un binario
+# ahí y ejecutarlo (staging de exploits). Cerrarlo igual que /tmp.
+grep -q '^/var/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
+    printf '/var/tmp\t/var/tmp\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
 [ -d /var/sentora/hostdata ] && ! mount | grep -q 'hostdata.*noexec' && \
     mount -t nullfs -o noexec,nosuid,nodev /var/sentora/hostdata /var/sentora/hostdata 2>/dev/null
 mount | grep -q ' /tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /tmp /tmp 2>/dev/null
+mount | grep -q ' /var/tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /var/tmp /var/tmp 2>/dev/null
 
 # Base de datos
 if [ "$MYSQL_EXISTING" != "true" ]; then
