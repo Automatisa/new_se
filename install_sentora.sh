@@ -176,6 +176,30 @@ if ! grep -q '^kern.racct.enable=' /boot/loader.conf 2>/dev/null; then
     warn "RACCT activado en /boot/loader.conf — los limites de recursos por usuario se aplicaran tras el proximo REINICIO."
 fi
 
+# Endurecimiento del sistema (Nivel 0): reduce el daño que puede hacer el código de un
+# inquilino (aunque use exec vía PHP/cron) al resto de clientes y al sistema.
+info "Aplicando endurecimiento de seguridad del sistema (sysctl + noexec)..."
+for _kv in \
+    "security.bsd.see_other_uids=0" \
+    "security.bsd.see_other_gids=0" \
+    "security.bsd.unprivileged_proc_debug=0" \
+    "security.bsd.hardlink_check_uid=1" \
+    "security.bsd.hardlink_check_gid=1"; do
+    _k=${_kv%%=*}
+    grep -q "^${_k}=" /etc/sysctl.conf 2>/dev/null || printf '%s\n' "$_kv" >> /etc/sysctl.conf
+    sysctl "$_kv" >/dev/null 2>&1
+done
+# /tmp y los datos de hosting montados noexec,nosuid,nodev: impide ejecutar binarios subidos
+# y escalar por SUID desde directorios donde escriben los clientes. nullfs self-mount porque
+# están en el mismo UFS que /. No afecta a PHP (interpretado) ni a sockets (p.ej. mysql.sock).
+grep -q 'hostdata[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
+    printf '/var/sentora/hostdata\t/var/sentora/hostdata\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
+grep -q '^/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
+    printf '/tmp\t/tmp\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
+[ -d /var/sentora/hostdata ] && ! mount | grep -q 'hostdata.*noexec' && \
+    mount -t nullfs -o noexec,nosuid,nodev /var/sentora/hostdata /var/sentora/hostdata 2>/dev/null
+mount | grep -q ' /tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /tmp /tmp 2>/dev/null
+
 # Base de datos
 if [ "$MYSQL_EXISTING" != "true" ]; then
     pkg install -y mysql84-server
