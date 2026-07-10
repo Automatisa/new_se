@@ -1353,8 +1353,9 @@ chmod 640 "$PANEL_DATA/run/pf_custom_rules.txt" 2>/dev/null || true
 # SSHGuard: integración con pf
 cat > /usr/local/etc/sshguard.conf << SGCF
 # SSHGuard — Sentora
-BACKEND="/usr/local/libexec/sshguard/sshg-fw-pf"
-LOGREADER="STDIN"
+# BACKEND: ruta REAL del backend pf (el paquete lo instala en /usr/local/libexec, NO en un
+# subdirectorio /sshguard/). Una ruta mal aquí -> sshguard nunca arranca ("not executable").
+BACKEND="/usr/local/libexec/sshg-fw-pf"
 
 THRESHOLD=40
 BLOCK_TIME=120
@@ -1368,11 +1369,10 @@ cat > /usr/local/etc/sshguard.whitelist << 'SGWL'
 ::1
 SGWL
 
-# syslog pipe para que SSHGuard lea los intentos de autenticación
-# FreeBSD: sshguard lee de syslogd via pipe o newsyslog
-if ! grep -q "sshguard" /etc/syslog.conf 2>/dev/null; then
-    echo 'auth.info;authpriv.info	|exec /usr/local/sbin/sshguard' >> /etc/syslog.conf
-fi
+# SSHGuard se ejecuta como SERVICIO (no como pipe de syslog): así el panel (fw_admin) puede
+# ver su estado y activarlo/desactivarlo con `service sshguard ...`. Lee el auth log con
+# sshguard_watch_logs. (El método pipe de syslog es incompatible con el status/toggle del panel.)
+sysrc sshguard_watch_logs="/var/log/auth.log"
 
 sysrc pf_enable="YES"
 sysrc pf_rules="/etc/pf.conf"
@@ -1668,6 +1668,7 @@ permit nopass www as root cmd $PANEL_PATH/bin/fw_whitelist_apply.sh
 permit nopass www as root cmd $PANEL_PATH/bin/fw_sshguard_unban.sh
 permit nopass www as root cmd $PANEL_PATH/bin/fw_status_dump.sh
 permit nopass www as root cmd $PANEL_PATH/bin/fw_rules_apply.sh
+permit nopass www as root cmd $PANEL_PATH/bin/fw_service_toggle.sh
 permit nopass www as root cmd /usr/sbin/service args pf reload
 permit nopass www as root cmd /usr/sbin/service args sshguard restart
 

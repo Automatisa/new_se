@@ -263,6 +263,14 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args sshguard restart',
         ),
 
+        // Activa/desactiva pf o SSHGuard según /var/sentora/run/fw_service_toggle_req
+        // ("pf|sshguard on|off"). El script valida el contenido y hace service + sysrc.
+        'fw_service_toggle' => array(
+            'argv'      => array('/usr/local/sentora/bin/fw_service_toggle.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/fw_service_toggle.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_service_toggle.sh',
+        ),
+
         // ---- hosting_users: usuarios de sistema por cuenta de hosting ----------
         //
         // El nombre de usuario a procesar se pasa mediante un fichero de petición

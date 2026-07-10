@@ -402,8 +402,16 @@ class module_controller extends ctrl_module
         $boolean = ['fw_pf_enabled', 'fw_sshguard_enabled'];
 
         foreach ($boolean as $key) {
+            $old = (string)ctrl_options::GetSystemOption($key);
             $val = isset($_POST[$key]) ? (string)$_POST[$key] : '0';
-            ctrl_options::SetSystemOption($key, in_array($val, ['0','1'], true) ? $val : '0');
+            $val = in_array($val, ['0','1'], true) ? $val : '0';
+            ctrl_options::SetSystemOption($key, $val);
+            // BUG FIX: antes solo se GUARDABA el ajuste y pf/sshguard nunca se paraban.
+            // Ahora, si cambia, se aplica de verdad (service on/off + sysrc) vía el script.
+            if ($val !== $old) {
+                $svc = ($key === 'fw_pf_enabled') ? 'pf' : 'sshguard';
+                self::applyServiceToggle($svc, $val === '1' ? 'on' : 'off');
+            }
         }
         foreach ($numeric as $key) {
             if (!isset($_POST[$key])) {
@@ -416,6 +424,33 @@ class module_controller extends ctrl_module
         }
         self::$ok    = true;
         self::$okMsg = "Configuración guardada.";
+    }
+
+    /**
+     * Aplica de verdad el arranque/parada de pf o SSHGuard: escribe la orden en el fichero
+     * de petición y llama al script privilegiado (service on/off + sysrc para persistir).
+     * $svc = 'pf'|'sshguard'; $act = 'on'|'off'.
+     */
+    private static function applyServiceToggle(string $svc, string $act): void
+    {
+        $reqFile = '/var/sentora/run/fw_service_toggle_req';
+        try {
+            if (@file_put_contents($reqFile, $svc . ' ' . $act . "\n") === false) {
+                throw new \RuntimeException("no se pudo escribir la orden en $reqFile");
+            }
+            @chmod($reqFile, 0660);
+            [$code,, $err] = privilege::run('fw_service_toggle');
+            if ($code !== 0) {
+                throw new \RuntimeException($err ?: "código de salida $code");
+            }
+            // Refrescar el JSON de estado para que la pestaña Estado muestre lo aplicado.
+            try { privilege::run('fw_status_dump'); } catch (\Exception $e) { /* no crítico */ }
+        } catch (\Exception $e) {
+            self::$error  = true;
+            self::$errMsg = "Ajuste guardado, pero no se pudo " . ($act === 'on' ? 'activar' : 'desactivar')
+                          . " " . htmlspecialchars($svc, ENT_QUOTES) . ": "
+                          . htmlspecialchars($e->getMessage(), ENT_QUOTES);
+        }
     }
 
     // ------------------------------------------------- getters de template
