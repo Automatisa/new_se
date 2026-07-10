@@ -268,13 +268,13 @@ class module_controller extends ctrl_module
 
                 $line .= "<tr><th>" . ui_language::translate("Domain Enabled") . ":</th><td><input type=\"checkbox\" name=\"vh_enabled_in\" id=\"vh_enabled_in\" value=\"1\" " . fs_director::IsChecked($row['vh_enabled_in']) . "/></td></tr>";
                 $line .= "<tr><th>" . ui_language::translate("OpenBase Enabled") . ":</th><td><input type=\"checkbox\" name=\"vh_obasedir_in\" id=\"vh_obasedir_in\" value=\"1\" " . fs_director::IsChecked($row['vh_obasedir_in']) . "/></td></tr>";
-                $line .= "<tr><th>" . ui_language::translate("Port Override") . "</th><td><input type=\"text\" name=\"vh_custom_port_in\" id=\"vh_custom_port_in\" maxlength=\"6\" value=\"" . $row['vh_custom_port_in'] . "\"/>";
+                $line .= "<tr><th>" . ui_language::translate("Port Override") . "</th><td><input type=\"text\" name=\"vh_custom_port_in\" id=\"vh_custom_port_in\" maxlength=\"6\" value=\"" . (int)$row['vh_custom_port_in'] . "\"/>";
                 $line .= "<tr><th>" . ui_language::translate("Forward Port 80 to Overriden Port") . ":</th><td><input type=\"checkbox\" name=\"vh_portforward_in\" id=\"vh_portforward_in\" value=\"1\" " . fs_director::IsChecked($row['vh_portforward_in']) . "/>" . ui_language::translate("Warning requires Apache mod_rewrite to be installed on the server.") . "</td></tr>";
-                $line .= "<tr><th>" . ui_language::translate("IP Override") . "</th><td><input type=\"text\" name=\"vh_custom_ip_vc\" id=\"vh_custom_ip_vc\" maxlength=\"20\" value=\"" . $row['vh_custom_ip_vc'] . "\"/>";
-                $line .= "<tr valign=\"top\"><th>" . ui_language::translate("Custom Entry") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_custom_tx\">" . $row['vh_custom_tx'] . "</textarea></td></tr>";
+                $line .= "<tr><th>" . ui_language::translate("IP Override") . "</th><td><input type=\"text\" name=\"vh_custom_ip_vc\" id=\"vh_custom_ip_vc\" maxlength=\"20\" value=\"" . htmlspecialchars((string)$row['vh_custom_ip_vc'], ENT_QUOTES, 'UTF-8') . "\"/>";
+                $line .= "<tr valign=\"top\"><th>" . ui_language::translate("Custom Entry") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_custom_tx\">" . htmlspecialchars((string)$row['vh_custom_tx'], ENT_QUOTES, 'UTF-8') . "</textarea></td></tr>";
 				$line .= "<tr><th>" . ui_language::translate("<u>SSL Settings Options - Below</u>");
-				$line .= "<tr><th>" . ui_language::translate("SSL Port") . "</th><td><input type=\"text\" name=\"vh_ssl_port_in\" id=\"vh_ssl_port_in\" maxlength=\"6\" value=\"" . $row['vh_ssl_port_in'] . "\"/>";
-				$line .= "<tr><th>" .  ui_language::translate("SSL Cert Settings") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_ssl_tx\">" . $row['vh_ssl_tx'] . "</textarea></td></tr>";
+				$line .= "<tr><th>" . ui_language::translate("SSL Port") . "</th><td><input type=\"text\" name=\"vh_ssl_port_in\" id=\"vh_ssl_port_in\" maxlength=\"6\" value=\"" . (int)$row['vh_ssl_port_in'] . "\"/>";
+				$line .= "<tr><th>" .  ui_language::translate("SSL Cert Settings") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_ssl_tx\">" . htmlspecialchars((string)$row['vh_ssl_tx'], ENT_QUOTES, 'UTF-8') . "</textarea></td></tr>";
             }
         }
 
