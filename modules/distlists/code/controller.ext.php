@@ -182,6 +182,11 @@ class module_controller extends ctrl_module
         if (fs_director::CheckForEmptyValue(self::CheckCreateForErrors($inAddress, $inDomain))) {
             return false;
         }
+        // IDOR FIX: el dominio origen debe pertenecer al usuario (si no, podría crear una lista
+        // en el dominio de OTRO cliente).
+        $ownDom = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $ownDom->execute([':d' => strtolower((string)$inDomain), ':uid' => (int)$currentuser['userid']]);
+        if (!$ownDom->fetch()) { self::$validdomain = true; return false; }
         runtime_hook::Execute('OnBeforeAddDistList');
         self::$create = true;
         // Include mail server specific file here.

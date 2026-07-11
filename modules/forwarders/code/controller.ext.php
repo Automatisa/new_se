@@ -134,6 +134,13 @@ class module_controller extends ctrl_module
         if (fs_director::CheckForEmptyValue(self::CheckCreateForErrors($address, $dname, $ddomain, $keepmessage))) {
             return false;
         }
+        // IDOR FIX: el dominio de la dirección ORIGEN (inAddress) debe pertenecer al usuario; si
+        // no, podría crear un reenvío para una dirección de OTRO cliente e interceptar su correo.
+        $srcParts  = explode('@', strtolower((string)$address));
+        $srcDomain = end($srcParts);
+        $ownDom = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $ownDom->execute([':d' => (string)$srcDomain, ':uid' => (int)$currentuser['userid']]);
+        if (count($srcParts) < 2 || !$ownDom->fetch()) { self::$noaddress = true; return false; }
         $destination = strtolower(str_replace(' ', '', $dname . '@' . $ddomain));
         runtime_hook::Execute('OnBeforeCreateForwarder');
         self::$create = true;

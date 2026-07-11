@@ -155,6 +155,11 @@ class module_controller extends ctrl_module
         if (fs_director::CheckForEmptyValue(self::CheckCreateForErrors($address, $domain, $destination))) {
             return false;
         }
+        // IDOR FIX: el dominio origen debe pertenecer al usuario (si no, podría crear un alias
+        // en el dominio de OTRO cliente e interceptar/redirigir su correo).
+        $ownDom = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $ownDom->execute([':d' => strtolower((string)$domain), ':uid' => (int)$currentuser['userid']]);
+        if (!$ownDom->fetch()) { self::$validdomain = true; return false; }
         runtime_hook::Execute('OnBeforeCreateAlias');
         $address = str_replace('*', '', $address);
         $fulladdress = $address . "@" . $domain;
