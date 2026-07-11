@@ -115,7 +115,7 @@ function ExecuteBackup($userid, $username, $download = 0) {
         . escapeshellarg($username . "/")
         . " --exclude=" . escapeshellarg($username . "/backups/*")
     );
-    @chmod($temp_dir . $backupname . ".zip", 0777);
+    @chmod($temp_dir . $backupname . ".zip", 0600); // SEC: era 0777 (world-readable entre inquilinos)
     // Now lets backup all MySQL datbases for the user and add them to the archive...
     $sql = "SELECT COUNT(*) FROM x_mysql_databases WHERE my_acc_fk=:userid AND my_deleted_ts IS NULL";
     $numrows = $zdbh->prepare($sql);
@@ -167,17 +167,20 @@ function ExecuteBackup($userid, $username, $download = 0) {
             $backupdir = $homedir . "/backups/";
             if (!is_dir($backupdir)) {
                 fs_director::CreateDirectory($backupdir);
-                @chmod($backupdir, 0777);
+                // SEC: 0700 (no 0777). El directorio de copias no debe ser accesible por
+                // otros inquilinos del sistema; una copia contiene credenciales de BD de
+                // las apps y datos personales.
+                @chmod($backupdir, 0700);
             }
             copy($temp_dir . $backupname . ".zip", $backupdir . $backupname . ".zip");
-            fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0777);
+            fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
         } else {
             $backupdir = $temp_dir;
         }
 
         // If Client has checked to download file
         if ($download <> 0) {
-            fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0777);
+            fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
             return $temp_dir . $backupname . ".zip";
         }
         unlink($temp_dir . $backupname . ".zip");
