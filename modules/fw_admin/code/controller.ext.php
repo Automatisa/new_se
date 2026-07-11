@@ -134,6 +134,7 @@ class module_controller extends ctrl_module
             case 'RemoveWhitelist':  self::ExecuteRemoveWhitelist();  break;
             case 'UnbanSshguard':    self::ExecuteUnbanSshguard();    break;
             case 'SaveConfig':       self::ExecuteSaveConfig();       break;
+            case 'RestartService':   self::ExecuteRestartService();   break;
             case 'RefreshStatus':    self::ExecuteRefreshStatus();    break;
             case 'AddRule':          self::ExecuteAddRule();          break;
             case 'UpdateRule':       self::ExecuteUpdateRule();       break;
@@ -427,9 +428,28 @@ class module_controller extends ctrl_module
     }
 
     /**
-     * Aplica de verdad el arranque/parada de pf o SSHGuard: escribe la orden en el fichero
-     * de petición y llama al script privilegiado (service on/off + sysrc para persistir).
-     * $svc = 'pf'|'sshguard'; $act = 'on'|'off'.
+     * Reinicia el servicio pf o SSHGuard (sin cambiar si arranca en boot). Pensado para
+     * recargar reglas/config tras editarlas. Invocado por el botón "Reiniciar" de Estado.
+     */
+    private static function ExecuteRestartService(): void
+    {
+        $svc = isset($_POST['fw_svc']) ? (string)$_POST['fw_svc'] : '';
+        if (!in_array($svc, ['pf', 'sshguard'], true)) {
+            self::$error  = true;
+            self::$errMsg = "Servicio no válido.";
+            return;
+        }
+        self::applyServiceToggle($svc, 'restart');
+        if (!self::$error) {
+            self::$ok    = true;
+            self::$okMsg = "Servicio " . htmlspecialchars($svc, ENT_QUOTES) . " reiniciado.";
+        }
+    }
+
+    /**
+     * Aplica de verdad el arranque/parada/reinicio de pf o SSHGuard: escribe la orden en el
+     * fichero de petición y llama al script privilegiado (service on/off/restart + sysrc en
+     * on/off para persistir). $svc = 'pf'|'sshguard'; $act = 'on'|'off'|'restart'.
      */
     private static function applyServiceToggle(string $svc, string $act): void
     {
@@ -446,8 +466,9 @@ class module_controller extends ctrl_module
             // Refrescar el JSON de estado para que la pestaña Estado muestre lo aplicado.
             try { privilege::run('fw_status_dump'); } catch (\Exception $e) { /* no crítico */ }
         } catch (\Exception $e) {
+            $verbo = $act === 'on' ? 'activar' : ($act === 'off' ? 'desactivar' : 'reiniciar');
             self::$error  = true;
-            self::$errMsg = "Ajuste guardado, pero no se pudo " . ($act === 'on' ? 'activar' : 'desactivar')
+            self::$errMsg = "No se pudo " . $verbo
                           . " " . htmlspecialchars($svc, ENT_QUOTES) . ": "
                           . htmlspecialchars($e->getMessage(), ENT_QUOTES);
         }
@@ -496,9 +517,21 @@ class module_controller extends ctrl_module
         $mnCount = (int)($status['manual_blocked_count']   ?? 0);
         $sgCount = (int)($status['sshguard_blocked_count'] ?? 0);
 
-        $html  = '<div class="table-responsive"><table class="table table-sm" style="max-width:480px;">';
-        $html .= '<tr><th style="width:220px;">Packet Filter (pf)</th><td>' . $pfOn . '</td></tr>';
-        $html .= '<tr><th>SSHGuard</th><td>' . $sgOn . '</td></tr>';
+        $csrf = self::getCSFR_Tag();
+        // Botón "Reiniciar" reutilizable para cada servicio (recarga reglas/config).
+        $restartBtn = function (string $svc) use ($csrf): string {
+            return '<form method="post" style="display:inline;margin-left:10px;"'
+                 . ' action="./?module=fw_admin&action=RestartService&tab=status">'
+                 . $csrf
+                 . '<input type="hidden" name="fw_svc" value="' . $svc . '">'
+                 . '<button type="submit" class="btn btn-sm btn-secondary"'
+                 . ' title="Reiniciar el servicio ' . $svc . ' (recarga reglas/config)">'
+                 . '<span class="bi bi-arrow-clockwise"></span> Reiniciar</button></form>';
+        };
+
+        $html  = '<div class="table-responsive"><table class="table table-sm" style="max-width:560px;">';
+        $html .= '<tr><th style="width:220px;">Packet Filter (pf)</th><td>' . $pfOn . $restartBtn('pf') . '</td></tr>';
+        $html .= '<tr><th>SSHGuard</th><td>' . $sgOn . $restartBtn('sshguard') . '</td></tr>';
         $html .= '<tr><th>IPs bloqueadas manualmente</th><td><strong>' . $mnCount . '</strong></td></tr>';
         $html .= '<tr><th>IPs baneadas por SSHGuard</th><td><strong>' . $sgCount . '</strong></td></tr>';
         $html .= '<tr><th>Último refresco de estado</th><td>' . htmlspecialchars($ts) . '</td></tr>';
