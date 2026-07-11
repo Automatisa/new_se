@@ -408,11 +408,14 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         runtime_hook::Execute('OnBeforeDeleteDatabaseUser');
-        //$rowuser = $zdbh->query("SELECT * FROM x_mysql_users WHERE mu_id_pk=" . $mu_id_pk . " AND mu_deleted_ts IS NULL")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mu_id_pk AND mu_deleted_ts IS NULL");
+        // IDOR FIX: el usuario MySQL debe pertenecer al usuario autenticado.
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mu_id_pk AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':mu_id_pk', $mu_id_pk);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowuser = $numrows->fetch();
+        if (!$rowuser) { return false; }
 
         $sql = "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = :name)";
         $numrows = $zdbh->prepare($sql);
@@ -458,17 +461,20 @@ class module_controller extends ctrl_module
             $uid = $currentuser['userid'];
         }
         runtime_hook::Execute('OnBeforeAddDatabaseAccess');
-        //$rowdb = $zdbh->query("SELECT * FROM x_mysql_databases WHERE my_id_pk=" . $dbid . " AND my_deleted_ts IS NULL")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_id_pk=:dbid AND my_deleted_ts IS NULL");
+        // IDOR FIX (crítico): la BD y el usuario MySQL deben ser AMBOS del usuario actual;
+        // si no, un cliente podría GRANT a su usuario acceso a la base de datos de OTRO.
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_id_pk=:dbid AND my_acc_fk=:uid AND my_deleted_ts IS NULL");
         $numrows->bindParam(':dbid', $dbid);
+        $numrows->bindValue(':uid', (int)$uid, PDO::PARAM_INT);
         $numrows->execute();
         $rowdb = $numrows->fetch();
 
-        //$rowuser = $zdbh->query("SELECT * FROM x_mysql_users WHERE mu_id_pk=" . $myuserid . " AND mu_deleted_ts IS NULL")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_deleted_ts IS NULL");
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':myuserid', $myuserid);
+        $numrows->bindValue(':uid', (int)$uid, PDO::PARAM_INT);
         $numrows->execute();
         $rowuser = $numrows->fetch();
+        if (!$rowdb || !$rowuser) { return false; }
 
         // Apply varun-naharia fix (security fix, June 2026).
         // The previous code called prepare() with bindParam() against named
@@ -514,10 +520,14 @@ class module_controller extends ctrl_module
         global $zdbh;
         runtime_hook::Execute('OnBeforeRemoveDatabaseAccess');
 
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_dbmap WHERE mm_id_pk=:mapid");
+        // IDOR FIX: el mapeo de acceso (usuario<->BD) debe pertenecer al usuario autenticado.
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_dbmap WHERE mm_id_pk=:mapid AND mm_acc_fk=:uid");
         $numrows->bindParam(':mapid', $mapid);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowdbmap = $numrows->fetch();
+        if (!$rowdbmap) { return false; }
 
         $numrows = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_id_pk=:mm_database_fk AND my_deleted_ts IS NULL");
         $numrows->bindParam(':mm_database_fk', $rowdbmap['mm_database_fk']);
@@ -564,11 +574,14 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         runtime_hook::Execute('OnBeforeResetDatabasePassword');
-        //$rowuser = $zdbh->query("SELECT * FROM x_mysql_users WHERE mu_id_pk=" . $myuserid . " AND mu_deleted_ts IS NULL")->fetch();
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_deleted_ts IS NULL");
+        // IDOR FIX: el usuario MySQL debe pertenecer al usuario autenticado.
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':myuserid', $myuserid);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowuser = $numrows->fetch();
+        if (!$rowuser) { return false; }
 
         // If errors are found, then exit before resetting password...
         if (fs_director::CheckForEmptyValue(self::CheckPasswordForErrors($password))) {
@@ -936,8 +949,11 @@ class module_controller extends ctrl_module
             self::$badIP = true;
             return false;
         }
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_deleted_ts IS NULL");
+        // IDOR FIX: el usuario MySQL debe pertenecer al usuario autenticado.
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:myuserid AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':myuserid', $myuserid);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowuser = $numrows->fetch();
         if (!$rowuser) return false;
