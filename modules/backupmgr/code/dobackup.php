@@ -158,6 +158,25 @@ function ExecuteBackup($userid, $username, $download = 0) {
             }
         }
     }
+    // Exportar la configuración del panel del usuario e incluirla en el zip, para poder
+    // restaurar la cuenta al momento de la copia (dominios, DNS, correo, FTP, BD, cron, etc.).
+    if (file_exists($temp_dir . $backupname . ".zip")) {
+        $cfg_json = ExportPanelConfig($zdbh, $userid);
+        if ($cfg_json !== false) {
+            $cfg_file = $temp_dir . "panel_config.json";
+            if (@file_put_contents($cfg_file, $cfg_json) !== false) {
+                @chmod($cfg_file, 0600);
+                exec(
+                    "cd " . escapeshellarg($temp_dir) . " && "
+                    . escapeshellarg($zip_exe) . " -j "
+                    . escapeshellarg($temp_dir . $backupname) . " "
+                    . escapeshellarg($cfg_file)
+                );
+                @unlink($cfg_file);
+            }
+        }
+    }
+
     // We have the backup now lets output it to disk or download
     if (file_exists($temp_dir . $backupname . ".zip")) {
 
@@ -190,6 +209,72 @@ function ExecuteBackup($userid, $username, $download = 0) {
         return FALSE;
     }
     return TRUE;
+}
+
+/**
+ * Exporta TODA la configuración del panel de UNA cuenta a JSON, para poder restaurar la
+ * cuenta al momento de la copia. Cada consulta se filtra por la columna de propiedad de la
+ * cuenta ($fk), de modo que el export queda estrictamente acotado a este usuario: no incluye
+ * datos de otros usuarios ni secretos del sistema (root MySQL, TSIG, DKIM privado de otros,
+ * etc., que viven fuera de estas tablas).
+ *
+ * Incluye los hashes de contraseña propios (panel/FTP/MySQL) para un restore idéntico. Son
+ * un riesgo contenido SOLO a esta cuenta (crackeo offline) si el zip se filtra; el .zip se
+ * genera 0600. Se EXCLUYEN a propósito: x_api_tokens (tokens de API), x_bandwidth y x_logs
+ * (estadísticas/registros regenerables) y x_faqs.
+ */
+function ExportPanelConfig($zdbh, $userid) {
+    $userid = (int)$userid;
+
+    // tabla => columna FK de propiedad de la cuenta
+    $collections = array(
+        'vhosts'          => array('x_vhosts',          'vh_acc_fk'),
+        'dns'             => array('x_dns',             'dn_acc_fk'),
+        'dns_create'      => array('x_dns_create',      'dc_acc_fk'),
+        'mailboxes'       => array('x_mailboxes',       'mb_acc_fk'),
+        'aliases'         => array('x_aliases',         'al_acc_fk'),
+        'forwarders'      => array('x_forwarders',      'fw_acc_fk'),
+        'distlists'       => array('x_distlists',       'dl_acc_fk'),
+        'ftpaccounts'     => array('x_ftpaccounts',     'ft_acc_fk'),
+        'mysql_databases' => array('x_mysql_databases', 'my_acc_fk'),
+        'mysql_users'     => array('x_mysql_users',     'mu_acc_fk'),
+        'mysql_dbmap'     => array('x_mysql_dbmap',     'mm_acc_fk'),
+        'cronjobs'        => array('x_cronjobs',        'ct_acc_fk'),
+        'htaccess'        => array('x_htaccess',        'ht_acc_fk'),
+    );
+
+    $out = array(
+        'sentora_backup_format' => 1,
+        'generated_ts'          => time(),
+        'account_id'            => $userid,
+    );
+
+    // Cuenta y perfil (una fila cada uno)
+    try {
+        $s = $zdbh->prepare("SELECT * FROM x_accounts WHERE ac_id_pk = :id");
+        $s->execute(array(':id' => $userid));
+        $out['account'] = $s->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Exception $e) { $out['account'] = null; }
+    try {
+        $s = $zdbh->prepare("SELECT * FROM x_profiles WHERE ud_user_fk = :id");
+        $s->execute(array(':id' => $userid));
+        $out['profile'] = $s->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Exception $e) { $out['profile'] = null; }
+
+    // Colecciones (varias filas)
+    foreach ($collections as $key => $def) {
+        list($table, $fk) = $def;
+        try {
+            // $table y $fk son literales controlados (no vienen de entrada de usuario).
+            $s = $zdbh->prepare("SELECT * FROM `$table` WHERE `$fk` = :id");
+            $s->execute(array(':id' => $userid));
+            $out[$key] = $s->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $out[$key] = array();
+        }
+    }
+
+    return json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 }
 
 function readfile_chunked($filename) {
