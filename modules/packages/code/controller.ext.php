@@ -157,6 +157,7 @@ class module_controller extends ctrl_module
                     'maxproc' => $rowpackages['qt_maxproc_in'],
                     'maxmem' => $rowpackages['qt_maxmem_vc'],
                     'pcpu' => $rowpackages['qt_pcpu_in'],
+                    'maxbackups' => $rowpackages['qt_backups_in'],
                     'packagename' => stripslashes($rowpackages['pk_name_vc'])));
             }
             return $res;
@@ -285,6 +286,7 @@ class module_controller extends ctrl_module
 										qt_maxproc_in,
 										qt_maxmem_vc,
 										qt_pcpu_in,
+										qt_backups_in,
 										qt_diskspace_bi,
 										qt_bandwidth_bi) VALUES (
 										:pk_id_pk,
@@ -305,6 +307,7 @@ class module_controller extends ctrl_module
 										:MaxProc,
 										:MaxMem,
 										:Pcpu,
+										:MaxBackups,
 										:DiskQuotaFinal,
 										:BandQuotaFinal)");
         $DiskQuotaFinal = $DiskQuota * 1024000;
@@ -333,6 +336,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':MaxProc', $MaxProc);
         $sql->bindParam(':MaxMem', $MaxMem);
         $sql->bindParam(':Pcpu', $Pcpu);
+        $MaxBackups = max(0, (int)$MaxBackups);
+        $sql->bindParam(':MaxBackups', $MaxBackups);
         $sql->bindParam(':pk_id_pk', $package['pk_id_pk']);
         $sql->execute();
         runtime_hook::Execute('OnAfterCreatePackage');
@@ -404,7 +409,8 @@ class module_controller extends ctrl_module
 								qt_php_maxinput_in  = :PhpMaxInput,
 								qt_maxproc_in       = :MaxProc,
 								qt_maxmem_vc        = :MaxMem,
-								qt_pcpu_in          = :Pcpu
+								qt_pcpu_in          = :Pcpu,
+								qt_backups_in       = :MaxBackups
                                                                 WHERE qt_package_fk = :pid");
         $DiskQuotaFinal = $DiskQuota * 1024000;
         $BandQuotaFinal = $BandQuota * 1024000;
@@ -432,6 +438,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':MaxProc', $MaxProc);
         $sql->bindParam(':MaxMem', $MaxMem);
         $sql->bindParam(':Pcpu', $Pcpu);
+        $MaxBackups = max(0, (int)$MaxBackups);
+        $sql->bindParam(':MaxBackups', $MaxBackups);
         $sql->bindParam(':pid', $pid);
         $sql->execute();
         runtime_hook::Execute('OnAfterUpdatePackage');
@@ -573,6 +581,7 @@ class module_controller extends ctrl_module
             'MaxProc'       => isset($formvars['inMaxProc']) ? $formvars['inMaxProc'] : '100',
             'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
             'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
+            'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
         ];
         if (self::ExecuteCreatePackage($currentuser['userid'], $pkg))
             return true;
@@ -612,6 +621,7 @@ class module_controller extends ctrl_module
             'MaxProc'       => isset($formvars['inMaxProc']) ? $formvars['inMaxProc'] : '100',
             'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
             'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
+            'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
         ];
         if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg))
             return true;
@@ -876,6 +886,16 @@ class module_controller extends ctrl_module
             return $current[0]['maxmem'];
         }
         return '1G';
+    }
+
+    static function getEditCurrentMaxBackups()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['maxbackups'];
+        }
+        return '0';
     }
 
     static function getEditCurrentPcpu()

@@ -7,8 +7,10 @@ $z_db_host = $host;
 $z_db_name = $dbname;
 try {
     $zdbh = new db_driver("mysql:host=" . $z_db_host . ";dbname=" . $z_db_name . "", $z_db_user, $z_db_pass);
+    // sys_backup_* usan `global $zdbh`; aquí es local, así que lo exponemos.
+    $GLOBALS['zdbh'] = $zdbh;
 } catch (PDOException $e) {
-    
+
 }
 
 echo fs_filehandler::NewLine() . "START Backup Config." . fs_filehandler::NewLine();
@@ -55,7 +57,7 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                     fclose($zpipes[2]);
                     proc_close($zproc);
                 }
-                @chmod($temp_dir . $backupname . ".zip", 0777);
+                @chmod($temp_dir . $backupname . ".zip", 0600); // SEC: era 0777
 
                 // Now lets backup all MySQL databases for the user and add them to the archive...
                 $sql = $zdbh->prepare("SELECT COUNT(*) FROM x_mysql_databases WHERE my_acc_fk = :uid AND my_deleted_ts IS NULL");
@@ -107,17 +109,50 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                         unlink($sql_path);
                     }
                 }
-                // We have the backup now lets output it to disk or download
-                if (file_exists(ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip")) {
-                    // Copy Backup to user home directory...
-                    $backupdir = $homedir . "/backups/";
-                    if (!is_dir($backupdir)) {
-                        mkdir($backupdir, 0777, TRUE);
+                // Añadir la configuración del panel del usuario (panel_config.json) al zip,
+                // igual que el backup manual (F1), para poder restaurar la cuenta al momento.
+                $zipfull = $temp_dir . $backupname . ".zip";
+                if (file_exists($zipfull) && class_exists('sys_backup_export')) {
+                    $cfgfile = $temp_dir . "panel_config.json";
+                    if (@file_put_contents($cfgfile, sys_backup_export::run($zdbh, $userid)) !== false) {
+                        @chmod($cfgfile, 0600);
+                        $zc_argv = [$zip_exe, '-j', $temp_dir . $backupname, $cfgfile];
+                        $zcp = proc_open($zc_argv, [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $zcpipes, $temp_dir, null, ['bypass_shell'=>true]);
+                        if (is_resource($zcp)) { fclose($zcpipes[0]); fclose($zcpipes[1]); fclose($zcpipes[2]); proc_close($zcp); }
+                        @unlink($cfgfile);
                     }
-                    copy(ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip", $backupdir . $backupname . ".zip");
-                    unlink(ctrl_options::GetSystemOption('temp_dir') . $backupname . ".zip");
-                    fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0777);
-                    echo $backupdir . $backupname . ".zip" . fs_filehandler::NewLine();
+                }
+
+                // Enviar la copia al destino remoto de la cuenta si está activado (F2).
+                if (file_exists($zipfull) && class_exists('sys_backup_remote')) {
+                    $dest = sys_backup_remote::getDestination($userid);
+                    if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
+                        list($rok, $rmsg) = sys_backup_remote::upload($dest, $zipfull);
+                        sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
+                        echo "Envío remoto: " . ($rok ? 'OK' : 'ERROR') . " - " . $rmsg . fs_filehandler::NewLine();
+                    }
+                }
+
+                // Guardar en el home del usuario con permisos seguros (0600/0700, no 0777),
+                // respetando el límite de copias del paquete (retención) y la cuota de disco.
+                if (file_exists($zipfull)) {
+                    $backupdir = $homedir . "/backups/";
+                    if (!is_dir($backupdir)) { mkdir($backupdir, 0700, TRUE); }
+                    @chmod($backupdir, 0700);
+
+                    $zipbytes = @filesize($zipfull);
+                    $maxLocal = class_exists('sys_backup_retention') ? sys_backup_retention::getMaxLocal($userid) : 0;
+                    if ($maxLocal > 0) sys_backup_retention::enforceLocal($username, $userid, max(0, $maxLocal - 1));
+
+                    if (class_exists('sys_backup_retention') && sys_backup_retention::wouldExceedQuota($username, $userid, $zipbytes)) {
+                        echo "Aviso: copia NO guardada en disco (superaría la cuota de la cuenta)." . fs_filehandler::NewLine();
+                    } else {
+                        copy($zipfull, $backupdir . $backupname . ".zip");
+                        fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
+                        if ($maxLocal > 0) sys_backup_retention::enforceLocal($username, $userid, $maxLocal);
+                        echo $backupdir . $backupname . ".zip" . fs_filehandler::NewLine();
+                    }
+                    @unlink($zipfull);
                 }
             }
         }

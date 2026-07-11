@@ -42,6 +42,8 @@ include($_SERVER["DOCUMENT_ROOT"] . 'dryden/ctrl/options.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/director.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/filehandler.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_remote.class.php');
+include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_retention.class.php');
+include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_export.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'inc/dbc.inc.php');
 try {
     $zdbh = new db_driver("mysql:host=" . $host . ";dbname=" . $dbname . "", $user, $pass);
@@ -203,8 +205,31 @@ function ExecuteBackup($userid, $username, $download = 0) {
                 // las apps y datos personales.
                 @chmod($backupdir, 0700);
             }
-            copy($temp_dir . $backupname . ".zip", $backupdir . $backupname . ".zip");
-            fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
+            $newzip   = $temp_dir . $backupname . ".zip";
+            $zipbytes = @filesize($newzip);
+
+            // RETENCIÓN: dejar hueco para la nueva copia según el máximo del paquete
+            // (qt_backups_in). Rota las más antiguas dejando (max-1) para que, tras copiar,
+            // no se supere el límite.
+            $maxLocal = sys_backup_retention::getMaxLocal($userid);
+            if ($maxLocal > 0) {
+                sys_backup_retention::enforceLocal($username, $userid, max(0, $maxLocal - 1));
+            }
+
+            // CUOTA: no crear una copia local que deje la cuenta por encima de su cuota de
+            // disco (evita que un backup tumbe la web por "disk exceeded"). Si no cabe, se
+            // omite la copia en disco (la descarga directa sigue disponible).
+            if (sys_backup_retention::wouldExceedQuota($username, $userid, $zipbytes)) {
+                echo "<p><b>Aviso:</b> la copia no se ha guardado en el servidor porque superaría "
+                   . "la cuota de disco de la cuenta. Descárgala directamente o libera espacio "
+                   . "(o sube el límite de disco / de copias del paquete).</p>";
+                $backupdir = $temp_dir; // se sirve desde temp para descarga, no se guarda en el home
+            } else {
+                copy($newzip, $backupdir . $backupname . ".zip");
+                fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
+                // Seguridad extra: reforzar el límite exacto tras copiar.
+                if ($maxLocal > 0) sys_backup_retention::enforceLocal($username, $userid, $maxLocal);
+            }
         } else {
             $backupdir = $temp_dir;
         }
@@ -236,57 +261,8 @@ function ExecuteBackup($userid, $username, $download = 0) {
  * (estadísticas/registros regenerables) y x_faqs.
  */
 function ExportPanelConfig($zdbh, $userid) {
-    $userid = (int)$userid;
-
-    // tabla => columna FK de propiedad de la cuenta
-    $collections = array(
-        'vhosts'          => array('x_vhosts',          'vh_acc_fk'),
-        'dns'             => array('x_dns',             'dn_acc_fk'),
-        'dns_create'      => array('x_dns_create',      'dc_acc_fk'),
-        'mailboxes'       => array('x_mailboxes',       'mb_acc_fk'),
-        'aliases'         => array('x_aliases',         'al_acc_fk'),
-        'forwarders'      => array('x_forwarders',      'fw_acc_fk'),
-        'distlists'       => array('x_distlists',       'dl_acc_fk'),
-        'ftpaccounts'     => array('x_ftpaccounts',     'ft_acc_fk'),
-        'mysql_databases' => array('x_mysql_databases', 'my_acc_fk'),
-        'mysql_users'     => array('x_mysql_users',     'mu_acc_fk'),
-        'mysql_dbmap'     => array('x_mysql_dbmap',     'mm_acc_fk'),
-        'cronjobs'        => array('x_cronjobs',        'ct_acc_fk'),
-        'htaccess'        => array('x_htaccess',        'ht_acc_fk'),
-    );
-
-    $out = array(
-        'sentora_backup_format' => 1,
-        'generated_ts'          => time(),
-        'account_id'            => $userid,
-    );
-
-    // Cuenta y perfil (una fila cada uno)
-    try {
-        $s = $zdbh->prepare("SELECT * FROM x_accounts WHERE ac_id_pk = :id");
-        $s->execute(array(':id' => $userid));
-        $out['account'] = $s->fetch(PDO::FETCH_ASSOC) ?: null;
-    } catch (Exception $e) { $out['account'] = null; }
-    try {
-        $s = $zdbh->prepare("SELECT * FROM x_profiles WHERE ud_user_fk = :id");
-        $s->execute(array(':id' => $userid));
-        $out['profile'] = $s->fetch(PDO::FETCH_ASSOC) ?: null;
-    } catch (Exception $e) { $out['profile'] = null; }
-
-    // Colecciones (varias filas)
-    foreach ($collections as $key => $def) {
-        list($table, $fk) = $def;
-        try {
-            // $table y $fk son literales controlados (no vienen de entrada de usuario).
-            $s = $zdbh->prepare("SELECT * FROM `$table` WHERE `$fk` = :id");
-            $s->execute(array(':id' => $userid));
-            $out[$key] = $s->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $out[$key] = array();
-        }
-    }
-
-    return json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    // Fuente única: sys_backup_export (compartida con el backup programado).
+    return sys_backup_export::run($zdbh, $userid);
 }
 
 function readfile_chunked($filename) {

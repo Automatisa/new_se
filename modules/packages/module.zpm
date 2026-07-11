@@ -145,6 +145,10 @@
                     <td><input name="inPcpu" type="text" id="inPcpu" size="5" maxlength="4" value="<@ EditCurrentPcpu @>" onkeypress="return isNumberKey(event)"/> (0-100 ; 0 = ilimitado)</td>
                 </tr>
                 <tr>
+                    <th>Máx. copias locales:</th>
+                    <td><input name="inMaxBackups" type="text" id="inMaxBackups" size="5" maxlength="4" value="<@ EditCurrentMaxBackups @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado ; rota las más antiguas)</td>
+                </tr>
+                <tr>
                     <th></th>
                     <td>
                         <input type="hidden" name="inPackageID" value="<@ EditCurrentPackageID @>"/>
@@ -282,6 +286,10 @@
                 <tr>
                     <th>Máx. CPU % (rctl):</th>
                     <td><input name="inPcpu" type="text" id="inPcpu" value="0" size="5" maxlength="4" onkeypress="return isNumberKey(event)" /> (0-100 ; 0 = ilimitado)</td>
+                </tr>
+                <tr>
+                    <th>Máx. copias locales:</th>
+                    <td><input name="inMaxBackups" type="text" id="inMaxBackups" value="0" size="5" maxlength="4" onkeypress="return isNumberKey(event)" /> (0 = ilimitado ; rota las más antiguas)</td>
                 </tr>
                 <tr>
                     <th></th>
