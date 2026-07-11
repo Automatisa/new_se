@@ -392,6 +392,18 @@ class module_controller extends ctrl_module
         global $zdbh;
         extract($client, EXTR_SKIP);
         runtime_hook::Execute('OnBeforeUpdateClient');
+        // AUTZ FIX: (1) el cliente debe pertenecer al reseller/admin actual — no se pueden
+        // editar clientes de OTRO reseller; (2) el grupo asignado debe ser suyo (ug_reseller_fk):
+        // un reseller NO puede asignar el grupo Administradores -> escalada de privilegios.
+        $selfid = (int)ctrl_users::GetUserDetail()['userid'];
+        $scopeChk = $zdbh->prepare("SELECT ac_id_pk FROM x_accounts WHERE ac_id_pk=:cid AND ac_reseller_fk=:uid AND ac_deleted_ts IS NULL");
+        $scopeChk->execute([':cid' => (int)$clientid, ':uid' => $selfid]);
+        if (!$scopeChk->fetch()) { self::$error = true; return false; }
+        if (isset($group)) {
+            $grpChk = $zdbh->prepare("SELECT COUNT(*) FROM x_groups WHERE ug_id_pk=:gid AND ug_reseller_fk=:uid");
+            $grpChk->execute([':gid' => (int)$group, ':uid' => $selfid]);
+            if ((int)$grpChk->fetchColumn() === 0) { self::$error = true; return false; }
+        }
         // Si el paquete cambia, verificar pool del reseller antes de proceder.
         $old_row_sql = $zdbh->prepare("SELECT ac_package_fk, ac_reseller_fk FROM x_accounts WHERE ac_id_pk=:id AND ac_deleted_ts IS NULL");
         $old_row_sql->execute([':id' => $clientid]);
@@ -563,6 +575,11 @@ class module_controller extends ctrl_module
         if (fs_director::CheckForEmptyValue(self::CheckCreateForErrors($username, $packageid, $groupid, $email, $password))) {
             return false;
         }
+        // AUTZ FIX: el grupo debe pertenecer al reseller/admin actual (ug_reseller_fk). Un
+        // reseller NO puede crear una cuenta en el grupo Administradores -> escalada de privilegios.
+        $grpChk = $zdbh->prepare("SELECT COUNT(*) FROM x_groups WHERE ug_id_pk=:gid AND ug_reseller_fk=:uid");
+        $grpChk->execute([':gid' => (int)$groupid, ':uid' => (int)$uid]);
+        if ((int)$grpChk->fetchColumn() === 0) { self::$error = true; return false; }
         // Pool check: el reseller no puede comprometer más recursos de los que tiene asignados.
         $pkg_quota_sql = $zdbh->prepare("SELECT q.* FROM x_quotas q JOIN x_packages p ON p.pk_id_pk = q.qt_package_fk WHERE q.qt_package_fk = :pid AND p.pk_deleted_ts IS NULL");
         $pkg_quota_sql->execute([':pid' => $packageid]);
