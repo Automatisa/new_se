@@ -403,7 +403,14 @@ function WriteVhostConfigFile() {
 		 * ##################################################
 		 */
 		# Domain is beyond its diskusage
-		if ($vhostuser['diskquota'] != 0 && $diskspace > $vhostuser['diskquota']) {
+		#
+		# LÓGICA CORREGIDA: exceder la cuota de DISCO ya NO tumba la web. Un sitio sobre
+		# cuota debe seguir SIRVIENDO su contenido (lecturas); lo único que debe impedirse
+		# es ESCRIBIR más, y eso se hace a nivel de sistema de ficheros con cuota UFS por
+		# uid (h_user) — el kernel devuelve EDQUOT en los write() pero el servicio sigue.
+		# Por eso esta condición se anula (false): el vhost se genera normal aunque esté
+		# sobre cuota. (El ancho de banda mantiene su política aparte, más abajo.)
+		if (false && $vhostuser['diskquota'] != 0 && $diskspace > $vhostuser['diskquota']) {
 			if ($rowvhost['vh_ssl_tx'] == null) {
 				# Load template file into vhost cofig to save
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
