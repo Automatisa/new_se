@@ -46,6 +46,7 @@
                     <th><: File :></th>
                     <th><: File Size :></th>
                     <th></th>
+                    <th></th>
                 </tr>
                 <% loop BackUpList %>
                 <tr>
@@ -57,6 +58,7 @@
                     <td><& backupfile &>.zip</td>
                     <td><b><& filesize &></b></td>
                     <td><button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& backupfile &>" id="inDelete_<& backupfile &>" value="<& backupfile &>"><i class="bi bi-trash me-1"></i><: Delete Backup :></button></td>
+                    <td><button class="btn btn-warning" type="submit" formaction="./?module=backupmgr&action=RestoreBackup" name="inRestore" value="<& backupfile &>" onclick="return confirm('¿Restaurar esta copia? Se sobrescribirán los ficheros actuales de la cuenta y se importarán sus bases de datos y configuración del panel. Esta acción no se puede deshacer.');"><i class="bi bi-arrow-counterclockwise me-1"></i><: Restore :></button></td>
                 </tr>
                 <% endloop %>
             </table>

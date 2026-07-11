@@ -291,6 +291,15 @@ class privilege
             'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_del.sh',
         ),
 
+        // Restaura los FICHEROS del home de una cuenta desde un .zip de backup. La orden
+        // ("USERNAME|/ruta/backup.zip") se pasa por /var/sentora/run/account_restore_req;
+        // el script valida el usuario y que el zip esté en backups/ o restore/ del propio home.
+        'account_restore' => array(
+            'argv'      => array('/usr/local/sentora/bin/account_restore.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/account_restore.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/account_restore.sh',
+        ),
+
         // rspamd start / stop / restart. Usados por antispam_admin.
         'rspamd_start' => array(
             'argv'      => array('/usr/sbin/service', 'rspamd', 'start'),

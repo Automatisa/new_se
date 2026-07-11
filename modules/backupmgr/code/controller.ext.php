@@ -177,6 +177,48 @@ class module_controller extends ctrl_module
         }
     }
 
+    /**
+     * Restaura la cuenta del usuario actual desde una de SUS copias (ficheros + BD + config).
+     * La copia se valida contra la lista real de backups del usuario (evita traversal/ajenos).
+     */
+    static function doRestoreBackup()
+    {
+        global $controller, $zdbh;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $userid   = (int)$currentuser['userid'];
+        $username = $currentuser['username'];
+        $name     = $controller->GetControllerRequest('FORM', 'inRestore');
+
+        // El nombre debe coincidir EXACTAMENTE con una copia listada del usuario.
+        $valid = false;
+        foreach (self::ListBackUps($userid) as $f) {
+            if ($f['backupfile'] === $name) { $valid = true; break; }
+        }
+        if (!$valid) {
+            $_SESSION['bk_restore_flash'] = array('err', 'La copia indicada no existe.');
+        } else {
+            $zip = ctrl_options::GetSystemOption('hosted_dir') . $username . '/backups/' . $name . '.zip';
+
+            // Nombres de BD actuales del usuario (para mapear los .sql del zip).
+            $dbNames = array();
+            $q = $zdbh->prepare("SELECT my_name_vc FROM x_mysql_databases WHERE my_acc_fk=:u AND my_deleted_ts IS NULL");
+            $q->execute(array(':u' => $userid));
+            foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $d) $dbNames[] = $d;
+
+            // Orden: ficheros -> bases de datos -> config del panel.
+            $filesOk = sys_account_restore::restoreFiles($username, $zip);
+            $dbN     = sys_account_restore::restoreDatabases($userid, $zip, $dbNames);
+            $cfgN    = sys_account_restore::restoreConfig($userid, $zip);
+
+            $msg = 'Restauración: ficheros ' . ($filesOk ? 'OK' : 'ERROR')
+                 . ' · BD importadas ' . (int)$dbN
+                 . ' · config reinsertada ' . (int)$cfgN . ' filas.';
+            $_SESSION['bk_restore_flash'] = array($filesOk ? 'ok' : 'err', $msg);
+        }
+        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+    }
+
     static function GetHasData()
     {
         global $controller;
@@ -245,6 +287,12 @@ class module_controller extends ctrl_module
 
     static function getResult()
     {
+        // Mensaje flash de la restauración (PRG desde doRestoreBackup).
+        if (!empty($_SESSION['bk_restore_flash'])) {
+            list($type, $msg) = $_SESSION['bk_restore_flash'];
+            unset($_SESSION['bk_restore_flash']);
+            return ui_sysmessage::shout($msg, $type === 'ok' ? 'zannounceok' : 'zannounceerror');
+        }
         if (!fs_director::CheckForEmptyValue(self::$filenotexist)) {
             return ui_sysmessage::shout("There was an error saving your backup!", "zannounceerror");
         }

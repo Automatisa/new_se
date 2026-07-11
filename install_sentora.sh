@@ -245,8 +245,9 @@ pkg install -y sshguard
 
 # Utilidades
 # 'zip' es imprescindible para el módulo de backups (backupmgr usa `zip -r9`); sin él,
-# la copia falla con "File not found in temp directory!". 'unzip' lo usa moduleadmin.
-pkg install -y doas webalizer bash zip unzip
+# la copia falla con "File not found in temp directory!". (unzip ya viene en base FreeBSD
+# en /usr/bin/unzip; lo usa el restaurador de cuentas y moduleadmin.)
+pkg install -y doas webalizer bash zip
 
 ok "Paquetes instalados"
 
@@ -1678,6 +1679,9 @@ permit nopass www as root cmd /usr/sbin/service args sshguard restart
 # El nombre de usuario va en /var/sentora/run/hosting_useradd_req / hosting_userdel_req
 permit nopass www as root cmd $PANEL_PATH/bin/hosting_user_add.sh
 permit nopass www as root cmd $PANEL_PATH/bin/hosting_user_del.sh
+# Restaura los ficheros del home de una cuenta desde un .zip (backupmgr).
+# La orden "USERNAME|/ruta/backup.zip" va en /var/sentora/run/account_restore_req
+permit nopass www as root cmd $PANEL_PATH/bin/account_restore.sh
 
 # ---- rspamd (antispam_admin) ----
 permit nopass www as root cmd /usr/sbin/service args rspamd start
