@@ -183,10 +183,16 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         runtime_hook::Execute('OnBeforeDeleteDatabase');
-        $numrows = $zdbh->prepare("SELECT my_name_vc FROM x_mysql_databases WHERE my_id_pk=:my_id_pk");
+        // IDOR FIX: verificar que la BD pertenece al usuario autenticado ANTES de borrarla.
+        // doConfirmDeleteDatabase pasa el id crudo de la request; sin este check un usuario
+        // podía hacer DROP DATABASE de la base de datos de OTRO cliente indicando su id.
+        $currentuser = ctrl_users::GetUserDetail();
+        $numrows = $zdbh->prepare("SELECT my_name_vc FROM x_mysql_databases WHERE my_id_pk=:my_id_pk AND my_acc_fk=:uid AND my_deleted_ts IS NULL");
         $numrows->bindParam(':my_id_pk', $my_id_pk);
+        $numrows->bindValue(':uid', (int)$currentuser['userid'], PDO::PARAM_INT);
         $numrows->execute();
         $rowmysql = $numrows->fetch();
+        if (!$rowmysql) { return false; }
         try {
             $my_name_vc = $zdbh->mysqlRealEscapeString($rowmysql['my_name_vc']);
             $sql = $zdbh->prepare("DROP DATABASE IF EXISTS `$my_name_vc`;");
