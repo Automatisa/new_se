@@ -244,7 +244,9 @@ pkg install -y proftpd proftpd-mod_sql_mysql
 pkg install -y sshguard
 
 # Utilidades
-pkg install -y doas webalizer bash
+# 'zip' es imprescindible para el módulo de backups (backupmgr usa `zip -r9`); sin él,
+# la copia falla con "File not found in temp directory!". 'unzip' lo usa moduleadmin.
+pkg install -y doas webalizer bash zip unzip
 
 ok "Paquetes instalados"
 
