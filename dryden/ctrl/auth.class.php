@@ -137,6 +137,12 @@ class ctrl_auth
         }
 
         if ($row) {
+            // Anti session-fixation: al elevar la sesión a autenticada se genera un ID
+            // nuevo, invalidando cualquier ID que un atacante hubiera podido fijar en el
+            // navegador de la víctima antes del login.
+            if (session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+                session_regenerate_id(true);
+            }
             ctrl_auth::SetUserSession($row['ac_id_pk'], $sessionSecurity);
             // Fix SQL injection: prepared statement en lugar de concatenación
             $log_logon = $zdbh->prepare("UPDATE x_accounts SET ac_lastlogon_ts = :ts WHERE ac_id_pk = :id");

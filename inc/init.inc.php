@@ -51,9 +51,11 @@ if (isset($_POST['inForgotPassword'])) {
     $rows = $sth->fetchAll();
     if ($rows) {
         $result = $rows['0'];
-        // Fix SQL injection: prepared statement en lugar de concatenación
+        // Fix SQL injection: prepared statement en lugar de concatenación.
+        // Se almacena "timestamp:token" para poder caducar el enlace (1h). El correo
+        // solo lleva el token; la marca de tiempo se valida en el consumo.
         $upd = $zdbh->prepare("UPDATE x_accounts SET ac_resethash_tx = :hash WHERE ac_id_pk = :id");
-        $upd->execute([':hash' => $randomkey, ':id' => (int)$result['ac_id_pk']]);
+        $upd->execute([':hash' => time() . ':' . $randomkey, ':id' => (int)$result['ac_id_pk']]);
         if (isset($_SERVER['HTTPS'])) {
             $protocol = 'https://';
         } else {
@@ -86,11 +88,28 @@ If you wish to proceed with the password reset on your account, please use the l
 
 if (isset($_POST['inConfEmail'])) {
     runtime_csfr::Protect();
-    $sql = $zdbh->prepare("SELECT ac_id_pk FROM x_accounts WHERE ac_email_vc = :email AND ac_resethash_tx = :resetkey AND ac_resethash_tx IS NOT NULL AND ac_deleted_ts IS NULL");
+    // Se busca solo por email; el token se compara en PHP con hash_equals (tiempo
+    // constante) y se verifica su caducidad (1h). Así el enlace de reset expira y no
+    // queda válido para siempre si nunca se usa.
+    $suppliedKey = isset($_GET['resetkey']) ? (string)$_GET['resetkey'] : '';
+    $sql = $zdbh->prepare("SELECT ac_id_pk, ac_resethash_tx FROM x_accounts WHERE ac_email_vc = :email AND ac_resethash_tx IS NOT NULL AND ac_resethash_tx <> '' AND ac_deleted_ts IS NULL");
     $sql->bindParam(':email', $_POST['inConfEmail']);
-    $sql->bindParam(':resetkey', $_GET['resetkey']);
     $sql->execute();
-    $result = $sql->fetch();
+    $row = $sql->fetch();
+    $result = false;
+    if ($row && $suppliedKey !== '') {
+        $stored = (string)$row['ac_resethash_tx'];
+        $sep = strpos($stored, ':');
+        // Compatibilidad con tokens antiguos sin timestamp: si no hay ':', se trata
+        // como caducado (fuerza a solicitar uno nuevo con el formato actual).
+        if ($sep !== false) {
+            $issuedTs = (int)substr($stored, 0, $sep);
+            $storedTok = substr($stored, $sep + 1);
+            if ($issuedTs > 0 && (time() - $issuedTs) <= 3600 && hash_equals($storedTok, $suppliedKey)) {
+                $result = ['ac_id_pk' => $row['ac_id_pk']];
+            }
+        }
+    }
 
     $crypto = new runtime_hash;
     $crypto->SetPassword($_POST['inNewPass']);

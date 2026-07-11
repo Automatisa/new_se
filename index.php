@@ -25,6 +25,33 @@ session_set_cookie_params([
     'secure'   => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
 ]);
 session_start();
+
+// Cabeceras de seguridad HTTP globales del panel. Se emiten antes de cualquier
+// salida. La CSP es deliberadamente permisiva con inline scripts/styles porque el
+// tema legacy (dryden) los usa masivamente; lo que sí bloqueamos es el framing
+// (anti-clickjacking), plugins/objetos, y el secuestro de base/formularios.
+if (!headers_sent()) {
+    $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('X-XSS-Protection: 0');
+    header(
+        "Content-Security-Policy: default-src 'self'; "
+        . "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        . "style-src 'self' 'unsafe-inline'; "
+        . "img-src 'self' data:; "
+        . "font-src 'self' data:; "
+        . "object-src 'none'; "
+        . "base-uri 'self'; "
+        . "form-action 'self'; "
+        . "frame-ancestors 'none'"
+    );
+    if ($isHttps) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
+}
+
 require_once 'dryden/loader.inc.php';
 require_once 'cnf/db.php';
 debug_phperrors::SetMode('dev');
