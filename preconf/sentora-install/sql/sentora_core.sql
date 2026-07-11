@@ -601,6 +601,27 @@ CREATE TABLE `x_quotas` (
   PRIMARY KEY (`qt_id_pk`)
 ) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Destino remoto de copias de seguridad por cuenta (Fase 2). La contraseña va CIFRADA
+-- (AES-256-GCM) en bd_pass_tx; la clave se guarda fuera de la BD en cnf/backup.key.
+DROP TABLE IF EXISTS `x_backup_destinations`;
+CREATE TABLE `x_backup_destinations` (
+  `bd_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `bd_acc_fk` int(11) NOT NULL,
+  `bd_type_vc` varchar(10) NOT NULL DEFAULT 'ftps',
+  `bd_host_vc` varchar(255) DEFAULT NULL,
+  `bd_port_in` int(11) NOT NULL DEFAULT 21,
+  `bd_user_vc` varchar(255) DEFAULT NULL,
+  `bd_pass_tx` text,
+  `bd_path_vc` varchar(255) NOT NULL DEFAULT '/',
+  `bd_tlsverify_in` int(1) NOT NULL DEFAULT 1,
+  `bd_enabled_in` int(1) NOT NULL DEFAULT 0,
+  `bd_laststatus_vc` varchar(255) DEFAULT NULL,
+  `bd_last_ts` int(11) DEFAULT NULL,
+  `bd_created_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`bd_id_pk`),
+  KEY `bd_acc_fk` (`bd_acc_fk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 DROP TABLE IF EXISTS `x_settings`;
 CREATE TABLE `x_settings` (
   `so_id_pk` int(6) unsigned NOT NULL AUTO_INCREMENT,

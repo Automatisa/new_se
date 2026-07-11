@@ -219,6 +219,95 @@ class module_controller extends ctrl_module
         if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
     }
 
+    // ---------------------------------------------------------------------------
+    //  Fase 2 — Destino remoto de copias (FTPS) por cuenta
+    // ---------------------------------------------------------------------------
+
+    /** Guarda/actualiza el destino remoto de la cuenta actual. La contraseña solo se
+     *  re-cifra si se envía una nueva (en blanco = conservar la existente). */
+    static function doSaveDestination()
+    {
+        global $controller, $zdbh;
+        runtime_csfr::Protect();
+        $cu = ctrl_users::GetUserDetail();
+        $uid = (int)$cu['userid'];
+
+        $host = trim((string)$controller->GetControllerRequest('FORM', 'inDestHost'));
+        $port = (int)$controller->GetControllerRequest('FORM', 'inDestPort'); if ($port <= 0) $port = 21;
+        $user = trim((string)$controller->GetControllerRequest('FORM', 'inDestUser'));
+        $pass = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
+        $path = trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')); if ($path === '') $path = '/';
+        $type = ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps');
+        $verify = $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0;
+        $enabled = $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0;
+
+        $exists = $zdbh->prepare("SELECT bd_id_pk, bd_pass_tx FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
+        $exists->execute(array(':u' => $uid));
+        $row = $exists->fetch(PDO::FETCH_ASSOC);
+        $encPass = ($pass !== '') ? sys_backup_remote::encrypt($pass) : ($row ? $row['bd_pass_tx'] : '');
+
+        if ($row) {
+            $u = $zdbh->prepare("UPDATE x_backup_destinations SET bd_type_vc=:t,bd_host_vc=:h,bd_port_in=:p,bd_user_vc=:us,bd_pass_tx=:pw,bd_path_vc=:pa,bd_tlsverify_in=:v,bd_enabled_in=:e WHERE bd_acc_fk=:u");
+            $u->execute(array(':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':e'=>$enabled,':u'=>$uid));
+        } else {
+            $i = $zdbh->prepare("INSERT INTO x_backup_destinations (bd_acc_fk,bd_type_vc,bd_host_vc,bd_port_in,bd_user_vc,bd_pass_tx,bd_path_vc,bd_tlsverify_in,bd_enabled_in,bd_created_ts) VALUES (:u,:t,:h,:p,:us,:pw,:pa,:v,:e,:ts)");
+            $i->execute(array(':u'=>$uid,':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':e'=>$enabled,':ts'=>time()));
+        }
+        $_SESSION['bk_restore_flash'] = array('ok', 'Destino remoto guardado.');
+        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+    }
+
+    /** Prueba la conexión/subida al destino remoto de la cuenta actual. */
+    static function doTestDestination()
+    {
+        runtime_csfr::Protect();
+        $cu = ctrl_users::GetUserDetail();
+        $dest = sys_backup_remote::getDestination((int)$cu['userid']);
+        if (!$dest || empty($dest['bd_host_vc'])) {
+            $_SESSION['bk_restore_flash'] = array('err', 'No hay destino remoto configurado.');
+        } else {
+            list($ok, $msg) = sys_backup_remote::testConnection($dest);
+            sys_backup_remote::recordStatus((int)$cu['userid'], ($ok ? 'OK: ' : 'ERROR: ') . $msg);
+            $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err', 'Prueba de destino: ' . $msg);
+        }
+        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+    }
+
+    /** HTML del panel de configuración del destino remoto (placeholder <@ RemoteDestPanel @>). */
+    static function getRemoteDestPanel()
+    {
+        global $zdbh;
+        $cu = ctrl_users::GetUserDetail();
+        $q = $zdbh->prepare("SELECT * FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
+        $q->execute(array(':u' => (int)$cu['userid']));
+        $d = $q->fetch(PDO::FETCH_ASSOC) ?: array();
+        $h = function ($k, $def = '') use ($d) { return htmlspecialchars(isset($d[$k]) && $d[$k] !== null ? $d[$k] : $def, ENT_QUOTES); };
+        $chk = function ($k, $def) use ($d) { $v = isset($d[$k]) ? (int)$d[$k] : $def; return $v ? 'checked' : ''; };
+        $csrf = self::getCSFR_Tag();
+        $status = !empty($d['bd_laststatus_vc'])
+            ? '<p><small>Última prueba/envío: <b>' . htmlspecialchars($d['bd_laststatus_vc'], ENT_QUOTES) . '</b>'
+              . (!empty($d['bd_last_ts']) ? ' (' . date('d/m/Y H:i', (int)$d['bd_last_ts']) . ')' : '') . '</small></p>'
+            : '';
+
+        $html  = '<div class="zform_wrapper"><h2>Destino remoto de copias (FTPS)</h2>';
+        $html .= '<p><small>Si lo activas, cada copia se subirá cifrada por FTPS a este servidor. La contraseña se guarda cifrada (AES-256).</small></p>' . $status;
+        $html .= '<form method="post" action="./?module=backupmgr&action=SaveDestination">' . $csrf;
+        $html .= '<table class="table">';
+        $html .= '<tr><th style="width:200px">Servidor (host)</th><td><input class="form-control" type="text" name="inDestHost" value="' . $h('bd_host_vc') . '" placeholder="ftp.midestino.com"></td></tr>';
+        $html .= '<tr><th>Puerto</th><td><input class="form-control" type="number" name="inDestPort" value="' . $h('bd_port_in', '21') . '" style="max-width:120px"></td></tr>';
+        $html .= '<tr><th>Usuario</th><td><input class="form-control" type="text" name="inDestUser" value="' . $h('bd_user_vc') . '"></td></tr>';
+        $html .= '<tr><th>Contraseña</th><td><input class="form-control" type="password" name="inDestPass" value="" placeholder="' . (!empty($d['bd_pass_tx']) ? '•••••• (dejar en blanco para conservar)' : '') . '" autocomplete="new-password"></td></tr>';
+        $html .= '<tr><th>Ruta remota</th><td><input class="form-control" type="text" name="inDestPath" value="' . $h('bd_path_vc', '/') . '" placeholder="/backups/"></td></tr>';
+        $html .= '<tr><th>FTP plano (sin TLS)</th><td><input type="checkbox" name="inDestPlain" value="1" ' . (isset($d['bd_type_vc']) && $d['bd_type_vc'] === 'ftp' ? 'checked' : '') . '> <small>Solo red interna de confianza. Por defecto FTPS.</small></td></tr>';
+        $html .= '<tr><th>Verificar certificado TLS</th><td><input type="checkbox" name="inDestVerify" value="1" ' . $chk('bd_tlsverify_in', 1) . '> <small>Desmarca para certificados autofirmados internos.</small></td></tr>';
+        $html .= '<tr><th>Activar envío remoto</th><td><input type="checkbox" name="inDestEnabled" value="1" ' . $chk('bd_enabled_in', 0) . '></td></tr>';
+        $html .= '</table>';
+        $html .= '<button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Guardar destino</button> ';
+        $html .= '<button class="btn btn-secondary" type="submit" formaction="./?module=backupmgr&action=TestDestination"><i class="bi bi-plug me-1"></i>Probar conexión</button>';
+        $html .= '</form></div>';
+        return $html;
+    }
+
     static function GetHasData()
     {
         global $controller;

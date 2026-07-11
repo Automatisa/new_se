@@ -491,6 +491,15 @@ chmod 640 "$PANEL_PATH/cnf/db.php"
 chown root:www "$PANEL_PATH/cnf/db.php"
 ok "db.php configurado"
 
+# Clave maestra para cifrar credenciales de destinos remotos de backup (Fase 2).
+# 32 bytes hex, legible por www (que corre el panel) pero no por los inquilinos.
+if [ ! -f "$PANEL_PATH/cnf/backup.key" ]; then
+    openssl rand -hex 32 > "$PANEL_PATH/cnf/backup.key"
+fi
+chmod 640 "$PANEL_PATH/cnf/backup.key"
+chown root:www "$PANEL_PATH/cnf/backup.key"
+ok "Clave de cifrado de backups generada"
+
 # Fijar contraseña de zadmin con la utilidad oficial: genera hash+salt (runtime_hash),
 # la crypto key (cnf/security.php) y una API key nueva. Requiere cnf/db.php ya escrito.
 php "$PANEL_PATH/bin/setzadmin" --set "$ZADMIN_PASSWORD" > /dev/null

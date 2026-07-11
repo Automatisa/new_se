@@ -41,6 +41,7 @@ include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/versions.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/ctrl/options.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/director.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/filehandler.class.php');
+include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_remote.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'inc/dbc.inc.php');
 try {
     $zdbh = new db_driver("mysql:host=" . $host . ";dbname=" . $dbname . "", $user, $pass);
@@ -174,6 +175,17 @@ function ExecuteBackup($userid, $username, $download = 0) {
                 );
                 @unlink($cfg_file);
             }
+        }
+    }
+
+    // Fase 2: enviar la copia al destino remoto de la cuenta si está activado (FTPS).
+    // sys_backup_remote usa `global $zdbh`; aquí $zdbh es local, así que lo exponemos.
+    if (file_exists($temp_dir . $backupname . ".zip")) {
+        $GLOBALS['zdbh'] = $zdbh;
+        $dest = sys_backup_remote::getDestination($userid);
+        if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
+            list($rok, $rmsg) = sys_backup_remote::upload($dest, $temp_dir . $backupname . ".zip");
+            sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
         }
     }
 

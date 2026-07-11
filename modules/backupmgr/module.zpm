@@ -14,6 +14,8 @@
 
     <@ CreateBackupDirectory @>
 
+    <@ RemoteDestPanel @>
+
     <div class="zform_wrapper">
         <h2><: Backup your hosting account files :></h2>
         <% if HasData %>
