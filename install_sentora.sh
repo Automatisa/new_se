@@ -207,6 +207,17 @@ grep -q '^/var/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
 mount | grep -q ' /tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /tmp /tmp 2>/dev/null
 mount | grep -q ' /var/tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /var/tmp /var/tmp 2>/dev/null
 
+# Cuotas de disco UFS por usuario: exceder la cuota bloquea la ESCRITURA (EDQUOT) pero la web
+# sigue sirviendo (no se cae). Se activan en la partición raíz (donde viven físicamente las
+# home de hosting). Requiere reiniciar para que quotacheck las inicialice al arrancar.
+ROOT_DEV=$(mount -p | awk '$2=="/" && $3=="ufs" {print $1}')
+if [ -n "$ROOT_DEV" ]; then
+    grep -Eq "^${ROOT_DEV//\//\\/}[[:space:]]+/[[:space:]]+ufs[[:space:]].*userquota" /etc/fstab || \
+        sed -i '' -E "/^${ROOT_DEV//\//\\/}[[:space:]]+\/[[:space:]]+ufs[[:space:]]/ s/[[:space:]]rw([[:space:],])/	rw,userquota\1/" /etc/fstab
+    sysrc quota_enable="YES" >/dev/null 2>&1
+    warn "Cuotas de disco UFS configuradas en fstab: se activan tras el primer REINICIO."
+fi
+
 # Base de datos
 if [ "$MYSQL_EXISTING" != "true" ]; then
     pkg install -y mysql84-server
@@ -1691,6 +1702,8 @@ permit nopass www as root cmd $PANEL_PATH/bin/hosting_user_del.sh
 # Restaura los ficheros del home de una cuenta desde un .zip (backupmgr).
 # La orden "USERNAME|/ruta/backup.zip" va en /var/sentora/run/account_restore_req
 permit nopass www as root cmd $PANEL_PATH/bin/account_restore.sh
+# Aplica cuotas de disco UFS por cuenta (edquota). Orden en /var/sentora/run/disk_quota_req
+permit nopass www as root cmd $PANEL_PATH/bin/disk_quota_apply.sh
 
 # ---- rspamd (antispam_admin) ----
 permit nopass www as root cmd /usr/sbin/service args rspamd start

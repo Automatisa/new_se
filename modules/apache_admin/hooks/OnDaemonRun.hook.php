@@ -19,6 +19,13 @@ if (ui_module::CheckModuleEnabled('Apache Config')) {
     }
     $rctlCount = rctl_manager::ApplyAll();
     echo "rctl: limites aplicados a " . $rctlCount . " usuarios." . fs_filehandler::NewLine();
+    // Aplicar cuotas de disco UFS por usuario desde el paquete: sobre cuota = no puede
+    // escribir (EDQUOT) pero la web sigue sirviendo. No-op si las cuotas UFS no están activas.
+    if (!class_exists('disk_quota_manager')) {
+        require_once '/usr/local/sentora/dryden/sys/disk_quota_manager.class.php';
+    }
+    $dqCount = disk_quota_manager::ApplyAll();
+    echo "disk-quota: aplicadas a " . $dqCount . " usuarios." . fs_filehandler::NewLine();
     if (ctrl_options::GetSystemOption('apache_changed') == strtolower("true")) {
         echo "Apache Config has changed..." . fs_filehandler::NewLine();
 		

@@ -300,6 +300,14 @@ class privilege
             'doas_rule' => 'cmd /usr/local/sentora/bin/account_restore.sh',
         ),
 
+        // Aplica cuotas de disco UFS por cuenta (uid h_USER). Orden ("USERNAME|HARD_KB" por
+        // línea) en /var/sentora/run/disk_quota_req; el script valida y llama a edquota.
+        'disk_quota_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/disk_quota_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/disk_quota_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/disk_quota_apply.sh',
+        ),
+
         // rspamd start / stop / restart. Usados por antispam_admin.
         'rspamd_start' => array(
             'argv'      => array('/usr/sbin/service', 'rspamd', 'start'),
