@@ -239,7 +239,11 @@ class ui_templateparser
             $i = 0;
             foreach ($match[1] as $classes) {
                 $method_name = "get" . $classes;
-                $output = module_controller::$method_name();
+                // NO llamar aquí al método (su salida se descartaba). Al reemplazar el tag por
+                // una sentencia echo, el método ya se ejecuta al renderizar. Llamarlo también
+                // aquí lo ejecutaba DOS veces y rompía los getters con efecto secundario (p.ej.
+                // getResult consumia el flash de sesion en la 1a llamada y la 2a -la que se
+                // muestra- salia vacia); ademas duplicaba el trabajo de todos los tags.
                 $data = str_replace($match[0][$i], "<?php echo module_controller::" . $method_name . "(); ?>", $data);
                 $i++;
             }
