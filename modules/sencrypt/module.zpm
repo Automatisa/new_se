@@ -70,10 +70,11 @@
 				<tr>
 					<th><: Domain :></th>
 					<th><: Provider :></th>
-					<th><: Expiry :></th>	
+					<th><: Expiry :></th>
+					<th><: Force HTTPS :></th>
 					<th><: Actions :></th>
 				</tr>
-	
+
 				<% loop List_of_active_domains_ssl %>
 					<tr>
 						<td>
@@ -84,6 +85,9 @@
 						</td>
 						<td>
 							<& Days_AC &>
+						</td>
+						<td>
+							{! Force_AC !}
 						</td>
 						<td>
 							{! Button_AC !}

@@ -310,6 +310,30 @@ class module_controller extends ctrl_module {
 		$currentuser = ctrl_users::GetUserDetail();
 		return self::Show_list_of_active_domain_ssl($currentuser['userid']);
 	}
+
+	# Toggle "Forzar HTTPS" por dominio (cliente): checkbox que auto-envía.
+	static function ForceToggle($rowdomains) {
+		$chk = ((int)$rowdomains['vh_forcessl_in'] !== 0) ? 'checked' : '';
+		return '<form action="./?module=sencrypt&action=ForceSSL" method="post" style="display:inline">'
+			. runtime_csfr::Token()
+			. '<input type="hidden" name="inDomain" value="' . htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8') . '">'
+			. '<input type="checkbox" name="inForce" value="1" ' . $chk . ' onchange="this.form.submit()"> '
+			. ui_language::translate('Force HTTPS')
+			. '</form>';
+	}
+
+	# Guarda el toggle SOLO en dominios del propio usuario (anti-IDOR) y regenera Apache.
+	static function doForceSSL() {
+		global $zdbh, $controller;
+		runtime_csfr::Protect();
+		$cu = ctrl_users::GetUserDetail();
+		$domain = (string)$controller->GetControllerRequest('FORM', 'inDomain');
+		$force  = $controller->GetControllerRequest('FORM', 'inForce') ? 1 : 0;
+		$q = $zdbh->prepare("UPDATE x_vhosts SET vh_forcessl_in = :f WHERE vh_name_vc = :d AND vh_acc_fk = :u AND vh_deleted_ts IS NULL");
+		$q->execute(array(':f' => $force, ':d' => $domain, ':u' => (int)$cu['userid']));
+		$zdbh->exec("UPDATE x_settings SET so_value_tx = 'true' WHERE so_name_vc = 'apache_changed'");
+		if (!headers_sent()) { header('location: ./?module=sencrypt&ShowPanel=letsencrypt'); exit; }
+	}
 	
 	static function Show_list_of_active_domain_ssl() {
 		global $zdbh, $controller;
@@ -362,7 +386,7 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ".";
 					}
 							
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL );
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL, 'Force_AC' => self::ForceToggle($rowdomains) );
 					
 				# If Letsencrypt cert	
 				} elseif ( is_file(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $rowdomains['vh_name_vc'] . "/cert.pem" ) ) {
@@ -395,18 +419,18 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ' - ' . ui_language::translate("Auto-renewal in") . ' ' . $reNewDay . ' ' . ui_language::translate("days") . '.';
 					}
 					
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton);
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton, 'Force_AC' => self::ForceToggle($rowdomains));
 					
 				}
 			}
 			if (!$res)
 			{
-				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL);
+				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL);
 			}
 
 		} else {		
 								
-			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL);
+			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL);
 			
 		}
 		
