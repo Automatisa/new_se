@@ -130,54 +130,174 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function getCreateCron()
+    /** Dominios del usuario (dir bajo web/ + nombre) para el desplegable. */
+    static function getUserDomains()
     {
         global $zdbh;
+        $cu = ctrl_users::GetUserDetail();
+        $st = $zdbh->prepare("SELECT vh_name_vc, vh_directory_vc FROM x_vhosts
+                               WHERE vh_acc_fk = :u AND vh_deleted_ts IS NULL AND vh_directory_vc <> ''
+                               ORDER BY vh_name_vc");
+        $st->execute(array(':u' => $cu['userid']));
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Ruta relativa efectiva del script, montada desde dominio + ruta (o inScript legacy). */
+    static function effScript()
+    {
+        global $controller;
+        $domain = (string)$controller->GetControllerRequest('FORM', 'inDomain');
+        $path   = (string)$controller->GetControllerRequest('FORM', 'inPath');
+        $legacy = (string)$controller->GetControllerRequest('FORM', 'inScript');
+        if ($path !== '') {
+            $path = ltrim(str_replace('\\', '/', $path), '/');
+            return ($domain !== '') ? 'web/' . $domain . '/' . $path : $path;
+        }
+        return $legacy;
+    }
+
+    /** Expresión cron efectiva, montada desde el modo de programación (o inTiming legacy). */
+    static function effTiming()
+    {
+        global $controller;
+        $mode = (string)$controller->GetControllerRequest('FORM', 'inSchedMode');
+        $c = function ($name, $min, $max) use ($controller) {
+            $v = (int)$controller->GetControllerRequest('FORM', $name);
+            return max($min, min($max, $v));
+        };
+        switch ($mode) {
+            case 'simple':   return (string)$controller->GetControllerRequest('FORM', 'inTimingPreset');
+            case 'daily':    return $c('inMinute',0,59) . ' ' . $c('inHour',0,23) . ' * * *';
+            case 'weekly':   return $c('inMinute',0,59) . ' ' . $c('inHour',0,23) . ' * * ' . $c('inWeekday',0,6);
+            case 'monthly':  return $c('inMinute',0,59) . ' ' . $c('inHour',0,23) . ' ' . $c('inMonthday',1,31) . ' * *';
+            case 'advanced': return trim((string)$controller->GetControllerRequest('FORM', 'inCronExpr'));
+            default:         return (string)$controller->GetControllerRequest('FORM', 'inTiming');
+        }
+    }
+
+    static function getCreateCron()
+    {
         global $controller;
         $currentuser = ctrl_users::GetUserDetail();
+        $base = htmlspecialchars(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/', ENT_QUOTES);
 
-        $line = "<h2>Create a new task</h2>";
-        $line .= "<form action=\"./?module=cron&action=CreateCron\" method=\"post\">";
-        $line .= "<table class=\"table table-striped\">";
-        $line .= "<tr valign=\"top\">";
-        $line .= "<th>" . ui_language::translate("Script") . ":</th>";
-        $line .= '<td><input name="inScript" type="text" id="inScript" size="50" /><br />'
-                . ui_language::translate("example") . ': /web/domain_com/task.php<br>'
-                . ui_language::translate('Note 1 : Script path is relative to your sentora-user root directory:') . '<br>'
-                . ' &nbsp; <b>' . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/</b>'
-                . ' (' . ui_language::translate('domains are under') . ' <b>web/</b>)<br>'
-                . ui_language::translate('Note 2 : Each file access in your script must use absolute directory path as above.')
-                . '</td>';
-        $line .= "</tr>";
-        $line .= "<tr>";
-        $line .= "<th>" . ui_language::translate("Comment") . ":</th>";
-        $line .= "<td><input name=\"inDescription\" type=\"text\" id=\"inDescription\" size=\"50\" maxlength=\"50\" /></td>";
-        $line .= "</tr>";
-        $line .= "<tr>";
-        $line .= "<th>" . ui_language::translate("Executed") . ":</th>";
-        $line .= "<td><select name=\"inTiming\" id=\"inTiming\">";
-        $line .= "<option value=\"* * * * *\">" . ui_language::translate("Every 1 minute") . "</option>";
-        $line .= "<option value=\"0,5,10,15,20,25,30,35,40,45,50,55 * * * *\">" . ui_language::translate("Every 5 minutes") . "</option>";
-        $line .= "<option value=\"0,10,20,30,40,50 * * * *\">" . ui_language::translate("Every 10 minutes") . "</option>";
-        $line .= "<option value=\"0,30 * * * *\">" . ui_language::translate("Every 30 minutes") . "</option>";
-        $line .= "<option value=\"0 * * * *\">" . ui_language::translate("Every 1 hour") . "</option>";
-        $line .= "<option value=\"0 0,2,4,6,8,10,12,14,16,18,20,22 * * *\">" . ui_language::translate("Every 2 hours") . "</option>";
-        $line .= "<option value=\"0 0,8,16 * * *\">" . ui_language::translate("Every 8 hours") . "</option>";
-        $line .= "<option value=\"0 0,12 * * *\">" . ui_language::translate("Every 12 hours") . "</option>";
-        $line .= "<option value=\"0 0 * * *\">" . ui_language::translate("Every 1 day") . "</option>";
-        $line .= "<option value=\"0 0 * * 0\">" . ui_language::translate("Every week") . "</option>";
-        $line .="<option value=\"0 0 1 * *\">" . ui_language::translate("Every month") . "</option>";
-        $line .= "</select></td>";
-        $line .= "</tr>";
-        $line .= "<tr>";
-        $line .= "<th colspan=\"2\" align=\"right\"><input type=\"hidden\" name=\"inReturn\" value=\"GetFullURL\" />";
-        $line .= "<input type=\"hidden\" name=\"inUserID\" value=\"" . $currentuser['userid'] . "\" />";
-        $line .= runtime_csfr::Token();
-        $line .= "<button class=\"button-loader btn btn-primary\" type=\"submit\" id=\"button\"><i class=\"bi bi-plus-circle me-1\"></i>" . ui_language::translate("Create") . "</button></th>";
-        $line .= "</tr>";
-        $line .= "</table>";
-        $line .= "</form>";
+        // Opciones de dominio
+        $domOpts = '<option value="">' . ui_language::translate('(home root)') . '</option>';
+        foreach (self::getUserDomains() as $d) {
+            $dir = htmlspecialchars($d['vh_directory_vc'], ENT_QUOTES);
+            $nm  = htmlspecialchars($d['vh_name_vc'], ENT_QUOTES);
+            $domOpts .= '<option value="' . $dir . '">' . $nm . '</option>';
+        }
 
+        $presets =
+             '<option value="* * * * *">' . ui_language::translate('Every 1 minute') . '</option>'
+            . '<option value="0,5,10,15,20,25,30,35,40,45,50,55 * * * *">' . ui_language::translate('Every 5 minutes') . '</option>'
+            . '<option value="0,10,20,30,40,50 * * * *">' . ui_language::translate('Every 10 minutes') . '</option>'
+            . '<option value="0,30 * * * *">' . ui_language::translate('Every 30 minutes') . '</option>'
+            . '<option value="0 * * * *">' . ui_language::translate('Every 1 hour') . '</option>'
+            . '<option value="0 0,2,4,6,8,10,12,14,16,18,20,22 * * *">' . ui_language::translate('Every 2 hours') . '</option>'
+            . '<option value="0 0,8,16 * * *">' . ui_language::translate('Every 8 hours') . '</option>'
+            . '<option value="0 0,12 * * *">' . ui_language::translate('Every 12 hours') . '</option>'
+            . '<option value="0 0 * * *">' . ui_language::translate('Every 1 day') . '</option>';
+
+        $hourOpts = ''; for ($i=0;$i<24;$i++){ $hh=str_pad($i,2,'0',STR_PAD_LEFT); $hourOpts.='<option value="'.$i.'">'.$hh.'</option>'; }
+        $minOpts  = ''; for ($i=0;$i<60;$i+=5){ $mm=str_pad($i,2,'0',STR_PAD_LEFT); $minOpts.='<option value="'.$i.'">'.$mm.'</option>'; }
+        $dowNames = array('Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado');
+        $dowOpts  = ''; foreach($dowNames as $i=>$n){ $dowOpts.='<option value="'.$i.'">'.$n.'</option>'; }
+        $mdayOpts = ''; for ($i=1;$i<=31;$i++){ $mdayOpts.='<option value="'.$i.'">'.$i.'</option>'; }
+
+        $csrf = runtime_csfr::Token();
+        $t = function($k){ return ui_language::translate($k); };
+
+        $line  = '<h2>' . $t('Create a new task') . '</h2>';
+        $line .= '<form id="cronCreateForm" action="./?module=cron&action=CreateCron" method="post">';
+        $line .= '<table class="table table-striped">';
+
+        // --- Script: dominio + ruta dentro ---
+        $line .= '<tr valign="top"><th>' . $t('Script') . ':</th><td>';
+        $line .= '<div style="margin-bottom:6px;">' . $t('Domain') . ': '
+               . '<select name="inDomain" id="inDomain" onchange="cronPreview()">' . $domOpts . '</select></div>';
+        $line .= '<div>' . $t('File') . ': '
+               . '<input name="inPath" type="text" id="inPath" size="40" placeholder="public_html/task.php" oninput="cronPreview()"/></div>';
+        $line .= '<div style="margin-top:8px;font-size:12px;color:#555;">' . $t('Full path') . ':<br>'
+               . '<code id="cronFull">' . $base . '</code></div>';
+        $line .= '<div style="margin-top:6px;font-size:12px;color:#777;">'
+               . $t('Only PHP scripts run (the home is noexec). File access inside your script must use absolute paths.') . '</div>';
+        $line .= '</td></tr>';
+
+        // --- Comentario ---
+        $line .= '<tr><th>' . $t('Comment') . ':</th><td><input name="inDescription" type="text" id="inDescription" size="50" maxlength="50" /></td></tr>';
+
+        // --- Programación ---
+        $line .= '<tr valign="top"><th>' . $t('Executed') . ':</th><td>';
+        $line .= '<select name="inSchedMode" id="inSchedMode" onchange="cronMode()">'
+               . '<option value="simple">' . $t('Simple interval') . '</option>'
+               . '<option value="daily">' . $t('Daily at time') . '</option>'
+               . '<option value="weekly">' . $t('Weekly') . '</option>'
+               . '<option value="monthly">' . $t('Monthly') . '</option>'
+               . '<option value="advanced">' . $t('Advanced (cron expression)') . '</option>'
+               . '</select>';
+        $line .= '<div id="sched_simple" class="schedbox" style="margin-top:8px;"><select name="inTimingPreset" onchange="cronPreview()">' . $presets . '</select></div>';
+        // Bloque hora:minuto compartido por diario/semanal/mensual
+        $line .= '<div id="sched_time" class="schedbox" style="display:none;margin-top:8px;">' . $t('At') . ' '
+               . '<select name="inHour" onchange="cronPreview()">' . $hourOpts . '</select> : '
+               . '<select name="inMinute" onchange="cronPreview()">' . $minOpts . '</select></div>';
+        $line .= '<div id="sched_weekday" class="schedbox" style="display:none;margin-top:8px;">' . $t('Day of week') . ' '
+               . '<select name="inWeekday" onchange="cronPreview()">' . $dowOpts . '</select></div>';
+        $line .= '<div id="sched_monthday" class="schedbox" style="display:none;margin-top:8px;">' . $t('Day of month') . ' '
+               . '<select name="inMonthday" onchange="cronPreview()">' . $mdayOpts . '</select></div>';
+        $line .= '<div id="sched_advanced" class="schedbox" style="display:none;margin-top:8px;">'
+               . '<input name="inCronExpr" type="text" size="30" placeholder="*/15 * * * *" oninput="cronPreview()"/> '
+               . '<small>' . $t('5 fields: minute hour day month weekday') . '</small></div>';
+        $line .= '<div style="margin-top:8px;font-size:12px;color:#555;">' . $t('Schedule') . ': <b><span id="cronHuman">—</span></b> '
+               . '<code id="cronExpr" style="margin-left:6px;"></code></div>';
+        $line .= '</td></tr>';
+
+        $line .= '<tr><th colspan="2" align="right">' . $csrf
+               . '<button class="button-loader btn btn-primary" type="submit" id="button"><i class="bi bi-plus-circle me-1"></i>' . $t('Create') . '</button></th></tr>';
+        $line .= '</table></form>';
+
+        // JS: cambio de modo + vista previa de ruta y horario (CSP permite inline).
+        $baseJs = json_encode(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/');
+        $dows = json_encode($dowNames);
+        $line .= <<<JS
+<script>
+(function(){
+ var base=$baseJs, dowNames=$dows;
+ window.cronMode=function(){
+   var m=document.getElementById('inSchedMode').value;
+   function show(id,on){ document.getElementById(id).style.display=on?'block':'none'; }
+   show('sched_simple', m==='simple');
+   show('sched_time', m==='daily'||m==='weekly'||m==='monthly');
+   show('sched_weekday', m==='weekly');
+   show('sched_monthday', m==='monthly');
+   show('sched_advanced', m==='advanced');
+   cronPreview();
+ };
+ function two(n){return (n<10?'0':'')+n;}
+ window.cronPreview=function(){
+   var f=document.getElementById('cronCreateForm'); if(!f) return;
+   // ruta
+   var dom=f.inDomain.value, p=(f.inPath.value||'').replace(/\\\\/g,'/').replace(/^\\/+/,'');
+   var rel = p ? (dom? 'web/'+dom+'/'+p : p) : '';
+   document.getElementById('cronFull').textContent = base + rel;
+   // horario
+   var m=f.inSchedMode.value, expr='', human='';
+   function gv(n){return f[n]?parseInt(f[n].value,10):0;}
+   if(m==='simple'){ expr=f.inTimingPreset.value; human=f.inTimingPreset.options[f.inTimingPreset.selectedIndex].text; }
+   else if(m==='daily'){ var h=gv('inHour'),mi=gv('inMinute'); expr=mi+' '+h+' * * *'; human='Cada día a las '+two(h)+':'+two(mi); }
+   else if(m==='weekly'){ var h=gv('inHour'),mi=gv('inMinute'),w=gv('inWeekday'); expr=mi+' '+h+' * * '+w; human='Cada '+dowNames[w]+' a las '+two(h)+':'+two(mi); }
+   else if(m==='monthly'){ var h=gv('inHour'),mi=gv('inMinute'),d=gv('inMonthday'); expr=mi+' '+h+' '+d+' * *'; human='El día '+d+' de cada mes a las '+two(h)+':'+two(mi); }
+   else if(m==='advanced'){ expr=(f.inCronExpr.value||'').trim(); human='Expresión personalizada'; }
+   document.getElementById('cronExpr').textContent=expr;
+   document.getElementById('cronHuman').textContent=human;
+ };
+ // Los modos daily/weekly/monthly comparten Hora:Minuto -> los ponemos también en weekly/monthly clonando.
+ document.addEventListener('DOMContentLoaded',function(){ if(document.getElementById('inSchedMode')){ cronMode(); } });
+ if(document.getElementById('inSchedMode')){ cronMode(); }
+})();
+</script>
+JS;
         return $line;
     }
 
@@ -191,11 +311,13 @@ class module_controller extends ctrl_module
             // If the user submitted a 'new' request then we will simply add the cron task to the database...
             $sql = $zdbh->prepare("INSERT INTO x_cronjobs (ct_acc_fk, ct_script_vc, ct_description_tx, ct_timing_vc, ct_fullpath_vc, ct_created_ts) VALUES (:userid, :script, :desc, :timing, :fullpath, " . time() . ")");
             // Siempre usar el usuario de sesión autenticado — nunca el valor inUserID del formulario.
+            $effScript = self::effScript();
+            $effTiming = self::effTiming();
             $sql->bindParam(':userid', $currentuser['userid']);
-            $sql->bindParam(':script', $controller->GetControllerRequest('FORM', 'inScript'));
+            $sql->bindParam(':script', $effScript);
             $sql->bindParam(':desc', $controller->GetControllerRequest('FORM', 'inDescription'));
-            $sql->bindParam(':timing', $controller->GetControllerRequest('FORM', 'inTiming'));
-            $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/" . $controller->GetControllerRequest('FORM', 'inScript');
+            $sql->bindParam(':timing', $effTiming);
+            $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/" . $effScript;
             $sql->bindParam(':fullpath', $full_path);
             $sql->execute();
             self::WriteCronFile();
@@ -252,17 +374,35 @@ class module_controller extends ctrl_module
         // authenticated user can persist arbitrary text into ct_timing_vc,
         // which is later concatenated verbatim into the crontab file (see
         // WriteCronFile). Whitelist validator: see IsValidCronTiming().
-        if (!self::IsValidCronTiming($controller->GetControllerRequest('FORM', 'inTiming'))) {
+        if (!self::IsValidCronTiming(self::effTiming())) {
             self::$invalidtiming = TRUE;
             $retval = TRUE;
         }
+        $script = self::effScript();
         // Check to make sure the cron is not blank before we go any further...
-        if ($controller->GetControllerRequest('FORM', 'inScript') == '') {
+        if ($script == '') {
             self::$blank = TRUE;
             $retval = TRUE;
         }
+        // SEC: rechazar traversal ('..') y rutas absolutas; validar el dominio elegido contra
+        // los dominios reales del usuario; y confinar con realpath al home (encima del
+        // open_basedir que aplica WriteCronFile en ejecución).
+        $homeDir = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/';
+        $selDomain = (string)$controller->GetControllerRequest('FORM', 'inDomain');
+        $domainOk = ($selDomain === '');
+        if (!$domainOk) {
+            foreach (self::getUserDomains() as $d) { if ($d['vh_directory_vc'] === $selDomain) { $domainOk = true; break; } }
+        }
+        $full = fs_director::RemoveDoubleSlash(fs_director::ConvertSlashes($homeDir . $script));
+        $real = realpath($full);
+        $realHome = realpath($homeDir);
+        if ($script != '' && (strpos($script, '..') !== false || substr($script, 0, 1) === '/' || !$domainOk
+            || $real === false || $realHome === false || strpos($real, $realHome) !== 0)) {
+            self::$noexists = TRUE;
+            $retval = TRUE;
+        }
         // Check to make sure the cron script exists before we go any further...
-        if (!is_file(fs_director::RemoveDoubleSlash(fs_director::ConvertSlashes(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . '/' . $controller->GetControllerRequest('FORM', 'inScript'))))) {
+        elseif (!is_file($full)) {
             self::$noexists = TRUE;
             $retval = TRUE;
         }
@@ -280,7 +420,8 @@ class module_controller extends ctrl_module
         $sql = "SELECT COUNT(*) FROM x_cronjobs WHERE ct_acc_fk=:userid AND ct_script_vc=:inScript AND ct_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':userid', $currentuser['userid']);
-        $numrows->bindParam(':inScript', $controller->GetControllerRequest('FORM', 'inScript'));
+        $effScriptDup = self::effScript();
+        $numrows->bindParam(':inScript', $effScriptDup);
         if ($numrows->execute()) {
             if ($numrows->fetchColumn() <> 0) {
                 self::$alreadyexists = TRUE;
