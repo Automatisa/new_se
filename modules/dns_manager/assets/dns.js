@@ -17,6 +17,14 @@ NEW DNS Module JavaScript by Jason Davis
  */
 
 
+// SEC: escapa datos del usuario antes de meterlos en el HTML del diálogo (evita DOM XSS,
+// p.ej. si el usuario teclea <img onerror=...> en el host name).
+function dnsEscHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
 var SentoraDNS = {
 
     unsavedChanges: false,
@@ -100,7 +108,7 @@ var SentoraDNS = {
 
                 if ( hostName.match(pattern) != null ) {
                     var msg = '<strong>Warnig:</strong> A host name record has been entered with the domain name.<BR/><BR/>' +
-                         'The result will be the following:<BR/><strong>' + $(this).val() + '.' + $("#domainName").val() + '</strong><BR/><BR/>' +
+                         'The result will be the following:<BR/><strong>' + dnsEscHtml($(this).val()) + '.' + dnsEscHtml($("#domainName").val()) + '</strong><BR/><BR/>' +
                          'If this is not what you intended, <strong>Click Cancel</strong> to remove the domain name from the host name field and enter in only the host value.';
                     Sentora.dialog.confirm({
                         title: 'WARNING',
