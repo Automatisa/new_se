@@ -62,11 +62,17 @@ class sys_backup_retention
         return $deleted;
     }
 
-    /** Límite de disco de la cuenta en bytes (0 = ilimitado). */
+    /** Límite de disco de la cuenta en bytes (0 = ilimitado). Consulta directa a la BD para
+     *  no depender de ctrl_users (dobackup.php es un endpoint suelto que no lo carga). */
     public static function diskQuotaBytes($userid)
     {
-        $u = ctrl_users::GetUserDetail($userid);
-        return isset($u['diskquota']) ? (int)$u['diskquota'] : 0;
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT q.qt_diskspace_bi
+                               FROM x_accounts a JOIN x_quotas q ON q.qt_package_fk = a.ac_package_fk
+                              WHERE a.ac_id_pk = :u LIMIT 1");
+        $q->execute(array(':u' => (int)$userid));
+        $v = $q->fetchColumn();
+        return $v === false ? 0 : (int)$v;
     }
 
     /** Uso de disco actual del home en bytes (medición real, no el valor cacheado). */

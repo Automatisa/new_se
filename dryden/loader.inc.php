@@ -20,9 +20,25 @@ $class_name = null;
 
 function x__autoload($class_name)
 {
+    // Convención principal: a_b_c -> dryden/a/b/c.class.php
     $path = 'dryden/' . str_replace('_', '/', $class_name) . '.class.php';
     if (file_exists($path)) {
         require_once $path;
+        return;
+    }
+    // Fallback para clases cuyo FICHERO lleva underscore (p.ej. dryden/sys/backup_remote.class.php,
+    // account_restore, dns_cluster, disk_quota_manager...). El str_replace anterior las buscaba
+    // como dryden/sys/backup/remote.class.php y fallaba -> "Class not found" -> 500. Aquí se
+    // prueba dejando underscores en el último componente (dir por prefijo, fichero por sufijo).
+    $parts = explode('_', $class_name);
+    for ($i = count($parts) - 1; $i >= 1; $i--) {
+        $dir  = implode('/', array_slice($parts, 0, $i));
+        $file = implode('_', array_slice($parts, $i));
+        $p = 'dryden/' . $dir . '/' . $file . '.class.php';
+        if (file_exists($p)) {
+            require_once $p;
+            return;
+        }
     }
 }
 
