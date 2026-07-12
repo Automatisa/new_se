@@ -101,16 +101,21 @@ class ui_tpl_modulelistznavbar
      */
     public static function get_gravatar($email, $s = 80, $d = 'mm', $r = 'g', $img = false, $atts = array())
     {
-        $url = 'https://www.gravatar.com/avatar/';
-        $url .= md5(strtolower(trim($email)));
-        $url .= "?s=$s&d=$d&r=$r";
-        if ($img) {
-            $url = '<img src="' . $url . '"';
-            foreach ($atts as $key => $val)
-                $url .= ' ' . $key . '="' . $val . '"';
-            $url .= ' />';
+        // Avatar LOCAL: SVG genérico embebido como data: URI. NO se hace ninguna petición
+        // externa (antes se pedía a gravatar.com el md5 del email -> fuga de privacidad y una
+        // petición fallida por la CSP). Funciona con la CSP (img-src 'self' data:).
+        $svg  = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='#aaaaaa'>"
+              . "<circle cx='12' cy='8' r='4'/><path d='M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7'/></svg>";
+        $data = 'data:image/svg+xml;base64,' . base64_encode($svg);
+        if (!$img) {
+            return $data;
         }
-        return $url;
+        $tag = '<img src="' . $data . '" width="' . (int)$s . '" height="' . (int)$s . '" alt="avatar"';
+        foreach ($atts as $key => $val) {
+            $tag .= ' ' . $key . '="' . $val . '"';
+        }
+        $tag .= ' />';
+        return $tag;
     }
 
     /**
