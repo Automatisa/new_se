@@ -100,12 +100,14 @@ class sys_backup_remote
             CURLOPT_TIMEOUT        => (int)$maxTime,   // 0 = sin límite (subida real de ficheros grandes)
             CURLOPT_NOSIGNAL       => true,
         ));
-        // FTPS salvo que se pida FTP plano explícito
+        // FTPS salvo que se pida FTP plano explícito. Nivel de verificación (bd_tlsverify_in):
+        //   2 = completa (CA + hostname)   1 = solo CA (ignora que el nombre no coincida)
+        //   0 = ninguna (acepta autofirmados). Por defecto 2.
         if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            $lvl = isset($dest['bd_tlsverify_in']) ? (int)$dest['bd_tlsverify_in'] : 2;
             curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
-            $verify = (int)($dest['bd_tlsverify_in'] ?? 1) === 1;
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verify);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verify ? 2 : 0);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $lvl >= 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $lvl >= 2 ? 2 : 0);
         }
         $ok  = curl_exec($ch);
         $err = curl_error($ch);
