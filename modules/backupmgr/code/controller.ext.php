@@ -222,8 +222,10 @@ class module_controller extends ctrl_module
         $user = trim((string)$controller->GetControllerRequest('FORM', 'inDestUser'));
         $pass = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
         $path = trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')); if ($path === '') $path = '/';
-        $type = ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps');
-        $verify = $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0;
+        // Un solo desplegable "Seguridad" -> (tipo, verificar cert)
+        $sec    = (string)$controller->GetControllerRequest('FORM', 'inDestSecurity');
+        $type   = ($sec === 'ftp_plain') ? 'ftp' : 'ftps';
+        $verify = ($sec === 'ftps_selfsigned' || $sec === 'ftp_plain') ? 0 : 1;
         $enabled = $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0;
 
         $exists = $zdbh->prepare("SELECT bd_id_pk, bd_pass_tx FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
@@ -250,14 +252,19 @@ class module_controller extends ctrl_module
         $cu  = ctrl_users::GetUserDetail();
         $uid = (int)$cu['userid'];
 
+        // Un solo desplegable "Seguridad" -> (tipo, verificar cert)
+        $sec    = (string)$controller->GetControllerRequest('FORM', 'inDestSecurity');
+        $secType   = ($sec === 'ftp_plain') ? 'ftp' : 'ftps';
+        $secVerify = ($sec === 'ftps_selfsigned' || $sec === 'ftp_plain') ? 0 : 1;
+
         // Recordar lo introducido para repoblar el formulario tras la prueba (la contraseña no).
         $_SESSION['bk_dest_form'] = array(
             'bd_host_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestHost')),
             'bd_port_in'      => (int)$controller->GetControllerRequest('FORM', 'inDestPort'),
             'bd_user_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestUser')),
             'bd_path_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')),
-            'bd_type_vc'      => ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps'),
-            'bd_tlsverify_in' => $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0,
+            'bd_type_vc'      => $secType,
+            'bd_tlsverify_in' => $secVerify,
             'bd_enabled_in'   => $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0,
         );
 
@@ -278,13 +285,13 @@ class module_controller extends ctrl_module
                 $pass  = ($saved && isset($saved['password'])) ? $saved['password'] : '';
             }
             $dest = array(
-                'bd_type_vc'      => ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps'),
+                'bd_type_vc'      => $secType,
                 'bd_host_vc'      => $host,
                 'bd_port_in'      => ((int)$controller->GetControllerRequest('FORM', 'inDestPort')) ?: 21,
                 'bd_user_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestUser')),
                 'password'        => $pass,
                 'bd_path_vc'      => (trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')) ?: '/'),
-                'bd_tlsverify_in' => $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0,
+                'bd_tlsverify_in' => $secVerify,
             );
         }
 
@@ -326,8 +333,16 @@ class module_controller extends ctrl_module
         $html .= '<tr><th>Usuario</th><td><input class="form-control" type="text" name="inDestUser" value="' . $h('bd_user_vc') . '"></td></tr>';
         $html .= '<tr><th>Contraseña</th><td><input class="form-control" type="password" name="inDestPass" value="" placeholder="' . (!empty($d['bd_pass_tx']) ? '•••••• (dejar en blanco para conservar)' : '') . '" autocomplete="new-password"></td></tr>';
         $html .= '<tr><th>Ruta remota</th><td><input class="form-control" type="text" name="inDestPath" value="' . $h('bd_path_vc', '/') . '" placeholder="/backups/"></td></tr>';
-        $html .= '<tr><th>FTP plano (sin TLS)</th><td><input type="checkbox" name="inDestPlain" value="1" ' . (isset($d['bd_type_vc']) && $d['bd_type_vc'] === 'ftp' ? 'checked' : '') . '> <small>Solo red interna de confianza. Por defecto FTPS.</small></td></tr>';
-        $html .= '<tr><th>Verificar certificado TLS</th><td><input type="checkbox" name="inDestVerify" value="1" ' . $chk('bd_tlsverify_in', 1) . '> <small>Desmarca para certificados autofirmados internos.</small></td></tr>';
+        // Un solo desplegable de seguridad (deriva el modo actual de tipo+verify).
+        $curSec = (isset($d['bd_type_vc']) && $d['bd_type_vc'] === 'ftp')
+                    ? 'ftp_plain'
+                    : ((isset($d['bd_tlsverify_in']) && (int)$d['bd_tlsverify_in'] === 0) ? 'ftps_selfsigned' : 'ftps_verify');
+        $sel = function ($v) use ($curSec) { return $curSec === $v ? ' selected' : ''; };
+        $html .= '<tr><th>Seguridad</th><td><select name="inDestSecurity">'
+               . '<option value="ftps_verify"' . $sel('ftps_verify') . '>FTPS (recomendado) — cifrado, verifica el certificado</option>'
+               . '<option value="ftps_selfsigned"' . $sel('ftps_selfsigned') . '>FTPS con certificado autofirmado — cifrado, acepta certificados internos</option>'
+               . '<option value="ftp_plain"' . $sel('ftp_plain') . '>FTP sin cifrar (texto plano) — usuario, contraseña y datos viajan en claro; solo red interna</option>'
+               . '</select></td></tr>';
         $html .= '<tr><th>Activar envío remoto</th><td><input type="checkbox" name="inDestEnabled" value="1" ' . $chk('bd_enabled_in', 0) . '></td></tr>';
         $html .= '</table>';
         $html .= '<button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Guardar destino</button> ';
