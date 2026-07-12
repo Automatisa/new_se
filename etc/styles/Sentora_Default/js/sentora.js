@@ -368,21 +368,24 @@ var Sentora = {
         // Requires Draggable/Sortable JS Library
         dragDrop: function() {
             Sentora.utils.log('Sentora.modules.dragDrop() Ran - Handle Module Box Sorting');
-            $('.sortable').sortable({
+            // Cachear la colección una vez: los callbacks se disparan MUCHAS veces durante
+            // el arrastre (dragover/onChangeOrder), así evitamos re-consultar el DOM cada vez.
+            var $sortableEls = $('.sortable');
+            $sortableEls.sortable({
                 handle: '.handle',
                 onStartDrag: function() {
-                    Sentora.modules.addFloats($(".sortable"));
+                    Sentora.modules.addFloats($sortableEls);
                 },
                 onEndDrag: function() {
-                    Sentora.modules.addFloats($(".sortable"))
+                    Sentora.modules.addFloats($sortableEls)
                 },
                 onChangeOrder: function() {
-                    Sentora.modules.addFloats($(".sortable"))
+                    Sentora.modules.addFloats($sortableEls)
                 }
-            }).on('sortupdate', function() {
+            }).off('sortupdate').on('sortupdate', function() {
 
                 var sortorder = [];
-                Sentora.modules.addFloats($(".sortable"));
+                Sentora.modules.addFloats($sortableEls);
 
                 $('.sortable li.module-box').each(function() {
                     sortorder.push($(this).attr('data-catid'));

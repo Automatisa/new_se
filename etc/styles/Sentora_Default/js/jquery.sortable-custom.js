@@ -4,18 +4,28 @@
 *
 * Copyright 2012, Ali Farhadi
 * Released under the MIT license.
+*
+* Sentora custom (parche 2026): robustez/optimización sin cambiar el comportamiento:
+*  - regex de método corregida  /^(enable|disable|destroy)$/
+*  - .sortable() IDEMPOTENTE: des-bindea handlers .h5s y elimina el placeholder previo
+*    antes de remontar (evita handlers duplicados -> doble 'sortupdate'/guardado AJAX)
+*  - destroy limpia el placeholder de la colección global (evita fuga de memoria)
+*  - mousedown/mouseup -> .on(...'.h5s') (no deprecado en jQuery 3, y limpiable)
+*  Nota: sigue usando Drag&Drop nativo HTML5 -> sin soporte táctil (limitación del lib).
 */ (function($) {
     var dragging, placeholders = $();
     $.fn.sortable = function(options) {
         var method = String(options);
         options = $.extend({
             connectWith: false,
+            handle: false,
+            forcePlaceholderSize: false,
             onStartDrag: function(){},
             onEndDrag: function(){},
             onChangeOrder:  function(){}
         }, options);
         return this.each(function() {
-            if (/^enable|disable|destroy$/.test(method)) {
+            if (/^(enable|disable|destroy)$/.test(method)) {
                 var items = $(this)
                     .children($(this)
                     .data('items'))
@@ -23,22 +33,36 @@
                 if (method == 'destroy') {
                     items.add(this)
                         .removeData('connectWith items')
-                        .off('dragstart.h5s dragend.h5s selectstart.h5s dragover.h5s dragenter.h5s drop.h5s');
+                        .off('.h5s');
+                    // Quitar el placeholder de este contenedor de la colección global.
+                    var ph = $(this).data('placeholder');
+                    if (ph) { placeholders = placeholders.not(ph); ph.remove(); }
+                    $(this).removeData('placeholder');
                 }
                 return;
             }
             var isHandle, index, items = $(this)
                 .children(options.items);
+
+            // Idempotencia: si este contenedor ya se inicializó, limpiar antes de remontar
+            // para no acumular handlers (que provocaban doble disparo del guardado).
+            var oldPh = $(this).data('placeholder');
+            if (oldPh) { placeholders = placeholders.not(oldPh); oldPh.remove(); }
+            items.off('.h5s');
+            $(this).off('.h5s');
+
             var placeholder = $('<' + (/^ul|ol$/i.test(this.tagName) ? 'li' : 'div') + ' class="module-box sortable-placeholder">');
             items.find(options.handle)
-                .mousedown(function() {
+                .off('.h5s')
+                .on('mousedown.h5s', function() {
                 isHandle = true;
             })
-                .mouseup(function() {
+                .on('mouseup.h5s', function() {
                 isHandle = false;
             });
             $(this)
                 .data('items', options.items)
+                .data('placeholder', placeholder)
             placeholders = placeholders.add(placeholder);
             if (options.connectWith) {
                 $(options.connectWith)
