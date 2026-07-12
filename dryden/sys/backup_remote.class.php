@@ -100,14 +100,9 @@ class sys_backup_remote
             CURLOPT_TIMEOUT        => (int)$maxTime,   // 0 = sin límite (subida real de ficheros grandes)
             CURLOPT_NOSIGNAL       => true,
         ));
-        // FTPS salvo que se pida FTP plano explícito. Nivel de verificación (bd_tlsverify_in):
-        //   2 = completa (CA + hostname)   1 = solo CA (ignora que el nombre no coincida)
-        //   0 = ninguna (acepta autofirmados). Por defecto 2.
         if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
-            $lvl = isset($dest['bd_tlsverify_in']) ? (int)$dest['bd_tlsverify_in'] : 2;
             curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $lvl >= 1);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $lvl >= 2 ? 2 : 0);
+            self::applyTls($ch, $dest);
         }
         $ok  = curl_exec($ch);
         $err = curl_error($ch);
@@ -146,6 +141,16 @@ class sys_backup_remote
                 // reporta). Si no se puede obtener, se acepta (best-effort, no romper el backup).
                 $remote = self::remoteSize($dest, basename($localFile));
                 if ($remote === null || $localSize === false || $remote === (int)$localSize) {
+                    // Sidecar de integridad de CONTENIDO: sube <copia>.sha256 con el hash local.
+                    // Se verifica al restaurar/descargar (detecta corrupción, no solo truncado).
+                    $hash = @hash_file('sha256', $localFile);
+                    if ($hash !== false) {
+                        $sidecar = $localFile . '.sha256';
+                        if (@file_put_contents($sidecar, $hash . '  ' . basename($localFile) . "\n") !== false) {
+                            self::upload($dest, $sidecar); // best-effort: no rompe el backup si falla
+                            @unlink($sidecar);
+                        }
+                    }
                     return array(true, $msg . ($i > 1 ? " (al intento $i)" : ''));
                 }
                 $msg = "subida incompleta (remoto $remote != local $localSize bytes)";
@@ -176,16 +181,75 @@ class sys_backup_remote
             CURLOPT_NOSIGNAL       => true,
         ));
         if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
-            $lvl = isset($dest['bd_tlsverify_in']) ? (int)$dest['bd_tlsverify_in'] : 2;
             curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $lvl >= 1);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $lvl >= 2 ? 2 : 0);
+            self::applyTls($ch, $dest);
         }
         $okc  = curl_exec($ch);
         $size = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
         curl_close($ch);
         if ($okc === false || $size < 0) return null;
         return (int)$size;
+    }
+
+    /** Configura la verificación TLS de curl: pinning (TOFU) si hay pin fijado, o CA+hostname. */
+    private static function applyTls($ch, $dest)
+    {
+        $pin = trim((string)($dest['bd_certsha_vc'] ?? ''));
+        if ($pin !== '') {
+            // TOFU: acepta el cert del servidor (aunque sea autofirmado o de otro nombre) SOLO si
+            // su clave pública coincide con la fijada -> detecta MITM aunque tenga cert válido de CA.
+            curl_setopt($ch, CURLOPT_PINNEDPUBLICKEY, $pin);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        } else {
+            $lvl = isset($dest['bd_tlsverify_in']) ? (int)$dest['bd_tlsverify_in'] : 2;
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $lvl >= 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $lvl >= 2 ? 2 : 0);
+        }
+    }
+
+    /**
+     * Captura la clave pública del certificado del servidor (para fijarla, TOFU). Devuelve
+     * array('pin' => 'sha256//...', 'fp' => 'AA:BB:...') o null si no se pudo. Se conecta con
+     * verificación desactivada (es la 1ª vez que confías el servidor) y extrae el cert.
+     */
+    public static function capturePin($dest)
+    {
+        $host = trim((string)$dest['bd_host_vc']);
+        $port = (int)$dest['bd_port_in'] ?: 21;
+        $path = '/' . ltrim((string)($dest['bd_path_vc'] ?? '/'), '/');
+        if (substr($path, -1) !== '/') $path .= '/';
+        if ($host === '') return null;
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => 'ftp://' . $host . ':' . $port . $path,
+            CURLOPT_USERPWD        => (string)$dest['bd_user_vc'] . ':' . (string)$dest['password'],
+            CURLOPT_USE_SSL        => CURLUSESSL_ALL,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_CERTINFO       => true,
+            CURLOPT_NOBODY         => true,
+            CURLOPT_CONNECTTIMEOUT => 12,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_NOSIGNAL       => true,
+        ));
+        curl_exec($ch);
+        $info = curl_getinfo($ch);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        if (empty($info['certinfo'][0]['Cert'])) {
+            return array('pin' => null, 'fp' => null, 'error' => ($err ?: 'no se pudo leer el certificado del servidor'));
+        }
+        $pem = $info['certinfo'][0]['Cert'];
+        $pub = @openssl_pkey_get_public($pem);
+        if (!$pub) return array('pin' => null, 'fp' => null, 'error' => 'certificado ilegible');
+        $det = openssl_pkey_get_details($pub);
+        if (empty($det['key'])) return array('pin' => null, 'fp' => null, 'error' => 'sin clave pública');
+        $spkiDer = base64_decode(preg_replace('/-----[^-]+-----|\s/', '', $det['key']));
+        $pin = 'sha256//' . base64_encode(hash('sha256', $spkiDer, true));
+        $fp  = openssl_x509_fingerprint($pem, 'sha256');
+        $fp  = $fp ? strtoupper(rtrim(chunk_split($fp, 2, ':'), ':')) : '';
+        return array('pin' => $pin, 'fp' => $fp, 'error' => null);
     }
 
     /** Prueba de conexión/subida: sube un fichero diminuto de test y lo deja (o informa). */

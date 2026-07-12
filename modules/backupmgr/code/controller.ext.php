@@ -222,23 +222,37 @@ class module_controller extends ctrl_module
         $user = trim((string)$controller->GetControllerRequest('FORM', 'inDestUser'));
         $pass = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
         $path = trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')); if ($path === '') $path = '/';
-        // Un solo desplegable "Seguridad" -> (tipo, nivel de verificación 0/1/2)
-        list($type, $verify) = self::securityToDb((string)$controller->GetControllerRequest('FORM', 'inDestSecurity'));
+        list($type, $verify, $usePin) = self::securityToDb((string)$controller->GetControllerRequest('FORM', 'inDestSecurity'));
         $enabled = $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0;
 
-        $exists = $zdbh->prepare("SELECT bd_id_pk, bd_pass_tx FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
+        $exists = $zdbh->prepare("SELECT bd_id_pk, bd_pass_tx, bd_certsha_vc FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
         $exists->execute(array(':u' => $uid));
         $row = $exists->fetch(PDO::FETCH_ASSOC);
         $encPass = ($pass !== '') ? sys_backup_remote::encrypt($pass) : ($row ? $row['bd_pass_tx'] : '');
 
-        if ($row) {
-            $u = $zdbh->prepare("UPDATE x_backup_destinations SET bd_type_vc=:t,bd_host_vc=:h,bd_port_in=:p,bd_user_vc=:us,bd_pass_tx=:pw,bd_path_vc=:pa,bd_tlsverify_in=:v,bd_enabled_in=:e WHERE bd_acc_fk=:u");
-            $u->execute(array(':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':e'=>$enabled,':u'=>$uid));
-        } else {
-            $i = $zdbh->prepare("INSERT INTO x_backup_destinations (bd_acc_fk,bd_type_vc,bd_host_vc,bd_port_in,bd_user_vc,bd_pass_tx,bd_path_vc,bd_tlsverify_in,bd_enabled_in,bd_created_ts) VALUES (:u,:t,:h,:p,:us,:pw,:pa,:v,:e,:ts)");
-            $i->execute(array(':u'=>$uid,':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':e'=>$enabled,':ts'=>time()));
+        // TOFU: si el modo es "fijar certificado", capturar la clave pública del servidor ahora.
+        $certsha = null; $pinMsg = '';
+        if ($usePin && $host !== '') {
+            $plainPass = ($pass !== '') ? $pass : ($row ? sys_backup_remote::decrypt($row['bd_pass_tx']) : '');
+            $cap = sys_backup_remote::capturePin(array('bd_host_vc'=>$host,'bd_port_in'=>$port,'bd_user_vc'=>$user,'password'=>$plainPass,'bd_path_vc'=>$path));
+            if (!empty($cap['pin'])) {
+                $certsha = $cap['pin'];
+                $pinMsg = ' Certificado fijado (huella SHA-256): ' . $cap['fp'];
+            } else {
+                // No se pudo capturar: conservar el pin anterior (si lo había) y avisar.
+                $certsha = $row ? ($row['bd_certsha_vc'] ?? null) : null;
+                $pinMsg = ' (AVISO: no se pudo fijar el certificado: ' . ($cap['error'] ?? 'error') . ')';
+            }
         }
-        $_SESSION['bk_restore_flash'] = array('ok', 'Destino remoto guardado.');
+
+        if ($row) {
+            $u = $zdbh->prepare("UPDATE x_backup_destinations SET bd_type_vc=:t,bd_host_vc=:h,bd_port_in=:p,bd_user_vc=:us,bd_pass_tx=:pw,bd_path_vc=:pa,bd_tlsverify_in=:v,bd_certsha_vc=:cs,bd_enabled_in=:e WHERE bd_acc_fk=:u");
+            $u->execute(array(':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':cs'=>$certsha,':e'=>$enabled,':u'=>$uid));
+        } else {
+            $i = $zdbh->prepare("INSERT INTO x_backup_destinations (bd_acc_fk,bd_type_vc,bd_host_vc,bd_port_in,bd_user_vc,bd_pass_tx,bd_path_vc,bd_tlsverify_in,bd_certsha_vc,bd_enabled_in,bd_created_ts) VALUES (:u,:t,:h,:p,:us,:pw,:pa,:v,:cs,:e,:ts)");
+            $i->execute(array(':u'=>$uid,':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':cs'=>$certsha,':e'=>$enabled,':ts'=>time()));
+        }
+        $_SESSION['bk_restore_flash'] = array('ok', 'Destino remoto guardado.' . $pinMsg);
         if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
     }
 
@@ -250,8 +264,8 @@ class module_controller extends ctrl_module
         $cu  = ctrl_users::GetUserDetail();
         $uid = (int)$cu['userid'];
 
-        // Un solo desplegable "Seguridad" -> (tipo, nivel de verificación 0/1/2)
-        list($secType, $secVerify) = self::securityToDb((string)$controller->GetControllerRequest('FORM', 'inDestSecurity'));
+        $secRaw = (string)$controller->GetControllerRequest('FORM', 'inDestSecurity');
+        list($secType, $secVerify, $usePin) = self::securityToDb($secRaw);
 
         // Recordar lo introducido para repoblar el formulario tras la prueba (la contraseña no).
         $_SESSION['bk_dest_form'] = array(
@@ -261,6 +275,7 @@ class module_controller extends ctrl_module
             'bd_path_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')),
             'bd_type_vc'      => $secType,
             'bd_tlsverify_in' => $secVerify,
+            '_sec'            => $secRaw, // preservar la opción de seguridad elegida en el desplegable
             'bd_enabled_in'   => $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0,
         );
 
@@ -291,7 +306,19 @@ class module_controller extends ctrl_module
             );
         }
 
-        list($ok, $msg) = sys_backup_remote::testConnection($dest);
+        if ($usePin && ($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            // Modo "fijar certificado": la prueba captura el cert del servidor y muestra su huella.
+            $cap = sys_backup_remote::capturePin($dest);
+            if (!empty($cap['pin'])) {
+                $msg = 'certificado del servidor (SHA-256): ' . $cap['fp'] . '. Se fijará al Guardar.';
+                $ok = true;
+            } else {
+                $msg = ($cap['error'] ?? 'no se pudo leer el certificado');
+                $ok = false;
+            }
+        } else {
+            list($ok, $msg) = sys_backup_remote::testConnection($dest);
+        }
         sys_backup_remote::recordStatus($uid, ($ok ? 'OK: ' : 'ERROR: ') . $msg);
         $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err',
             ($ok ? '✓ Conexión correcta — ' : '✗ Fallo de conexión — ') . $msg);
@@ -299,26 +326,22 @@ class module_controller extends ctrl_module
     }
 
     /** HTML del panel de configuración del destino remoto (placeholder <@ RemoteDestPanel @>). */
-    /** Mapea el valor del desplegable "Seguridad" -> array(bd_type_vc, bd_tlsverify_in 0/1/2). */
+    /** Mapea el desplegable "Seguridad" -> array(bd_type_vc, bd_tlsverify_in, usePin). */
     static function securityToDb($sec)
     {
         switch ($sec) {
-            case 'ftp_plain':   return array('ftp',  0);
-            case 'ftps_any':    return array('ftps', 0); // autofirmado / sin verificar
-            case 'ftps_nohost': return array('ftps', 1); // CA de confianza, ignora el hostname
-            case 'ftps_full':
-            default:            return array('ftps', 2); // recomendado: CA + hostname
+            case 'ftp_plain':   return array('ftp',  0, false);
+            case 'ftps_strict': return array('ftps', 2, false); // CA + hostname
+            case 'ftps_pin':
+            default:            return array('ftps', 0, true);  // fijar certificado (TOFU)
         }
     }
 
-    /** Inverso: (tipo, nivel) guardados -> valor del desplegable. */
-    static function dbToSecurity($type, $verify)
+    /** Inverso: (tipo, pin) guardados -> valor del desplegable. */
+    static function dbToSecurity($type, $pin)
     {
         if ($type === 'ftp') return 'ftp_plain';
-        $v = (int)$verify;
-        if ($v >= 2) return 'ftps_full';
-        if ($v === 1) return 'ftps_nohost';
-        return 'ftps_any';
+        return ($pin !== '' && $pin !== null) ? 'ftps_pin' : 'ftps_strict';
     }
 
     static function getRemoteDestPanel()
@@ -351,17 +374,19 @@ class module_controller extends ctrl_module
         $html .= '<tr><th>Usuario</th><td><input class="form-control" type="text" name="inDestUser" value="' . $h('bd_user_vc') . '"></td></tr>';
         $html .= '<tr><th>Contraseña</th><td><input class="form-control" type="password" name="inDestPass" value="" placeholder="' . (!empty($d['bd_pass_tx']) ? '•••••• (dejar en blanco para conservar)' : '') . '" autocomplete="new-password"></td></tr>';
         $html .= '<tr><th>Ruta remota</th><td><input class="form-control" type="text" name="inDestPath" value="' . $h('bd_path_vc', '/') . '" placeholder="/backups/"></td></tr>';
-        // Un solo desplegable de seguridad (deriva el modo actual de tipo+nivel de verificación).
-        $curSec = self::dbToSecurity($d['bd_type_vc'] ?? 'ftps', $d['bd_tlsverify_in'] ?? 2);
+        // Desplegable de seguridad: la opción elegida tras "Probar" (_sec) o la derivada de BD.
+        $curSec = !empty($d['_sec']) ? $d['_sec'] : self::dbToSecurity($d['bd_type_vc'] ?? 'ftps', $d['bd_certsha_vc'] ?? '');
         $sel = function ($v) use ($curSec) { return $curSec === $v ? ' selected' : ''; };
         $html .= '<tr valign="top"><th>Seguridad</th><td><select name="inDestSecurity">'
-               . '<option value="ftps_full"' . $sel('ftps_full') . '>FTPS (recomendado) — cifrado, verifica el certificado y el nombre</option>'
-               . '<option value="ftps_nohost"' . $sel('ftps_nohost') . '>FTPS — el certificado es de otro dominio (válido de CA, ignora el nombre)</option>'
-               . '<option value="ftps_any"' . $sel('ftps_any') . '>FTPS — aceptar cualquier certificado (autofirmado)</option>'
+               . '<option value="ftps_pin"' . $sel('ftps_pin') . '>FTPS — fijar el certificado del servidor (recomendado): confía este servidor y avisa si el certificado cambia</option>'
+               . '<option value="ftps_strict"' . $sel('ftps_strict') . '>FTPS estricto — el certificado debe ser de una CA de confianza y coincidir con el nombre</option>'
                . '<option value="ftp_plain"' . $sel('ftp_plain') . '>FTP sin cifrar (texto plano) — credenciales y datos en claro; solo red interna</option>'
                . '</select>'
-               . '<br><small>Si al probar da error de "hostname"/nombre del certificado, usa la 2ª opción: es el caso típico de un FTP de hosting cuyo certificado es del servidor, no de tu dominio.</small>'
-               . '</td></tr>';
+               . '<br><small>"Fijar el certificado" acepta cualquier certificado del servidor (incluido autofirmado o de otro nombre) la primera vez y a partir de ahí exige que sea el mismo — detecta suplantaciones. Se captura al guardar.</small>';
+        if (!empty($d['bd_certsha_vc'])) {
+            $html .= '<br><small>Certificado fijado actualmente. Para re-fijarlo (si cambió a propósito), vuelve a elegir "fijar el certificado" y guarda.</small>';
+        }
+        $html .= '</td></tr>';
         $html .= '<tr><th>Activar envío remoto</th><td><input type="checkbox" name="inDestEnabled" value="1" ' . $chk('bd_enabled_in', 0) . '></td></tr>';
         $html .= '</table>';
         $html .= '<button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Guardar destino</button> ';
