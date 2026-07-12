@@ -101,21 +101,6 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnAfterCreateBackup');
     }
 
-    static function readfile_chunked($filename)
-    {
-        $chunksize = 1 * (1024 * 1024);
-        $buffer = '';
-        $handle = fopen($filename, 'rb');
-        if ($handle === false) {
-            return false;
-        }
-        while (!feof($handle)) {
-            $buffer = fread($handle, $chunksize);
-            print $buffer;
-        }
-        return fclose($handle);
-    }
-
     static function ExecuteDeleteBackup($username, $file)
     {
         runtime_hook::Execute('OnBeforeDeleteBackup');
