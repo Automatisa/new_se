@@ -250,6 +250,17 @@ class module_controller extends ctrl_module
         $cu  = ctrl_users::GetUserDetail();
         $uid = (int)$cu['userid'];
 
+        // Recordar lo introducido para repoblar el formulario tras la prueba (la contraseña no).
+        $_SESSION['bk_dest_form'] = array(
+            'bd_host_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestHost')),
+            'bd_port_in'      => (int)$controller->GetControllerRequest('FORM', 'inDestPort'),
+            'bd_user_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestUser')),
+            'bd_path_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')),
+            'bd_type_vc'      => ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps'),
+            'bd_tlsverify_in' => $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0,
+            'bd_enabled_in'   => $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0,
+        );
+
         // Probar los valores del FORMULARIO (lo que el usuario acaba de escribir), sin exigir
         // guardar antes. Si el campo host va vacío, se prueba el destino guardado.
         $host = trim((string)$controller->GetControllerRequest('FORM', 'inDestHost'));
@@ -292,6 +303,12 @@ class module_controller extends ctrl_module
         $q = $zdbh->prepare("SELECT * FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
         $q->execute(array(':u' => (int)$cu['userid']));
         $d = $q->fetch(PDO::FETCH_ASSOC) ?: array();
+        // Tras "Probar conexión" (que no guarda), repoblar el formulario con lo que el usuario
+        // escribió para que no se pierda (la contraseña no se repuebla, por seguridad).
+        if (!empty($_SESSION['bk_dest_form'])) {
+            $d = array_merge($d, $_SESSION['bk_dest_form']);
+            unset($_SESSION['bk_dest_form']);
+        }
         $h = function ($k, $def = '') use ($d) { return htmlspecialchars(isset($d[$k]) && $d[$k] !== null ? $d[$k] : $def, ENT_QUOTES); };
         $chk = function ($k, $def) use ($d) { $v = isset($d[$k]) ? (int)$d[$k] : $def; return $v ? 'checked' : ''; };
         $csrf = self::getCSFR_Tag();
