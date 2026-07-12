@@ -50,6 +50,12 @@ class module_controller extends ctrl_module
     static $forwardersquota;
     static $distlists;
     static $distlistsquota;
+    static $cronjobs;
+    static $cronjobsquota;
+    static $backups;
+    static $backupsquota;
+    static $dbsize;
+    static $dbsizequota;
 
     static private function check_pChart($display)
     {
@@ -99,6 +105,21 @@ class module_controller extends ctrl_module
     static function getDistListUsage()
     {
         return self::check_pChart(self::DisplayDistListUsagepChart());
+    }
+
+    static function getCronjobsUsage()
+    {
+        return self::check_pChart(self::DisplayCronjobsUsagepChart());
+    }
+
+    static function getBackupsUsage()
+    {
+        return self::check_pChart(self::DisplayBackupsUsagepChart());
+    }
+
+    static function getDbSizeUsage()
+    {
+        return self::check_pChart(self::DisplayDbSizeUsagepChart());
     }
 
     #Begin Display Methods
@@ -154,6 +175,31 @@ class module_controller extends ctrl_module
 
         self::$distlistsquota = $currentuser['distlistsquota'];
         self::$distlists = module_controller::empty_as_0(ctrl_users::GetQuotaUsages('distlists', $currentuser['userid']));
+
+        // Cron jobs (hueco previo en la vista).
+        self::$cronjobsquota = module_controller::empty_as_0($currentuser['cronjobquota']);
+        self::$cronjobs = ctrl_users::GetQuotaUsages('cronjobs', $currentuser['userid']);
+
+        // Nuevos límites del paquete (0 = ilimitado en BD -> -1 para el gráfico "∞").
+        $qx = $zdbh->prepare("SELECT COALESCE(q.qt_backups_in,0) AS b, COALESCE(q.qt_dbquota_in,0) AS d
+                                FROM x_accounts a JOIN x_quotas q ON q.qt_package_fk = a.ac_package_fk
+                               WHERE a.ac_id_pk = :u LIMIT 1");
+        $qx->execute(array(':u' => $currentuser['userid']));
+        $qrow = $qx->fetch(PDO::FETCH_ASSOC) ?: array('b' => 0, 'd' => 0);
+
+        // Copias de seguridad locales (nº de .zip en home/backups vs límite del paquete).
+        if (!class_exists('sys_backup_retention')) {
+            require_once '/usr/local/sentora/dryden/sys/backup_retention.class.php';
+        }
+        self::$backups = count(sys_backup_retention::listLocal($currentuser['username']));
+        self::$backupsquota = ((int)$qrow['b'] === 0) ? -1 : (int)$qrow['b'];
+
+        // Tamaño de bases de datos (MB usados vs límite del paquete en MB).
+        if (!class_exists('mysql_quota_manager')) {
+            require_once '/usr/local/sentora/dryden/sys/mysql_quota_manager.class.php';
+        }
+        self::$dbsize = (int)round(mysql_quota_manager::accountDbSize($currentuser['userid']) / 1048576);
+        self::$dbsizequota = ((int)$qrow['d'] === 0) ? -1 : (int)$qrow['d'];
 
         $maximum = self::$diskquota;
         $used = self::$diskspace;
@@ -233,6 +279,21 @@ class module_controller extends ctrl_module
     static function DisplayMysqlUsagepChart()
     {
         return self::DisplayChart('MySQL&reg Database Usage', self::$mysql, self::$mysqlquota);
+    }
+
+    static function DisplayCronjobsUsagepChart()
+    {
+        return self::DisplayChart('Cron Jobs Usage', self::$cronjobs, self::$cronjobsquota);
+    }
+
+    static function DisplayBackupsUsagepChart()
+    {
+        return self::DisplayChart('Local Backups', self::$backups, self::$backupsquota);
+    }
+
+    static function DisplayDbSizeUsagepChart()
+    {
+        return self::DisplayChart('Database Size (MB)', self::$dbsize, self::$dbsizequota);
     }
 
     static function DisplayMailboxUsagepChart()
