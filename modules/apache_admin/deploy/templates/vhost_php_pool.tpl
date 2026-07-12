@@ -19,6 +19,9 @@ pm.max_children = 5
 pm.start_servers = 2
 pm.min_spare_servers = 1
 pm.max_spare_servers = 3
+; recicla cada worker tras N peticiones: relee /etc/resolv.conf y evita
+; que el resolver de libc quede cacheado en un estado fallido de por vida.
+pm.max_requests = 500
 
 chdir = /
 

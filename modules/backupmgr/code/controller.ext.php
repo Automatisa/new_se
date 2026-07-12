@@ -217,7 +217,7 @@ class module_controller extends ctrl_module
         $cu = ctrl_users::GetUserDetail();
         $uid = (int)$cu['userid'];
 
-        $host = trim((string)$controller->GetControllerRequest('FORM', 'inDestHost'));
+        $host = self::cleanHost($controller->GetControllerRequest('FORM', 'inDestHost'));
         $port = (int)$controller->GetControllerRequest('FORM', 'inDestPort'); if ($port <= 0) $port = 21;
         $user = trim((string)$controller->GetControllerRequest('FORM', 'inDestUser'));
         $pass = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
@@ -269,7 +269,7 @@ class module_controller extends ctrl_module
 
         // Recordar lo introducido para repoblar el formulario tras la prueba (la contraseña no).
         $_SESSION['bk_dest_form'] = array(
-            'bd_host_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestHost')),
+            'bd_host_vc'      => self::cleanHost($controller->GetControllerRequest('FORM', 'inDestHost')),
             'bd_port_in'      => (int)$controller->GetControllerRequest('FORM', 'inDestPort'),
             'bd_user_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestUser')),
             'bd_path_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')),
@@ -281,7 +281,7 @@ class module_controller extends ctrl_module
 
         // Probar los valores del FORMULARIO (lo que el usuario acaba de escribir), sin exigir
         // guardar antes. Si el campo host va vacío, se prueba el destino guardado.
-        $host = trim((string)$controller->GetControllerRequest('FORM', 'inDestHost'));
+        $host = self::cleanHost($controller->GetControllerRequest('FORM', 'inDestHost'));
         if ($host === '') {
             $dest = sys_backup_remote::getDestination($uid);
             if (!$dest || empty($dest['bd_host_vc'])) {
@@ -326,6 +326,20 @@ class module_controller extends ctrl_module
     }
 
     /** HTML del panel de configuración del destino remoto (placeholder <@ RemoteDestPanel @>). */
+    /** Sanea el host tecleado: quita TODO espacio (incluido interno/unicode), un scheme
+     *  pegado al copiar (ftp://, ftps://, sftp://), barras/puertos finales y lo pasa a minúsculas. */
+    static function cleanHost($h)
+    {
+        $h = (string)$h;
+        // eliminar cualquier carácter de espacio (espacios, tabs, NBSP, saltos de línea)
+        $h = preg_replace('/\s+/u', '', $h);
+        $h = preg_replace('#^[a-z]+://#i', '', $h); // quitar scheme si se pegó una URL
+        $h = rtrim($h, "/");                          // barra final
+        if (strpos($h, '/') !== false) $h = substr($h, 0, strpos($h, '/')); // ruta pegada
+        if (($c = strpos($h, ':')) !== false) $h = substr($h, 0, $c);       // :puerto pegado
+        return strtolower($h);
+    }
+
     /** Mapea el desplegable "Seguridad" -> array(bd_type_vc, bd_tlsverify_in, usePin). */
     static function securityToDb($sec)
     {

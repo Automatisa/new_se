@@ -1502,6 +1502,7 @@ pm.max_children   = 20
 pm.start_servers  = 4
 pm.min_spare_servers = 2
 pm.max_spare_servers = 8
+pm.max_requests = 500
 php_admin_value[error_log]  = $PANEL_DATA/logs/php_errors.log
 php_admin_value[log_errors] = on
 php_flag[display_errors] = off
