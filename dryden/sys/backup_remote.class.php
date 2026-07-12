@@ -125,8 +125,17 @@ class sys_backup_remote
      * $attempts veces con backoff lineal, y tras cada subida OK comprueba que el fichero remoto
      * tiene el tamaño completo (detecta truncados silenciosos). Devuelve [ok, mensaje].
      */
-    public static function uploadWithRetry($dest, $localFile, $attempts = 3, $baseDelaySec = 5)
+    public static function uploadWithRetry($dest, $localFile, $attempts = null, $baseDelaySec = null)
     {
+        // Configurable por ajuste del sistema (backup_remote_retries / _retrydelay); defaults 3/5.
+        if ($attempts === null) {
+            $attempts = class_exists('ctrl_options') ? (int)ctrl_options::GetSystemOption('backup_remote_retries') : 0;
+            if ($attempts <= 0) $attempts = 3;
+        }
+        if ($baseDelaySec === null) {
+            $baseDelaySec = class_exists('ctrl_options') ? (int)ctrl_options::GetSystemOption('backup_remote_retrydelay') : 0;
+            if ($baseDelaySec <= 0) $baseDelaySec = 5;
+        }
         $attempts = max(1, (int)$attempts);
         $localSize = @filesize($localFile);
         $lastMsg = '';
