@@ -96,7 +96,44 @@ function BuildVhostReWriteSSL($vhostName, $userEmail) {
 	$line .= fs_filehandler::NewLine();
 	$line .= "##-------" . fs_filehandler::NewLine();
 	$line .= fs_filehandler::NewLine();
-		
+
+    return $line;
+}
+
+// Vhost HTTP (:80) que SIRVE el sitio real (mismo docroot/FPM que el bloque activo). Se usa
+// cuando el dominio tiene SSL pero el cliente NO fuerza HTTPS (vh_forcessl_in=0): entonces el
+// sitio se sirve por HTTP y por HTTPS. Cuando fuerza (default), el :80 es un redirect (arriba).
+function BuildRegularHttpVhost($rowvhost, $vhostIp, $vhostPort, $serveralias, $useremail, $RootDir, $_vhpaths, $_bwlogdir) {
+    $line  = "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    $line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+    $line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    if (!empty($serveralias))
+        $line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
+    $line .= "ServerAdmin " . $useremail . fs_filehandler::NewLine();
+    $line .= 'DocumentRoot ' . '"' . $RootDir . '"' . fs_filehandler::NewLine();
+    if (!is_dir($_vhpaths['logs'])) {
+        fs_director::CreateDirectory($_vhpaths['logs']);
+    }
+    $line .= 'ErrorLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-error.log" ' . fs_filehandler::NewLine();
+    $line .= 'CustomLog "' . $_vhpaths['logs'] . '/' . $rowvhost['vh_name_vc'] . '-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
+    $line .= 'CustomLog "' . $_bwlogdir . '/' . $rowvhost['vh_name_vc'] . '-bandwidth.log" ' . ctrl_options::GetSystemOption('bandwidth_log_format') . fs_filehandler::NewLine();
+    $line .= '<Directory ' . $RootDir . '>' . fs_filehandler::NewLine();
+    $line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
+    $line .= "    AllowOverride FileInfo AuthConfig Limit" . fs_filehandler::NewLine();
+    $line .= "    Require all granted" . fs_filehandler::NewLine();
+    $line .= "</Directory>" . fs_filehandler::NewLine();
+    $line .= BuildFPMHandler($rowvhost['vh_directory_vc']) . fs_filehandler::NewLine();
+    $line .= "AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript" . fs_filehandler::NewLine();
+    $line .= AppendErrorPageDirectives($_vhpaths['errorpages'], '/_errorpages/');
+    $line .= ctrl_options::GetSystemOption('dir_index') . fs_filehandler::NewLine();
+    $line .= "# Custom Global Settings (if any exist)" . fs_filehandler::NewLine();
+    $line .= ctrl_options::GetSystemOption('global_vhcustom') . fs_filehandler::NewLine();
+    $line .= "# Custom VH settings (if any exist)" . fs_filehandler::NewLine();
+    $line .= sanitizeVhCustom($rowvhost['vh_custom_tx']) . fs_filehandler::NewLine();
+    $line .= "</virtualhost>" . fs_filehandler::NewLine();
+    $line .= "# END DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
+    $line .= fs_filehandler::NewLine();
+    $line .= "################################################################" . fs_filehandler::NewLine();
     return $line;
 }
 
@@ -699,10 +736,16 @@ function WriteVhostConfigFile() {
 					$line .= BuildVhostPortForward($rowvhost['vh_name_vc'], $vhostPort, $useremail);
 				}	
 			# If vhost SSL_TX not null create spearate <virtualhost>
-			} elseif ($rowvhost['vh_ssl_tx'] != null && $rowvhost['vh_ssl_port_in'] != null) {	
-				# Build HTTP to HTTPS Redirect
-				$line .= BuildVhostReWriteSSL($rowvhost['vh_name_vc'], $useremail);
-				
+			} elseif ($rowvhost['vh_ssl_tx'] != null && $rowvhost['vh_ssl_port_in'] != null) {
+				# Puerto 80: si el cliente FUERZA HTTPS (default) -> redirect; si NO -> servir el
+				# sitio también por HTTP (mismo docroot). El :443 se genera igual en ambos casos.
+				if ((int)$rowvhost['vh_forcessl_in'] !== 0) {
+					# Build HTTP to HTTPS Redirect
+					$line .= BuildVhostReWriteSSL($rowvhost['vh_name_vc'], $useremail);
+				} else {
+					$line .= BuildRegularHttpVhost($rowvhost, $vhostIp, $vhostPort, $serveralias, $useremail, $RootDir, $_vhpaths, $_bwlogdir);
+				}
+
 				# Build Vhost SSL section
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS SSL ENABLED" . fs_filehandler::NewLine();

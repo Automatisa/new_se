@@ -275,6 +275,8 @@ class module_controller extends ctrl_module
 				$line .= "<tr><th>" . ui_language::translate("<u>SSL Settings Options - Below</u>");
 				$line .= "<tr><th>" . ui_language::translate("SSL Port") . "</th><td><input type=\"text\" name=\"vh_ssl_port_in\" id=\"vh_ssl_port_in\" maxlength=\"6\" value=\"" . (int)$row['vh_ssl_port_in'] . "\"/>";
 				$line .= "<tr><th>" .  ui_language::translate("SSL Cert Settings") . ":</th><td><textarea cols=\"60\" rows=\"10\" name=\"vh_ssl_tx\">" . htmlspecialchars((string)$row['vh_ssl_tx'], ENT_QUOTES, 'UTF-8') . "</textarea></td></tr>";
+				$forcechk = ((int)$row['vh_forcessl_in'] !== 0) ? ' checked="checked"' : '';
+				$line .= "<tr><th>" . ui_language::translate("Force HTTPS") . "</th><td><input type=\"checkbox\" name=\"inForceSSL\" value=\"1\"" . $forcechk . "/> " . ui_language::translate("Redirect HTTP to HTTPS (only applies if SSL is set)") . "</td></tr>";
             }
         }
 
@@ -390,6 +392,7 @@ class module_controller extends ctrl_module
 			vh_obasedir_in = ?,
 			vh_ssl_tx = ?,
 			vh_ssl_port_in = ?,
+			vh_forcessl_in = ?,
 			vh_custom_port_in  = ?,
                         vh_portforward_in   = ?,
                         vh_custom_ip_vc   = ?,
@@ -403,6 +406,7 @@ class module_controller extends ctrl_module
                     fs_director::GetCheckboxValue($controller->GetControllerRequest('FORM', 'vh_obasedir_in')),
 					$ssl_tx,
 					$ssl_port_in,
+					fs_director::GetCheckboxValue($controller->GetControllerRequest('FORM', 'inForceSSL')),
                     $port,
                     $forward,
                     $ip,
