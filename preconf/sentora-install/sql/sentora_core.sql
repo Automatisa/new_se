@@ -588,6 +588,7 @@ CREATE TABLE `x_quotas` (
   `qt_maxmem_vc` varchar(10) DEFAULT '1G',
   `qt_pcpu_in` int(4) DEFAULT 0,
   `qt_backups_in` int(11) NOT NULL DEFAULT 0,
+  `qt_dbquota_in` int(11) NOT NULL DEFAULT 0,
   `qt_diskspace_bi` bigint(20) DEFAULT 0,
   `qt_bandwidth_bi` bigint(20) DEFAULT 0,
   `qt_bwenabled_in` int(1) DEFAULT 0,
@@ -621,6 +622,17 @@ CREATE TABLE `x_backup_destinations` (
   `bd_created_ts` int(11) DEFAULT NULL,
   PRIMARY KEY (`bd_id_pk`),
   KEY `bd_acc_fk` (`bd_acc_fk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- Estado de bloqueo de escritura por cuota de BD por cuenta (evita re-aplicar grants cada
+-- ciclo del daemon). mq_blocked_in=1 => escritura revocada por superar qt_dbquota_in.
+DROP TABLE IF EXISTS `x_mysql_quota_state`;
+CREATE TABLE `x_mysql_quota_state` (
+  `mq_acc_fk` int(11) NOT NULL,
+  `mq_blocked_in` int(1) NOT NULL DEFAULT 0,
+  `mq_size_bi` bigint(20) DEFAULT 0,
+  `mq_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`mq_acc_fk`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 DROP TABLE IF EXISTS `x_settings`;
