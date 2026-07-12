@@ -73,7 +73,7 @@ class sys_backup_remote
      * $dest: array con bd_type_vc, bd_host_vc, bd_port_in, bd_user_vc, password, bd_path_vc,
      * bd_tlsverify_in.
      */
-    public static function upload($dest, $localFile)
+    public static function upload($dest, $localFile, $connectTimeout = 20, $maxTime = 0)
     {
         if (!is_file($localFile)) return array(false, 'El fichero local no existe.');
         $host = trim((string)$dest['bd_host_vc']);
@@ -96,8 +96,8 @@ class sys_backup_remote
             CURLOPT_INFILESIZE    => filesize($localFile),
             CURLOPT_USERPWD       => $user . ':' . $pass,
             CURLOPT_FTP_CREATE_MISSING_DIRS => CURLFTP_CREATE_DIR,
-            CURLOPT_CONNECTTIMEOUT => 20,
-            CURLOPT_TIMEOUT        => 0,        // sin límite: ficheros grandes
+            CURLOPT_CONNECTTIMEOUT => (int)$connectTimeout,
+            CURLOPT_TIMEOUT        => (int)$maxTime,   // 0 = sin límite (subida real de ficheros grandes)
             CURLOPT_NOSIGNAL       => true,
         ));
         // FTPS salvo que se pida FTP plano explícito
@@ -122,7 +122,9 @@ class sys_backup_remote
     {
         $tmp = tempnam(sys_get_temp_dir(), 'sentora_bktest');
         file_put_contents($tmp, "sentora backup destination test " . date('c') . "\n");
-        $r = self::upload($dest, $tmp);
+        // Timeout CORTO para el test (conectar 8s, total 12s): así "Probar conexión" no
+        // cuelga la petición 20s y devuelve el error rápido en vez de que el proxy la corte.
+        $r = self::upload($dest, $tmp, 8, 12);
         @unlink($tmp);
         return $r;
     }

@@ -245,16 +245,42 @@ class module_controller extends ctrl_module
     /** Prueba la conexión/subida al destino remoto de la cuenta actual. */
     static function doTestDestination()
     {
+        global $controller;
         runtime_csfr::Protect();
-        $cu = ctrl_users::GetUserDetail();
-        $dest = sys_backup_remote::getDestination((int)$cu['userid']);
-        if (!$dest || empty($dest['bd_host_vc'])) {
-            $_SESSION['bk_restore_flash'] = array('err', 'No hay destino remoto configurado.');
+        $cu  = ctrl_users::GetUserDetail();
+        $uid = (int)$cu['userid'];
+
+        // Probar los valores del FORMULARIO (lo que el usuario acaba de escribir), sin exigir
+        // guardar antes. Si el campo host va vacío, se prueba el destino guardado.
+        $host = trim((string)$controller->GetControllerRequest('FORM', 'inDestHost'));
+        if ($host === '') {
+            $dest = sys_backup_remote::getDestination($uid);
+            if (!$dest || empty($dest['bd_host_vc'])) {
+                $_SESSION['bk_restore_flash'] = array('err', 'Rellena al menos el host (o guarda el destino) antes de probar.');
+                if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+                return;
+            }
         } else {
-            list($ok, $msg) = sys_backup_remote::testConnection($dest);
-            sys_backup_remote::recordStatus((int)$cu['userid'], ($ok ? 'OK: ' : 'ERROR: ') . $msg);
-            $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err', 'Prueba de destino: ' . $msg);
+            $pass = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
+            if ($pass === '') { // campo en blanco: usar la contraseña guardada, si la hay
+                $saved = sys_backup_remote::getDestination($uid);
+                $pass  = ($saved && isset($saved['password'])) ? $saved['password'] : '';
+            }
+            $dest = array(
+                'bd_type_vc'      => ($controller->GetControllerRequest('FORM', 'inDestPlain') ? 'ftp' : 'ftps'),
+                'bd_host_vc'      => $host,
+                'bd_port_in'      => ((int)$controller->GetControllerRequest('FORM', 'inDestPort')) ?: 21,
+                'bd_user_vc'      => trim((string)$controller->GetControllerRequest('FORM', 'inDestUser')),
+                'password'        => $pass,
+                'bd_path_vc'      => (trim((string)$controller->GetControllerRequest('FORM', 'inDestPath')) ?: '/'),
+                'bd_tlsverify_in' => $controller->GetControllerRequest('FORM', 'inDestVerify') ? 1 : 0,
+            );
         }
+
+        list($ok, $msg) = sys_backup_remote::testConnection($dest);
+        sys_backup_remote::recordStatus($uid, ($ok ? 'OK: ' : 'ERROR: ') . $msg);
+        $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err',
+            ($ok ? '✓ Conexión correcta — ' : '✗ Fallo de conexión — ') . $msg);
         if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
     }
 
