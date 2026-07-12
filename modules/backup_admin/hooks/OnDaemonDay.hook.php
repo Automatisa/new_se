@@ -127,7 +127,7 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                 if (file_exists($zipfull) && class_exists('sys_backup_remote')) {
                     $dest = sys_backup_remote::getDestination($userid);
                     if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
-                        list($rok, $rmsg) = sys_backup_remote::upload($dest, $zipfull);
+                        list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $zipfull);
                         sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
                         echo "Envío remoto: " . ($rok ? 'OK' : 'ERROR') . " - " . $rmsg . fs_filehandler::NewLine();
                     }

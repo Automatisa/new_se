@@ -186,7 +186,7 @@ function ExecuteBackup($userid, $username, $download = 0) {
         $GLOBALS['zdbh'] = $zdbh;
         $dest = sys_backup_remote::getDestination($userid);
         if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
-            list($rok, $rmsg) = sys_backup_remote::upload($dest, $temp_dir . $backupname . ".zip");
+            list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $temp_dir . $backupname . ".zip");
             sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
         }
     }

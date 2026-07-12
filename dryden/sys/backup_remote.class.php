@@ -119,6 +119,66 @@ class sys_backup_remote
         return array(false, 'Error de subida (' . $code . '): ' . $err);
     }
 
+    /**
+     * Sube con REINTENTOS y verificación de integridad. Para las copias reales (no el test):
+     * la red puede fallar de forma transitoria o cortar la transferencia a medias. Reintenta
+     * $attempts veces con backoff lineal, y tras cada subida OK comprueba que el fichero remoto
+     * tiene el tamaño completo (detecta truncados silenciosos). Devuelve [ok, mensaje].
+     */
+    public static function uploadWithRetry($dest, $localFile, $attempts = 3, $baseDelaySec = 5)
+    {
+        $attempts = max(1, (int)$attempts);
+        $localSize = @filesize($localFile);
+        $lastMsg = '';
+        for ($i = 1; $i <= $attempts; $i++) {
+            list($ok, $msg) = self::upload($dest, $localFile);
+            if ($ok) {
+                // Verificar integridad: el tamaño remoto debe coincidir (si el servidor lo
+                // reporta). Si no se puede obtener, se acepta (best-effort, no romper el backup).
+                $remote = self::remoteSize($dest, basename($localFile));
+                if ($remote === null || $localSize === false || $remote === (int)$localSize) {
+                    return array(true, $msg . ($i > 1 ? " (al intento $i)" : ''));
+                }
+                $msg = "subida incompleta (remoto $remote != local $localSize bytes)";
+            }
+            $lastMsg = $msg;
+            if ($i < $attempts) {
+                sleep($baseDelaySec * $i); // backoff lineal: 5s, 10s, 15s...
+            }
+        }
+        return array(false, "Fallo tras $attempts intentos: $lastMsg");
+    }
+
+    /** Tamaño del fichero remoto en bytes (comando SIZE vía curl), o null si no se puede saber. */
+    private static function remoteSize($dest, $filename)
+    {
+        $host = trim((string)$dest['bd_host_vc']);
+        $port = (int)$dest['bd_port_in'] ?: 21;
+        $path = '/' . ltrim((string)$dest['bd_path_vc'], '/');
+        if ($path === '' || substr($path, -1) !== '/') $path .= '/';
+        if ($host === '') return null;
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => 'ftp://' . $host . ':' . $port . $path . rawurlencode($filename),
+            CURLOPT_USERPWD        => (string)$dest['bd_user_vc'] . ':' . (string)$dest['password'],
+            CURLOPT_NOBODY         => true,   // solo metadatos -> curl hace SIZE
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_NOSIGNAL       => true,
+        ));
+        if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            $lvl = isset($dest['bd_tlsverify_in']) ? (int)$dest['bd_tlsverify_in'] : 2;
+            curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $lvl >= 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $lvl >= 2 ? 2 : 0);
+        }
+        $okc  = curl_exec($ch);
+        $size = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+        curl_close($ch);
+        if ($okc === false || $size < 0) return null;
+        return (int)$size;
+    }
+
     /** Prueba de conexión/subida: sube un fichero diminuto de test y lo deja (o informa). */
     public static function testConnection($dest)
     {
