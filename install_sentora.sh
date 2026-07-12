@@ -1438,6 +1438,16 @@ grep -qE "^Protocols " "$HTTP_CONF" || \
 # KeepAlive
 sed -i '' "s|^KeepAlive Off|KeepAlive On|" "$HTTP_CONF"
 
+# Endurecer TLS del SSL global: solo TLS 1.2/1.3 (TLS 1.0/1.1 deprecados, RFC 8996) y
+# cifrados solo AEAD con forward-secrecy (evita la blocklist de HTTP/2 y CBC/no-PFS).
+SSL_CONF="/usr/local/etc/apache24/extra/httpd-ssl.conf"
+if [ -f "$SSL_CONF" ]; then
+    TLS_CIPHERS="ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384"
+    sed -i '' -E "s|^[[:space:]]*SSLProtocol .*|SSLProtocol -all +TLSv1.2 +TLSv1.3|" "$SSL_CONF"
+    sed -i '' -E "s|^[[:space:]]*SSLCipherSuite .*|SSLCipherSuite ${TLS_CIPHERS}|" "$SSL_CONF"
+    grep -qE "^[[:space:]]*SSLHonorCipherOrder" "$SSL_CONF" || echo "SSLHonorCipherOrder on" >> "$SSL_CONF"
+fi
+
 # Include de Sentora (si no existe ya)
 if ! grep -q "Include $PANEL_CONF/apache/httpd.conf" "$HTTP_CONF"; then
     echo "Include $PANEL_CONF/apache/httpd.conf" >> "$HTTP_CONF"
