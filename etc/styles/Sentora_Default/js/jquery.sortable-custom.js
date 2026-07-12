@@ -11,6 +11,9 @@
 *    antes de remontar (evita handlers duplicados -> doble 'sortupdate'/guardado AJAX)
 *  - destroy limpia el placeholder de la colección global (evita fuga de memoria)
 *  - mousedown/mouseup -> .on(...'.h5s') (no deprecado en jQuery 3, y limpiable)
+*  - eliminado código muerto de IE (selectstart + this.dragDrop()); dataTransfer usa
+*    'text/plain' (estándar) en vez de 'Text' (legacy)
+*  - guarda contra arrastres externos (dragging null) en dragover/drop
 *  Nota: sigue usando Drag&Drop nativo HTML5 -> sin soporte táctil (limitación del lib).
 */ (function($) {
     var dragging, placeholders = $();
@@ -79,7 +82,7 @@
                 isHandle = false;
                 var dt = e.originalEvent.dataTransfer;
                 dt.effectAllowed = 'move';
-                dt.setData('Text', 'dummy');
+                dt.setData('text/plain', 'dummy');
                 index = (dragging = $(this))
                     .addClass('sortable-dragging')
                     .index();
@@ -100,14 +103,13 @@
                 }
                 dragging = null;
             })
-                .not('a[href], img')
-                .on('selectstart.h5s', function() {
-                this.dragDrop && this.dragDrop();
-                return false;
-            })
-                .end()
                 .add([this, placeholder])
                 .on('dragover.h5s dragenter.h5s drop.h5s', function(e) {
+                // Ignorar arrastres externos (no iniciados por este plugin): sin esto,
+                // $(dragging) sería $(null) al evaluar la condición de connectWith.
+                if (!dragging) {
+                    return true;
+                }
                 if (!items.is(dragging) && options.connectWith !== $(dragging)
                     .parent()
                     .data('connectWith')) {
