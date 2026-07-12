@@ -282,7 +282,9 @@ function WriteDNSZoneRecordsHook()
         }
 
         echo "Updating zone record: $DomainName" . fs_filehandler::NewLine();
-        fs_filehandler::UpdateFile($zone_file, 0777, $line);
+        // SEC: 0644 (no 0777). Los datos de zona son públicos, pero NO deben ser
+        // world-writable (un inquilino local podría reescribir el DNS). named los lee.
+        fs_filehandler::UpdateFile($zone_file, 0644, $line);
     }
 }
 
@@ -454,8 +456,12 @@ function WriteDNSNamedHook()
         }
     }
 
-    fs_filehandler::UpdateFile($internal_file, 0777, $lineInternal);
-    fs_filehandler::UpdateFile($external_file, 0777, $lineExternal);
+    // SEC: named.conf contiene el SECRETO TSIG del cluster -> 0640 y grupo bind (nunca
+    // world-readable, era 0777). named lee por owner/grupo; el daemon (root) lo escribe.
+    fs_filehandler::UpdateFile($internal_file, 0640, $lineInternal);
+    fs_filehandler::UpdateFile($external_file, 0640, $lineExternal);
+    @chgrp($internal_file, 'bind');
+    @chgrp($external_file, 'bind');
 }
 
 function ResetDNSRecordsUpatedHook()
