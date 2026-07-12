@@ -1416,7 +1416,8 @@ for modspec in \
     "ssl_module libexec/apache24/mod_ssl.so" \
     "proxy_module libexec/apache24/mod_proxy.so" \
     "proxy_fcgi_module libexec/apache24/mod_proxy_fcgi.so" \
-    "deflate_module libexec/apache24/mod_deflate.so"
+    "deflate_module libexec/apache24/mod_deflate.so" \
+    "http2_module libexec/apache24/mod_http2.so"
 do
     modname=$(echo "$modspec" | cut -d' ' -f1)
     modpath=$(echo "$modspec" | cut -d' ' -f2)
@@ -1426,6 +1427,13 @@ do
         echo "LoadModule $modname $modpath" >> "$HTTP_CONF"
     fi
 done
+
+# HTTP/2: pasar de MPM prefork a event (PHP va por FPM, no mod_php, así que es seguro y
+# necesario — mod_http2 va limitado/desaconsejado con prefork). Y activar Protocols h2.
+sed -i '' -E "s/^#LoadModule mpm_event_module/LoadModule mpm_event_module/" "$HTTP_CONF"
+sed -i '' -E "s/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/" "$HTTP_CONF"
+grep -qE "^Protocols " "$HTTP_CONF" || \
+    printf '\n# HTTP/2 sobre TLS (h2); http/1.1 de reserva y para el puerto 80\nProtocols h2 http/1.1\n' >> "$HTTP_CONF"
 
 # KeepAlive
 sed -i '' "s|^KeepAlive Off|KeepAlive On|" "$HTTP_CONF"
