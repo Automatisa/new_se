@@ -146,10 +146,21 @@ class module_controller extends ctrl_module
 
     static function doConfirmDeleteFAQ()
     {
-        global $controller;
+        global $controller, $zdbh;
         runtime_csfr::Protect();
         $formvars = $controller->GetAllControllerRequests('FORM');
-        if (self::ExecuteDeleteFaq($formvars['inDelete']))
+        // AUTZ (IDOR fix): el admin puede borrar cualquier FAQ; un reseller SOLO las que creó
+        // (fq_acc_fk). Antes se borraba por inDelete sin comprobar dueño.
+        $cu  = ctrl_users::GetUserDetail();
+        $fid = (int) $formvars['inDelete'];
+        if ($cu['usergroup'] !== "Administrators") {
+            $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_faqs WHERE fq_id_pk=:fid AND fq_acc_fk=:uid AND fq_deleted_ts IS NULL");
+            $chk->execute(array(':fid' => $fid, ':uid' => (int) $cu['userid']));
+            if ((int) $chk->fetchColumn() === 0) {
+                return false;
+            }
+        }
+        if (self::ExecuteDeleteFaq($fid))
             return true;
         return false;
     }

@@ -556,6 +556,24 @@ class module_controller extends ctrl_module
     /**
      * Webinterface sudo methods.
      */
+    /**
+     * AUTZ: ¿el paquete pertenece al usuario actual (pk_reseller_fk = su id)?
+     * Sin esto, un reseller podía editar/borrar por ID (IDOR) paquetes de otro reseller o del
+     * admin, y reasignar sus cuentas a un paquete arbitrario.
+     */
+    private static function canManagePackage($pid)
+    {
+        global $zdbh;
+        $pid = (int) $pid;
+        if ($pid <= 0) {
+            return false;
+        }
+        $self = (int) ctrl_users::GetUserDetail()['userid'];
+        $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_packages WHERE pk_id_pk=:pid AND pk_reseller_fk=:uid AND pk_deleted_ts IS NULL");
+        $chk->execute(array(':pid' => $pid, ':uid' => $self));
+        return ((int) $chk->fetchColumn() > 0);
+    }
+
     static function doCreatePackage()
     {
         global $controller;
@@ -633,6 +651,10 @@ class module_controller extends ctrl_module
             'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
             'DbQuota'       => isset($formvars['inDbQuota']) ? $formvars['inDbQuota'] : '0',
         ];
+        // AUTZ: solo se puede editar un paquete propio (IDOR fix).
+        if (!self::canManagePackage($formvars['inPackageID'])) {
+            return false;
+        }
         if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg))
             return true;
         return false;
@@ -662,6 +684,14 @@ class module_controller extends ctrl_module
         global $controller;
         runtime_csfr::Protect();
         $formvars = $controller->GetAllControllerRequests('FORM');
+        // AUTZ: el paquete a borrar y el de destino deben ser propios (IDOR fix).
+        if (!self::canManagePackage($formvars['inPackageID'])) {
+            return false;
+        }
+        if (isset($formvars['inMovePackage']) && $formvars['inMovePackage'] !== ""
+            && !self::canManagePackage($formvars['inMovePackage'])) {
+            return false;
+        }
         if (self::ExecuteDeletePackage($formvars['inPackageID'], $formvars['inMovePackage']))
             return true;
         return false;
