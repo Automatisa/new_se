@@ -599,6 +599,13 @@ class module_controller extends ctrl_module
         return self::loadPhpSettings() !== false;
     }
 
+    /** Vista principal (lista + crear): solo cuando NO se está en ajustes PHP ni borrando un dominio.
+     *  Así la pantalla de ajustes PHP muestra solo ese dominio y no toda la lista. */
+    static function getisDomainMain()
+    {
+        return !self::getisPhpSettings() && !self::getisDeleteDomain();
+    }
+
     static function getPhpDomainName()
     {
         $s = self::loadPhpSettings();
