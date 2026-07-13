@@ -186,8 +186,9 @@ class module_controller extends ctrl_module
     static function getEditCurrentFAQID()
     {
         global $controller;
+        // Se refleja en value="..." de la plantilla; escapar para evitar XSS reflejado.
         if ($controller->GetControllerRequest('URL', 'other')) {
-            return $controller->GetControllerRequest('URL', 'other');
+            return htmlspecialchars((string)$controller->GetControllerRequest('URL', 'other'), ENT_QUOTES, 'UTF-8');
         } else {
             return "";
         }

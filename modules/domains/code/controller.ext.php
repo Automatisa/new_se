@@ -443,15 +443,17 @@ class module_controller extends ctrl_module
     static function getCurrentID()
     {
         global $controller;
+        // Se refleja en value="..." de la plantilla; escapar (el parámetro id de la URL no lo
+        // valida getisDeleteDomain, que solo comprueba 'domain') -> evita XSS reflejado.
         $id = $controller->GetControllerRequest('URL', 'id');
-        return ($id) ? $id : '';
+        return ($id) ? htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') : '';
     }
 
     static function getCurrentDomain()
     {
         global $controller;
         $domain = $controller->GetControllerRequest('URL', 'domain');
-        return ($domain) ? $domain : '';
+        return ($domain) ? htmlspecialchars((string)$domain, ENT_QUOTES, 'UTF-8') : '';
     }
 
     static function getSubDomainsForDelete()
