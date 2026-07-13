@@ -144,6 +144,11 @@ class ctrl_auth
                 session_regenerate_id(true);
             }
             ctrl_auth::SetUserSession($row['ac_id_pk'], $sessionSecurity);
+            // Emitir un token CSRF NUEVO al autenticar: invalida cualquier token que
+            // pudiera quedar de una sesión anterior (evita [0204] con formularios viejos).
+            if (class_exists('runtime_csfr')) {
+                runtime_csfr::Tokeniser();
+            }
             // Fix SQL injection: prepared statement en lugar de concatenación
             $log_logon = $zdbh->prepare("UPDATE x_accounts SET ac_lastlogon_ts = :ts WHERE ac_id_pk = :id");
             $log_logon->execute([':ts' => time(), ':id' => (int)$row['ac_id_pk']]);
@@ -174,12 +179,29 @@ class ctrl_auth
     static function KillSession()
     {
         runtime_hook::Execute('OnUserLogout');
-        $_SESSION['zpuid'] = null;
-        if (isset($_SESSION['ruid'])) {
-            unset($_SESSION['ruid']);
+        // Destrucción COMPLETA de la sesión en el logout. Antes solo se ponía zpuid=null,
+        // dejando vivos la cookie de sesión, el fichero de sesión y el token CSRF (zpcsfr):
+        // eso dejaba una sesión "medio muerta" que, reutilizada por el navegador, provocaba
+        // formularios con token caducado (error [0204]). Ahora se limpia todo.
+        $_SESSION = array();
+        // Borrar la cookie de sesión en el navegador (si no, queda una cookie que reengancha
+        // una sesión vieja). Se respetan los parámetros con los que se creó.
+        if (ini_get('session.use_cookies') && !headers_sent()) {
+            $p = session_get_cookie_params();
+            setcookie(session_name(), '', array(
+                'expires'  => time() - 42000,
+                'path'     => $p['path'],
+                'domain'   => $p['domain'],
+                'secure'   => $p['secure'],
+                'httponly' => $p['httponly'],
+                'samesite' => isset($p['samesite']) ? $p['samesite'] : 'Strict',
+            ));
         }
-        unset($_SESSION['ruid_stack']);
         unset($_COOKIE['zUserSaltCookie']);
+        // Destruir la sesión en el servidor (el logout hace redirect+exit a continuación).
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_destroy();
+        }
         return true;
     }
 
