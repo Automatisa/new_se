@@ -22,6 +22,7 @@ try {
 }
 
 $userid = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$mode   = (isset($_GET['mode']) && in_array($_GET['mode'], array('local', 'remote', 'both'), true)) ? $_GET['mode'] : 'local';
 
 if ($userid > 0 && (int)$_SESSION['zpuid'] === $userid) {
     $currentuser = ctrl_users::GetUserDetail($userid);
@@ -56,7 +57,7 @@ if ($userid > 0 && (int)$_SESSION['zpuid'] === $userid) {
                     <p>Your data is ready to be backed up. This proccess can take a lot of time, depending on your directory size. When finished you will be prompted to download your archive.</p>
                     <p>Current public directory size: <b><?php echo fs_director::ShowHumanFileSize(dirSize(ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/")); ?></b></p>
                     <div id="BackupSubmit" style="height:100%;margin:auto;">
-                        <form name="doBackup" action="response_normal.php" method="post" onsubmit="showHide(); xmlhttpPost('dobackup.php?id=<?php echo $userid; ?>', 'doBackup', 'BackupResult', 'Compressing your data, please wait...<br><img src=\'../assets/bar.gif\'>'); return false;">
+                        <form name="doBackup" action="response_normal.php" method="post" onsubmit="showHide(); xmlhttpPost('dobackup.php?id=<?php echo $userid; ?>&amp;mode=<?php echo htmlspecialchars($mode, ENT_QUOTES); ?>', 'doBackup', 'BackupResult', 'Compressing your data, please wait...<br><img src=\'../assets/bar.gif\'>'); return false;">
                             <?php echo runtime_csfr::Token(); ?>
                             <table class="zform">
                                 <tr valign="top">

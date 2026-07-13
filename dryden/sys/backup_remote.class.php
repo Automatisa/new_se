@@ -233,6 +233,128 @@ class sys_backup_remote
         return (int)$size;
     }
 
+    /** Lista los nombres de fichero del directorio remoto (solo nombres), o array vacío. */
+    private static function listRemote($dest)
+    {
+        $host = trim((string)$dest['bd_host_vc']);
+        $port = (int)$dest['bd_port_in'] ?: 21;
+        $path = '/' . ltrim((string)$dest['bd_path_vc'], '/');
+        if (substr($path, -1) !== '/') $path .= '/';
+        if ($host === '') return array();
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => 'ftp://' . $host . ':' . $port . $path,
+            CURLOPT_USERPWD        => (string)$dest['bd_user_vc'] . ':' . (string)$dest['password'],
+            CURLOPT_DIRLISTONLY    => true,   // solo nombres (NLST)
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_NOSIGNAL       => true,
+        ));
+        if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
+            self::applyTls($ch, $dest);
+        }
+        $out = curl_exec($ch);
+        curl_close($ch);
+        if ($out === false || $out === '') return array();
+        $names = preg_split('/\r\n|\r|\n/', trim((string)$out));
+        // quedarnos solo con el basename (algunos servidores devuelven rutas)
+        return array_filter(array_map(function ($n) { return basename(trim($n)); }, $names));
+    }
+
+    /** Fecha de modificación (epoch) del fichero remoto vía MDTM, o null si no se puede saber. */
+    private static function remoteMtime($dest, $filename)
+    {
+        $host = trim((string)$dest['bd_host_vc']);
+        $port = (int)$dest['bd_port_in'] ?: 21;
+        $path = '/' . ltrim((string)$dest['bd_path_vc'], '/');
+        if (substr($path, -1) !== '/') $path .= '/';
+        if ($host === '') return null;
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => 'ftp://' . $host . ':' . $port . $path . rawurlencode($filename),
+            CURLOPT_USERPWD        => (string)$dest['bd_user_vc'] . ':' . (string)$dest['password'],
+            CURLOPT_NOBODY         => true,
+            CURLOPT_FILETIME       => true,
+            CURLOPT_RETURNTRANSFER => true,   // no volcar la respuesta a stdout
+            CURLOPT_HEADER         => false,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_NOSIGNAL       => true,
+        ));
+        if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
+            self::applyTls($ch, $dest);
+        }
+        curl_exec($ch);
+        // NOBODY sobre FTP puede devolver false aun con MDTM correcto: fiarse del FILETIME.
+        $ft = curl_getinfo($ch, CURLINFO_FILETIME);
+        curl_close($ch);
+        return ($ft !== null && (int)$ft > 0) ? (int)$ft : null;
+    }
+
+    /** Borra un fichero remoto (comando DELE). Devuelve true si el servidor lo aceptó. */
+    private static function deleteRemote($dest, $filename)
+    {
+        $host = trim((string)$dest['bd_host_vc']);
+        $port = (int)$dest['bd_port_in'] ?: 21;
+        $path = '/' . ltrim((string)$dest['bd_path_vc'], '/');
+        if (substr($path, -1) !== '/') $path .= '/';
+        if ($host === '' || $filename === '') return false;
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => 'ftp://' . $host . ':' . $port . $path,
+            CURLOPT_USERPWD        => (string)$dest['bd_user_vc'] . ':' . (string)$dest['password'],
+            CURLOPT_QUOTE          => array('DELE ' . $path . $filename), // ruta ABSOLUTA: QUOTE corre antes del CWD
+            CURLOPT_NOBODY         => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_NOSIGNAL       => true,
+        ));
+        if (($dest['bd_type_vc'] ?? 'ftps') !== 'ftp') {
+            curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
+            self::applyTls($ch, $dest);
+        }
+        $ok = curl_exec($ch);
+        curl_close($ch);
+        return ($ok !== false);
+    }
+
+    /**
+     * Poda las copias remotas de una cuenta para conservar solo las $max más recientes.
+     * Filtra por el prefijo del backup (<username>_*.zip), determina la antigüedad por MDTM
+     * y borra las sobrantes (junto a su sidecar .sha256). Best-effort: los ficheros cuya fecha
+     * no se puede determinar NO se borran (seguridad ante servidores sin MDTM). Devuelve nº borrados.
+     */
+    public static function enforceRemoteRetention($dest, $max, $username)
+    {
+        $max = (int)$max;
+        if ($max <= 0) return 0; // 0 = ilimitado
+        $files = self::listRemote($dest);
+        if (!$files) return 0;
+        $re = '/^' . preg_quote((string)$username, '/') . '_.*\.zip$/';
+        $bk = array();
+        foreach ($files as $f) {
+            if (!preg_match($re, $f)) continue;
+            $mt = self::remoteMtime($dest, $f);
+            if ($mt !== null && $mt > 0) $bk[$f] = $mt; // solo los que sabemos fechar
+        }
+        if (count($bk) <= $max) return 0;
+        arsort($bk); // más recientes primero
+        $keep = array_slice(array_keys($bk), 0, $max);
+        $deleted = 0;
+        foreach (array_keys($bk) as $f) {
+            if (in_array($f, $keep, true)) continue;
+            if (self::deleteRemote($dest, $f)) {
+                $deleted++;
+                self::deleteRemote($dest, $f . '.sha256'); // sidecar best-effort
+            }
+        }
+        return $deleted;
+    }
+
     /** Configura la verificación TLS de curl: pinning (TOFU) si hay pin fijado, o CA+hostname. */
     private static function applyTls($ch, $dest)
     {

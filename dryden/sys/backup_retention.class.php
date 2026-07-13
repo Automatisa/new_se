@@ -28,6 +28,21 @@ class sys_backup_retention
         return $v === false ? 0 : max(0, (int)$v);
     }
 
+    /** Máximo de copias REMOTAS (FTP) del paquete (qt_backups_remote_in). 0 = ilimitado. */
+    public static function getMaxRemote($userid)
+    {
+        global $zdbh;
+        $q = $zdbh->prepare(
+            "SELECT q.qt_backups_remote_in
+               FROM x_accounts a
+               JOIN x_quotas q ON q.qt_package_fk = a.ac_package_fk
+              WHERE a.ac_id_pk = :u LIMIT 1"
+        );
+        $q->execute(array(':u' => (int)$userid));
+        $v = $q->fetchColumn();
+        return $v === false ? 0 : max(0, (int)$v);
+    }
+
     /** Lista los .zip de home/backups/ ordenados por fecha (más antiguo primero). */
     public static function listLocal($username)
     {

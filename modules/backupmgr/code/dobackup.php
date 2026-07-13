@@ -56,6 +56,11 @@ if (isset($_POST['inDownLoad'])) {
 } else {
     $download = 0;
 }
+// Modo de ejecución manual: 'local' (solo disco), 'remote' (solo FTP), 'both' (compat).
+$mode = 'both';
+if (isset($_REQUEST['mode']) && in_array($_REQUEST['mode'], array('local', 'remote', 'both'), true)) {
+    $mode = $_REQUEST['mode'];
+}
 if (isset($_GET['id']) && $_GET['id'] != "") {
     if ((int)$_SESSION['zpuid'] === (int)$_GET['id'] && (int)$_GET['id'] > 0) {
         $userid = (int)$_GET['id'];
@@ -71,7 +76,7 @@ if (isset($_GET['id']) && $_GET['id'] != "") {
         $rows->execute();
         $dbvals = $rows->fetch();
 
-        if ($backup = ExecuteBackup($userid, $dbvals['ac_user_vc'], $download)) {
+        if ($backup = ExecuteBackup($userid, $dbvals['ac_user_vc'], $download, $mode)) {
             $safe_file = htmlspecialchars(basename($backup), ENT_QUOTES, 'UTF-8');
             echo "<p>Ready to download file: <b>" . $safe_file . "</b></p>";
             echo "<button class=\"fg-button ui-state-default ui-corner-all\" type=\"button\" onclick=\"window.location.href='downloadbackup.php?id=" . $userid . "&amp;file=" . $safe_file . "';return false;\">Download Now</button>";
@@ -85,7 +90,7 @@ if (isset($_GET['id']) && $_GET['id'] != "") {
     }
 }
 
-function ExecuteBackup($userid, $username, $download = 0) {
+function ExecuteBackup($userid, $username, $download = 0, $mode = 'both') {
     include($_SERVER["DOCUMENT_ROOT"] . 'cnf/db.php');
     try {
         $zdbh = new db_driver("mysql:host=" . $host . ";dbname=" . $dbname . "", $user, $pass);
@@ -181,9 +186,15 @@ function ExecuteBackup($userid, $username, $download = 0) {
         }
     }
 
+    // Si el .zip no llegó a crearse, informar una sola vez (cualquier modo) y salir.
+    if (!file_exists($temp_dir . $backupname . ".zip")) {
+        echo "File not found in temp directory!";
+        return FALSE;
+    }
+
     // Fase 2: enviar la copia al destino remoto de la cuenta si está activado (FTPS).
-    // sys_backup_remote usa `global $zdbh`; aquí $zdbh es local, así que lo exponemos.
-    if (file_exists($temp_dir . $backupname . ".zip")) {
+    // Solo en modo 'remote' o 'both'. sys_backup_remote usa `global $zdbh`; aquí es local.
+    if (($mode === 'remote' || $mode === 'both') && file_exists($temp_dir . $backupname . ".zip")) {
         $GLOBALS['zdbh'] = $zdbh;
         $dest = sys_backup_remote::getDestination($userid);
         if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
@@ -191,16 +202,29 @@ function ExecuteBackup($userid, $username, $download = 0) {
             $t0 = time();
             list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $zipfile);
             sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
+            // RETENCIÓN REMOTA: conservar solo las qt_backups_remote_in más recientes en el FTP
+            // (poda las sobrantes por MDTM). 0 = ilimitado. Solo si la subida fue OK.
+            $pruned = 0;
+            if ($rok) {
+                $maxRemote = sys_backup_retention::getMaxRemote($userid);
+                if ($maxRemote > 0) {
+                    $pruned = sys_backup_remote::enforceRemoteRetention($dest, $maxRemote, $username);
+                }
+            }
             sys_backup_log::record(
                 $userid, 'remote',
                 $dest['bd_host_vc'] . ':' . (int)$dest['bd_port_in'] . ' (' . $dest['bd_type_vc'] . ')',
-                $backupname . '.zip', @filesize($zipfile), 0, $rok, $rmsg, time() - $t0
+                $backupname . '.zip', @filesize($zipfile), 0, $rok,
+                $rmsg . ($pruned > 0 ? " (retención: $pruned antiguas borradas)" : ''), time() - $t0
             );
+            echo "<p>Envío remoto: " . ($rok ? 'OK' : 'ERROR') . " - " . htmlspecialchars($rmsg, ENT_QUOTES) . "</p>";
+        } elseif ($mode === 'remote') {
+            echo "<p><b>Aviso:</b> no hay destino remoto (FTP) activo configurado.</p>";
         }
     }
 
-    // We have the backup now lets output it to disk or download
-    if (file_exists($temp_dir . $backupname . ".zip")) {
+    // Guardar en disco: solo en modo 'local' o 'both'.
+    if (($mode === 'local' || $mode === 'both') && file_exists($temp_dir . $backupname . ".zip")) {
 
         // If Disk based backups are allowed in backup config
         if (strtolower(ctrl_options::GetSystemOption('disk_bu')) == "true") {
@@ -244,16 +268,16 @@ function ExecuteBackup($userid, $username, $download = 0) {
             $backupdir = $temp_dir;
         }
 
-        // If Client has checked to download file
+        // Descarga directa (solo local/both): devolver el zip para servirlo al navegador.
         if ($download <> 0) {
             fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
             return $temp_dir . $backupname . ".zip";
         }
+    }
+
+    // Limpieza del zip temporal en CUALQUIER modo (si no se devolvió para descarga).
+    if (file_exists($temp_dir . $backupname . ".zip")) {
         unlink($temp_dir . $backupname . ".zip");
-		
-    } else {
-        echo "File not found in temp directory!";
-        return FALSE;
     }
     return TRUE;
 }

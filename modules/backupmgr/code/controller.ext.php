@@ -495,6 +495,16 @@ class module_controller extends ctrl_module
         return self::CheckHasData($currentuser['userid']);
     }
 
+    /** ¿Hay un destino remoto (FTP) activo? Controla el botón "Copia remota". */
+    static function GetHasRemoteDest()
+    {
+        global $zdbh;
+        $cu = ctrl_users::GetUserDetail();
+        $q = $zdbh->prepare("SELECT COUNT(*) FROM x_backup_destinations WHERE bd_acc_fk=:u AND bd_enabled_in=1 AND bd_host_vc IS NOT NULL AND bd_host_vc<>''");
+        $q->execute(array(':u' => (int)$cu['userid']));
+        return ((int)$q->fetchColumn() > 0);
+    }
+
     static function GetBackUpList()
     {
         global $controller;

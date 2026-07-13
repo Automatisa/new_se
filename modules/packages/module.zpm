@@ -149,6 +149,10 @@
                     <td><input name="inMaxBackups" type="text" id="inMaxBackups" size="5" maxlength="4" value="<@ EditCurrentMaxBackups @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado ; rota las más antiguas)</td>
                 </tr>
                 <tr>
+                    <th>Máx. copias remotas (FTP):</th>
+                    <td><input name="inMaxBackupsRemote" type="text" id="inMaxBackupsRemote" size="5" maxlength="4" value="<@ EditCurrentMaxBackupsRemote @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado ; poda las más antiguas del FTP)</td>
+                </tr>
+                <tr>
                     <th>Máx. tamaño BD (MB):</th>
                     <td><input name="inDbQuota" type="text" id="inDbQuota" size="8" maxlength="8" value="<@ EditCurrentDbQuota @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado ; sobre el límite se bloquea la escritura, sigue leyendo)</td>
                 </tr>
@@ -294,6 +298,10 @@
                 <tr>
                     <th>Máx. copias locales:</th>
                     <td><input name="inMaxBackups" type="text" id="inMaxBackups" value="0" size="5" maxlength="4" onkeypress="return isNumberKey(event)" /> (0 = ilimitado ; rota las más antiguas)</td>
+                </tr>
+                <tr>
+                    <th>Máx. copias remotas (FTP):</th>
+                    <td><input name="inMaxBackupsRemote" type="text" id="inMaxBackupsRemote" value="0" size="5" maxlength="4" onkeypress="return isNumberKey(event)" /> (0 = ilimitado ; poda las más antiguas del FTP)</td>
                 </tr>
                 <tr>
                     <th>Máx. tamaño BD (MB):</th>

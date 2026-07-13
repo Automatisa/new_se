@@ -130,6 +130,14 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                         $t0 = time();
                         list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $zipfull);
                         sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
+                        // Retención remota (qt_backups_remote_in): poda las sobrantes del FTP.
+                        if ($rok && class_exists('sys_backup_retention')) {
+                            $maxRemote = sys_backup_retention::getMaxRemote($userid);
+                            if ($maxRemote > 0) {
+                                $pr = sys_backup_remote::enforceRemoteRetention($dest, $maxRemote, $username);
+                                if ($pr > 0) $rmsg .= " (retención: $pr antiguas borradas)";
+                            }
+                        }
                         if (class_exists('sys_backup_log')) {
                             sys_backup_log::record(
                                 $userid, 'remote',

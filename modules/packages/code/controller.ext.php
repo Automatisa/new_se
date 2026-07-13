@@ -158,6 +158,7 @@ class module_controller extends ctrl_module
                     'maxmem' => $rowpackages['qt_maxmem_vc'],
                     'pcpu' => $rowpackages['qt_pcpu_in'],
                     'maxbackups' => $rowpackages['qt_backups_in'],
+                    'maxbackupsremote' => $rowpackages['qt_backups_remote_in'],
                     'dbquota' => $rowpackages['qt_dbquota_in'],
                     'packagename' => stripslashes($rowpackages['pk_name_vc'])));
             }
@@ -288,6 +289,7 @@ class module_controller extends ctrl_module
 										qt_maxmem_vc,
 										qt_pcpu_in,
 										qt_backups_in,
+										qt_backups_remote_in,
 										qt_dbquota_in,
 										qt_diskspace_bi,
 										qt_bandwidth_bi) VALUES (
@@ -310,6 +312,7 @@ class module_controller extends ctrl_module
 										:MaxMem,
 										:Pcpu,
 										:MaxBackups,
+										:MaxBackupsRemote,
 										:DbQuota,
 										:DiskQuotaFinal,
 										:BandQuotaFinal)");
@@ -341,6 +344,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':Pcpu', $Pcpu);
         $MaxBackups = max(0, (int)$MaxBackups);
         $sql->bindParam(':MaxBackups', $MaxBackups);
+        $MaxBackupsRemote = max(0, (int)$MaxBackupsRemote);
+        $sql->bindParam(':MaxBackupsRemote', $MaxBackupsRemote);
         $DbQuota = max(0, (int)$DbQuota);
         $sql->bindParam(':DbQuota', $DbQuota);
         $sql->bindParam(':pk_id_pk', $package['pk_id_pk']);
@@ -416,6 +421,7 @@ class module_controller extends ctrl_module
 								qt_maxmem_vc        = :MaxMem,
 								qt_pcpu_in          = :Pcpu,
 								qt_backups_in       = :MaxBackups,
+								qt_backups_remote_in = :MaxBackupsRemote,
 								qt_dbquota_in       = :DbQuota
                                                                 WHERE qt_package_fk = :pid");
         $DiskQuotaFinal = $DiskQuota * 1024000;
@@ -446,6 +452,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':Pcpu', $Pcpu);
         $MaxBackups = max(0, (int)$MaxBackups);
         $sql->bindParam(':MaxBackups', $MaxBackups);
+        $MaxBackupsRemote = max(0, (int)$MaxBackupsRemote);
+        $sql->bindParam(':MaxBackupsRemote', $MaxBackupsRemote);
         $DbQuota = max(0, (int)$DbQuota);
         $sql->bindParam(':DbQuota', $DbQuota);
         $sql->bindParam(':pid', $pid);
@@ -608,6 +616,7 @@ class module_controller extends ctrl_module
             'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
             'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
             'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
+            'MaxBackupsRemote' => isset($formvars['inMaxBackupsRemote']) ? $formvars['inMaxBackupsRemote'] : '0',
             'DbQuota'       => isset($formvars['inDbQuota']) ? $formvars['inDbQuota'] : '0',
         ];
         if (self::ExecuteCreatePackage($currentuser['userid'], $pkg))
@@ -649,6 +658,7 @@ class module_controller extends ctrl_module
             'MaxMem'        => isset($formvars['inMaxMem'])  ? $formvars['inMaxMem']  : '1G',
             'Pcpu'          => isset($formvars['inPcpu'])    ? $formvars['inPcpu']    : '0',
             'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
+            'MaxBackupsRemote' => isset($formvars['inMaxBackupsRemote']) ? $formvars['inMaxBackupsRemote'] : '0',
             'DbQuota'       => isset($formvars['inDbQuota']) ? $formvars['inDbQuota'] : '0',
         ];
         // AUTZ: solo se puede editar un paquete propio (IDOR fix).
@@ -934,6 +944,16 @@ class module_controller extends ctrl_module
         if ($controller->GetControllerRequest('URL', 'other')) {
             $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
             return $current[0]['maxbackups'];
+        }
+        return '0';
+    }
+
+    static function getEditCurrentMaxBackupsRemote()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['maxbackupsremote'];
         }
         return '0';
     }

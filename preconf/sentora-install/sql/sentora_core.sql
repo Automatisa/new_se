@@ -588,6 +588,7 @@ CREATE TABLE `x_quotas` (
   `qt_maxmem_vc` varchar(10) DEFAULT '1G',
   `qt_pcpu_in` int(4) DEFAULT 0,
   `qt_backups_in` int(11) NOT NULL DEFAULT 0,
+  `qt_backups_remote_in` int(11) NOT NULL DEFAULT 0,
   `qt_dbquota_in` int(11) NOT NULL DEFAULT 0,
   `qt_diskspace_bi` bigint(20) DEFAULT 0,
   `qt_bandwidth_bi` bigint(20) DEFAULT 0,
