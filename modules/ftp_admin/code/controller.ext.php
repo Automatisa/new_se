@@ -276,9 +276,12 @@ class module_controller extends ctrl_module
             die();
         }
 
-        // Escribir en ubicaciones temporales fijas para el script privilegiado
-        file_put_contents('/tmp/sentora_ftp_cert_upload', $certContent);
-        file_put_contents('/tmp/sentora_ftp_key_upload',  $keyContent);
+        // Escribir en /var/sentora/run (no /tmp, world-writable) con 0600: el material de
+        // clave privada no debe quedar legible por otros ni expuesto a symlink/TOCTOU en /tmp.
+        file_put_contents('/var/sentora/run/sentora_ftp_cert_upload', $certContent);
+        @chmod('/var/sentora/run/sentora_ftp_cert_upload', 0600);
+        file_put_contents('/var/sentora/run/sentora_ftp_key_upload',  $keyContent);
+        @chmod('/var/sentora/run/sentora_ftp_key_upload', 0600);
 
         self::runAndRedirect('proftpd_cert_upload', 'upload_ok', 'upload_err');
     }

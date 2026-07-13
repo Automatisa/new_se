@@ -67,11 +67,11 @@ class privilege
      * `identity [as target] cmd command [args ...]` portion, starting with
      * `cmd …`. The caller prepends `permit nopass` and the identity.
      *
-     * For `bind_log_chmod` the doas rule is intentionally broader than the
-     * sudo rule (command-only, no args) because doas.conf does not support
-     * per-arg wildcards: the argument whitelist is enforced on the PHP side
-     * by `materializeTemplate()` (realpath + basename regex against
-     * /var/sentora/logs/bind/).
+     * For `bind_log_chmod`/`bind_log_chown` the doas rule pins the EXACT args
+     * (`args 0664 /var/sentora/logs/bind/bind.log`). This is critical: a bare
+     * `cmd /bin/chmod` (no args) would let www run `doas chmod 4755 /bin/sh`
+     * or `doas chown` on any file = trivial root escalation. Since the log
+     * path is a fixed constant, pinning the args closes that hole entirely.
      *
      * @var array<string, array{argv?: array<int,string>, argv_template?: array<int,string>, sudo_rule: string, doas_rule: string}>
      */
@@ -123,7 +123,7 @@ class privilege
             // doas.conf: command-only (no `args` clause), since the BIND
             // log path is dynamic. The argument whitelist is enforced on
             // the PHP side via realpath + basename regex.
-            'doas_rule' => 'cmd /bin/chmod',
+            'doas_rule' => 'cmd /bin/chmod args 0664 /var/sentora/logs/bind/bind.log',
         ),
 
         // chown the BIND log file so the group becomes `www`, allowing the
@@ -132,7 +132,7 @@ class privilege
         'bind_log_chown' => array(
             'argv_template' => array('/usr/sbin/chown', 'bind:www', '__BIND_LOG__'),
             'sudo_rule' => '/usr/sbin/chown bind:www /var/sentora/logs/bind/bind.log',
-            'doas_rule' => 'cmd /usr/sbin/chown',
+            'doas_rule' => 'cmd /usr/sbin/chown args bind:www /var/sentora/logs/bind/bind.log',
         ),
 
         // OpenDKIM reload (used by dns_manager daemon hook after writing KeyTable/SigningTable).

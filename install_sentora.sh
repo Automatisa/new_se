@@ -1597,9 +1597,11 @@ permit nopass www as root cmd /usr/sbin/service args named reload
 permit nopass www as root cmd /usr/sbin/service args named restart
 permit nopass www as root cmd /usr/local/sbin/rndc
 
-# ---- BIND log permissions (path validado en PHP antes de llamar) ----
-permit nopass www as root cmd /bin/chmod
-permit nopass www as root cmd /usr/sbin/chown
+# ---- BIND log permissions ----
+# Restringido a los argumentos EXACTOS (args ...): sin esto, www podría hacer
+# `doas chmod 4755 /bin/sh` o `doas chown` sobre cualquier fichero = root trivial.
+permit nopass www as root cmd /bin/chmod args 0664 /var/sentora/logs/bind/bind.log
+permit nopass www as root cmd /usr/sbin/chown args bind:www /var/sentora/logs/bind/bind.log
 
 # ---- Cron (reload tras escribir crontab del panel) ----
 permit nopass www as root cmd /usr/sbin/service args cron reload
@@ -1646,6 +1648,7 @@ permit nopass www as root cmd /usr/sbin/service args rspamd start
 permit nopass www as root cmd /usr/sbin/service args rspamd stop
 permit nopass www as root cmd /usr/sbin/service args rspamd reload
 permit nopass www as root cmd /usr/sbin/service args rspamd restart
+permit nopass www as root cmd $PANEL_PATH/bin/antispam_rbl_apply.sh
 
 # ---- ClamAV (clamav_admin) ----
 permit nopass www as root cmd /usr/sbin/service args clamav_clamd start
@@ -1659,6 +1662,8 @@ permit nopass www as root cmd $PANEL_PATH/bin/clamav_scan_launch.sh
 permit nopass www as root cmd $PANEL_PATH/bin/clamav_freshclam_launch.sh
 permit nopass www as root cmd $PANEL_PATH/bin/clamav_clamd_stop.sh
 permit nopass www as root cmd $PANEL_PATH/bin/clamav_cron_update.sh
+permit nopass www as root cmd $PANEL_PATH/bin/clamav_user_scan.sh
+permit nopass www as root cmd $PANEL_PATH/bin/clamav_quarantine_restore.sh
 DOASCF
 
 chmod 600 /usr/local/etc/doas.conf

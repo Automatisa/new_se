@@ -11,8 +11,9 @@
 
 TABLE="sentora_blocked"
 DESTFILE="/var/sentora/run/pf_blocked.txt"
-TMPFILE="/tmp/sentora_pf_blocked.$$"
 CNF="/usr/local/sentora/cnf/db.php"
+mkdir -p /var/sentora/run
+TMPFILE=$(mktemp /var/sentora/run/.pf_blocked.XXXXXX) || exit 1
 
 # Regex: IPv4 opcional CIDR /0-32, IPv6 (simplificada) opcional CIDR /0-128
 VALID_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[02]))?$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(/([0-9]{1,2}|1[01][0-9]|12[0-8]))?$'
@@ -27,15 +28,21 @@ DB_NAME=$(grep "dbname" "$CNF" | sed "s/.*= '//;s/'.*//")
 DB_USER=$(grep "user"   "$CNF" | sed "s/.*= '//;s/'.*//")
 DB_PASS=$(grep "pass"   "$CNF" | sed "s/.*= '//;s/'.*//")
 
+# Credenciales por fichero temporal 0600 (--defaults-extra-file): NO en la línea de
+# comandos, donde la contraseña sería visible por `ps` para cualquier usuario local.
+DEFAULTS=$(mktemp /var/sentora/run/.pf_db.XXXXXX) || { rm -f "$TMPFILE"; exit 1; }
+chmod 600 "$DEFAULTS"
+printf '[client]\nhost=%s\nuser=%s\npassword=%s\n' "$DB_HOST" "$DB_USER" "$DB_PASS" > "$DEFAULTS"
+
 # Obtener IPs activas y validar cada línea con regex
-mysql -u "$DB_USER" -p"$DB_PASS" -h "$DB_HOST" "$DB_NAME" \
+mysql --defaults-extra-file="$DEFAULTS" "$DB_NAME" \
     --batch --skip-column-names \
     -e "SELECT fb_ip_vc FROM x_fw_blocked WHERE fb_active_in=1 AND fb_deleted_ts IS NULL;" \
     2>/dev/null \
   | grep -E "$VALID_RE" \
   > "$TMPFILE"
+rm -f "$DEFAULTS"
 
-mkdir -p /var/sentora/run
 mv "$TMPFILE" "$DESTFILE"
 chmod 644 "$DESTFILE"
 

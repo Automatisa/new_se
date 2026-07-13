@@ -43,6 +43,14 @@ pw usershow "$SYSUSER" >/dev/null 2>&1 || exit 6
 DEST="$HOSTED_DIR/$USERNAME"
 [ -d "$DEST" ] || exit 7
 
+# Anti zip-slip (defensa en profundidad, además de la protección propia de unzip):
+# rechazar el archivo si CUALQUIER entrada contiene un componente '..' o una ruta
+# absoluta — un backup legítimo del home nunca los tiene.
+if /usr/bin/unzip -Z1 "$ZIP" 2>/dev/null | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+    echo "ERROR: el zip contiene rutas '..' o absolutas (posible zip-slip)." >&2
+    exit 9
+fi
+
 # 2) Extraer solo el subárbol del home del usuario (USERNAME/...). -o sobrescribe.
 #    Se excluyen explícitamente los .sql y el json de config (los procesa PHP).
 /usr/bin/unzip -o -q "$ZIP" "${USERNAME}/*" -x "*.sql" "panel_config.json" -d "$HOSTED_DIR" >/dev/null 2>&1

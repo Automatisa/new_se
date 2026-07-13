@@ -4,8 +4,8 @@
 # Valida, instala en /usr/local/etc/sentora/proftpd/ y actualiza el config.
 # Llamado por privilege::run('proftpd_cert_upload') como root via doas.
 
-CERTFILE_TMP="/tmp/sentora_ftp_cert_upload"
-KEYFILE_TMP="/tmp/sentora_ftp_key_upload"
+CERTFILE_TMP="/var/sentora/run/sentora_ftp_cert_upload"
+KEYFILE_TMP="/var/sentora/run/sentora_ftp_key_upload"
 CERTFILE_DEST="/usr/local/etc/sentora/proftpd/commercial.crt"
 KEYFILE_DEST="/usr/local/etc/sentora/proftpd/commercial.key"
 REAL_CONFIG="/usr/local/etc/sentora/proftpd/proftpd-mysql.conf"
@@ -67,10 +67,28 @@ cp "$KEYFILE_TMP"  "$KEYFILE_DEST"
 chown root:www   "$CERTFILE_DEST" && chmod 640 "$CERTFILE_DEST"
 chown root:wheel "$KEYFILE_DEST"  && chmod 600 "$KEYFILE_DEST"
 
-# Actualizar las directivas en el config de ProFTPD
+# Actualizar las directivas en el config de ProFTPD según el tipo de clave.
+# Antes solo se tocaban las directivas TLSRSA*, así que un certificado EC se
+# validaba pero NO quedaba cableado. Ahora se fija el par correcto (RSA o EC),
+# añadiendo la directiva si no existía.
 cp "$REAL_CONFIG" "${REAL_CONFIG}.bak"
-sed -i '' "s|^TLSRSACertificateFile.*|TLSRSACertificateFile $CERTFILE_DEST|" "$REAL_CONFIG"
-sed -i '' "s|^TLSRSACertificateKeyFile.*|TLSRSACertificateKeyFile $KEYFILE_DEST|" "$REAL_CONFIG"
+
+set_directive() {
+    # $1 = nombre directiva, $2 = valor
+    if grep -qE "^${1}[[:space:]]" "$REAL_CONFIG"; then
+        sed -i '' "s|^${1}[[:space:]].*|${1} ${2}|" "$REAL_CONFIG"
+    else
+        echo "${1} ${2}" >> "$REAL_CONFIG"
+    fi
+}
+
+if [ "$KEY_TYPE" = "rsa" ]; then
+    set_directive TLSRSACertificateFile    "$CERTFILE_DEST"
+    set_directive TLSRSACertificateKeyFile "$KEYFILE_DEST"
+else
+    set_directive TLSECCertificateFile     "$CERTFILE_DEST"
+    set_directive TLSECCertificateKeyFile  "$KEYFILE_DEST"
+fi
 
 # Validar sintaxis del config resultante
 if ! /usr/local/sbin/proftpd -t 2>/dev/null; then
