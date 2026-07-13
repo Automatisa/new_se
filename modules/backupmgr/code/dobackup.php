@@ -42,6 +42,7 @@ include($_SERVER["DOCUMENT_ROOT"] . 'dryden/ctrl/options.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/director.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/fs/filehandler.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_remote.class.php');
+include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_log.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_retention.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'dryden/sys/backup_export.class.php');
 include($_SERVER["DOCUMENT_ROOT"] . 'inc/dbc.inc.php');
@@ -186,8 +187,15 @@ function ExecuteBackup($userid, $username, $download = 0) {
         $GLOBALS['zdbh'] = $zdbh;
         $dest = sys_backup_remote::getDestination($userid);
         if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
-            list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $temp_dir . $backupname . ".zip");
+            $zipfile = $temp_dir . $backupname . ".zip";
+            $t0 = time();
+            list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $zipfile);
             sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
+            sys_backup_log::record(
+                $userid, 'remote',
+                $dest['bd_host_vc'] . ':' . (int)$dest['bd_port_in'] . ' (' . $dest['bd_type_vc'] . ')',
+                $backupname . '.zip', @filesize($zipfile), 0, $rok, $rmsg, time() - $t0
+            );
         }
     }
 
@@ -229,6 +237,8 @@ function ExecuteBackup($userid, $username, $download = 0) {
                 fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
                 // Seguridad extra: reforzar el límite exacto tras copiar.
                 if ($maxLocal > 0) sys_backup_retention::enforceLocal($username, $userid, $maxLocal);
+                sys_backup_log::record($userid, 'local', 'disco (home)', $backupname . '.zip',
+                    $zipbytes, 0, true, 'Copia guardada en ' . $username . '/backups/', 0);
             }
         } else {
             $backupdir = $temp_dir;

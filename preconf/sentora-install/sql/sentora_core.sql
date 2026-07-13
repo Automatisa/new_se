@@ -625,6 +625,25 @@ CREATE TABLE `x_backup_destinations` (
   KEY `bd_acc_fk` (`bd_acc_fk`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Registro persistente de operaciones de copia (local/remota/prueba) por cuenta. Se muestra en
+-- el módulo backupmgr con paginación y se conservan como máximo los últimos 100 por cuenta.
+DROP TABLE IF EXISTS `x_backup_log`;
+CREATE TABLE `x_backup_log` (
+  `bl_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `bl_acc_fk` int(11) NOT NULL,
+  `bl_ts_in` int(11) NOT NULL,
+  `bl_action_vc` varchar(20) DEFAULT NULL,
+  `bl_dest_vc` varchar(160) DEFAULT NULL,
+  `bl_file_vc` varchar(200) DEFAULT NULL,
+  `bl_size_in` bigint(20) DEFAULT 0,
+  `bl_attempts_in` int(11) DEFAULT 0,
+  `bl_result_vc` varchar(8) DEFAULT NULL,
+  `bl_message_tx` text,
+  `bl_duration_in` int(11) DEFAULT 0,
+  PRIMARY KEY (`bl_id_pk`),
+  KEY `bl_acc_fk` (`bl_acc_fk`,`bl_id_pk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 -- Estado de bloqueo de escritura por cuota de BD por cuenta (evita re-aplicar grants cada
 -- ciclo del daemon). mq_blocked_in=1 => escritura revocada por superar qt_dbquota_in.
 DROP TABLE IF EXISTS `x_mysql_quota_state`;

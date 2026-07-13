@@ -320,6 +320,11 @@ class module_controller extends ctrl_module
             list($ok, $msg) = sys_backup_remote::testConnection($dest);
         }
         sys_backup_remote::recordStatus($uid, ($ok ? 'OK: ' : 'ERROR: ') . $msg);
+        sys_backup_log::record(
+            $uid, 'test',
+            ($dest['bd_host_vc'] ?? '') . ':' . (int)($dest['bd_port_in'] ?? 21) . ' (' . ($dest['bd_type_vc'] ?? '') . ')',
+            '', 0, 0, $ok, $msg, 0
+        );
         $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err',
             ($ok ? '✓ Conexión correcta — ' : '✗ Fallo de conexión — ') . $msg);
         if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
@@ -406,6 +411,80 @@ class module_controller extends ctrl_module
         $html .= '<button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Guardar destino</button> ';
         $html .= '<button class="btn btn-secondary" type="submit" formaction="./?module=backupmgr&action=TestDestination"><i class="bi bi-plug me-1"></i>Probar conexión</button>';
         $html .= '</form></div>';
+        return $html;
+    }
+
+    /** Borra TODO el registro de copias de la cuenta actual (botón "Borrar registro"). */
+    static function doClearBackupLog()
+    {
+        runtime_csfr::Protect();
+        $cu = ctrl_users::GetUserDetail();
+        $n  = sys_backup_log::clearForUser((int)$cu['userid']);
+        $_SESSION['bk_restore_flash'] = array('ok', 'Registro de copias borrado (' . (int)$n . ' entradas).');
+        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+    }
+
+    /** Panel del registro persistente de copias (placeholder <@ BackupLogPanel @>). */
+    static function getBackupLogPanel()
+    {
+        $cu  = ctrl_users::GetUserDetail();
+        $uid = (int)$cu['userid'];
+        $perPage = 20;
+        $total = sys_backup_log::countForUser($uid);
+
+        $html = '<div class="zgrid_wrapper"><h2>Registro de copias de seguridad</h2>';
+        if ($total <= 0) {
+            $html .= '<p><small>Aún no hay registros. Aquí aparecerán las copias locales, los envíos remotos y las pruebas de conexión (se conservan las últimas ' . sys_backup_log::MAX_PER_ACCOUNT . ').</small></p></div>';
+            return $html;
+        }
+        $pages = (int)ceil($total / $perPage);
+        $page  = isset($_GET['bkpage']) ? (int)$_GET['bkpage'] : 1;
+        $page  = max(1, min($page, $pages));
+        $rows  = sys_backup_log::listForUser($uid, $page, $perPage);
+
+        $html .= '<p><small>Se conservan las últimas ' . sys_backup_log::MAX_PER_ACCOUNT . ' operaciones (' . $total . ' registradas).</small></p>';
+        $html .= '<table class="table table-striped"><tr>'
+               . '<th>Fecha</th><th>Tipo</th><th>Destino</th><th>Fichero</th>'
+               . '<th>Tamaño</th><th>Int.</th><th>Resultado</th><th>Detalle</th></tr>';
+        $tipoTxt = array('local' => 'Local', 'remote' => 'Remoto', 'test' => 'Prueba');
+        foreach ($rows as $r) {
+            $ok   = ($r['bl_result_vc'] === 'ok');
+            $badge = $ok ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">ERROR</span>';
+            $tipo = isset($tipoTxt[$r['bl_action_vc']]) ? $tipoTxt[$r['bl_action_vc']] : htmlspecialchars((string)$r['bl_action_vc'], ENT_QUOTES);
+            $dur  = (int)$r['bl_duration_in'] > 0 ? ' <small>(' . (int)$r['bl_duration_in'] . 's)</small>' : '';
+            $html .= '<tr>'
+                   . '<td nowrap>' . date('d/m/Y H:i', (int)$r['bl_ts_in']) . '</td>'
+                   . '<td>' . $tipo . '</td>'
+                   . '<td>' . htmlspecialchars((string)$r['bl_dest_vc'], ENT_QUOTES) . '</td>'
+                   . '<td>' . htmlspecialchars((string)$r['bl_file_vc'], ENT_QUOTES) . '</td>'
+                   . '<td nowrap>' . sys_backup_log::humanSize($r['bl_size_in']) . '</td>'
+                   . '<td>' . (int)$r['bl_attempts_in'] . '</td>'
+                   . '<td nowrap>' . $badge . $dur . '</td>'
+                   . '<td><small>' . htmlspecialchars((string)$r['bl_message_tx'], ENT_QUOTES) . '</small></td>'
+                   . '</tr>';
+        }
+        $html .= '</table>';
+
+        // Paginador
+        if ($pages > 1) {
+            $html .= '<nav><ul class="pagination pagination-sm">';
+            $link = function ($p, $label, $disabled = false, $active = false) {
+                $cls = 'page-item' . ($disabled ? ' disabled' : '') . ($active ? ' active' : '');
+                return '<li class="' . $cls . '"><a class="page-link" href="./?module=backupmgr&bkpage=' . (int)$p . '">' . $label . '</a></li>';
+            };
+            $html .= $link($page - 1, '&laquo;', $page <= 1);
+            for ($p = 1; $p <= $pages; $p++) $html .= $link($p, (string)$p, false, $p === $page);
+            $html .= $link($page + 1, '&raquo;', $page >= $pages);
+            $html .= '</ul></nav>';
+        }
+
+        // Botón "Borrar registro" (con confirmación y CSRF)
+        $html .= '<form method="post" action="./?module=backupmgr&action=ClearBackupLog" '
+               . 'onsubmit="return confirm(\'¿Borrar TODO el registro de copias? Esta acción no se puede deshacer.\');">'
+               . self::getCSFR_Tag()
+               . '<button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Borrar registro</button>'
+               . '</form>';
+        $html .= '</div>';
         return $html;
     }
 

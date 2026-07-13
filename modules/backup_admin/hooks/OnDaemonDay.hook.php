@@ -127,8 +127,16 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                 if (file_exists($zipfull) && class_exists('sys_backup_remote')) {
                     $dest = sys_backup_remote::getDestination($userid);
                     if ($dest && (int)$dest['bd_enabled_in'] === 1 && !empty($dest['bd_host_vc'])) {
+                        $t0 = time();
                         list($rok, $rmsg) = sys_backup_remote::uploadWithRetry($dest, $zipfull);
                         sys_backup_remote::recordStatus($userid, ($rok ? 'OK: ' : 'ERROR: ') . $rmsg);
+                        if (class_exists('sys_backup_log')) {
+                            sys_backup_log::record(
+                                $userid, 'remote',
+                                $dest['bd_host_vc'] . ':' . (int)$dest['bd_port_in'] . ' (' . $dest['bd_type_vc'] . ')',
+                                $backupname, @filesize($zipfull), 0, $rok, $rmsg, time() - $t0
+                            );
+                        }
                         echo "Envío remoto: " . ($rok ? 'OK' : 'ERROR') . " - " . $rmsg . fs_filehandler::NewLine();
                     }
                 }
@@ -150,6 +158,10 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                         copy($zipfull, $backupdir . $backupname . ".zip");
                         fs_director::SetFileSystemPermissions($backupdir . $backupname . ".zip", 0600);
                         if ($maxLocal > 0) sys_backup_retention::enforceLocal($username, $userid, $maxLocal);
+                        if (class_exists('sys_backup_log')) {
+                            sys_backup_log::record($userid, 'local', 'disco (home)', $backupname . '.zip',
+                                $zipbytes, 0, true, 'Copia programada guardada en ' . $username . '/backups/', 0);
+                        }
                         echo $backupdir . $backupname . ".zip" . fs_filehandler::NewLine();
                     }
                     @unlink($zipfull);
