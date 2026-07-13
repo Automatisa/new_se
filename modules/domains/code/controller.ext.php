@@ -378,10 +378,20 @@ class module_controller extends ctrl_module
 
     static function doDeleteDomain()
     {
-        global $controller;
+        global $controller, $zdbh;
         runtime_csfr::Protect();
         $formvars = $controller->GetAllControllerRequests('FORM');
         if (isset($formvars['inDelete'])) {
+            // AUTZ (IDOR fix): el dominio debe pertenecer al usuario autenticado. Sin esto,
+            // un usuario podía POSTear inDelete=<id ajeno> a action=DeleteDomain (saltándose la
+            // página de confirmación) y borrar el dominio de OTRO cliente, incluidos sus
+            // ficheros de disco y subdominios en cascada.
+            $cu  = ctrl_users::GetUserDetail();
+            $own = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+            $own->execute(array(':id' => (int) $formvars['inDelete'], ':uid' => (int) $cu['userid']));
+            if (!$own->fetch()) {
+                return false;
+            }
             if (self::ExecuteDeleteDomain($formvars['inDelete'])) {
                 self::$ok = TRUE;
                 return true;

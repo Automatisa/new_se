@@ -791,6 +791,11 @@ class module_controller extends ctrl_module
         runtime_csfr::Protect();
         $id = self::getId();
         $file = self::fetchFile($id);
+        // AUTZ (IDOR fix): fetchFile ya filtra por el usuario actual; si no devuelve registro,
+        // el id no es suyo -> abortar antes de tocar ficheros/htpasswd/mapeos de otro usuario.
+        if (empty($file) || empty($file['x_htpasswd_file_id'])) {
+            return false;
+        }
         $htpasswdFile = self::getHostDir() . self::getCurrentUsername() . '/htpasswd/' . 'htpasswd-' . md5($file['x_htpasswd_file_target']);
 
         // delete from htaccess file
@@ -884,8 +889,13 @@ class module_controller extends ctrl_module
         $id = self::getId();
         $userId = self::getUserId();
         $file = self::fetchFile($id);
-        
-        if(!self::hasFlashErrors()) 
+        // AUTZ (IDOR fix): el directorio protegido debe ser del usuario actual (fetchFile filtra
+        // por su id); si no, abortar antes de borrar usuarios/mapeos htpasswd ajenos.
+        if (empty($file) || empty($file['x_htpasswd_file_id'])) {
+            return false;
+        }
+
+        if(!self::hasFlashErrors())
         {
         self::deleteUser($userId);
         }
