@@ -74,14 +74,18 @@ class module_controller extends ctrl_module
     static function ListCurrentDist($id)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_distlists WHERE dl_id_pk=:id AND dl_deleted_ts IS NULL";
+        // IDOR/fuga: filtrar por dueño; ?other=<id ajeno> mostraba la lista de otro usuario.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $sql = "SELECT * FROM x_distlists WHERE dl_id_pk=:id AND dl_acc_fk=:uid AND dl_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':id', $id);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $res = array();
             $sql->bindParam(':id', $id);
+            $sql->bindValue(':uid', $uid, PDO::PARAM_INT);
             $sql->execute();
             while ($rowdistlist = $sql->fetch()) {
                 $res[] = array('address' => $rowdistlist['dl_address_vc'],
@@ -96,8 +100,12 @@ class module_controller extends ctrl_module
     static function ListDistUsers($id)
     {
         global $zdbh;
-        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:id AND dl_deleted_ts IS NULL");
+        // IDOR/fuga: la lista debe ser del usuario actual, si no se filtrarían los miembros
+        // (emails) de la lista de otro usuario indicando su id.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:id AND dl_acc_fk=:uid AND dl_deleted_ts IS NULL");
         $numrows->bindParam(':id', $id);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
         $result = $numrows->fetch();
         if ($result) {

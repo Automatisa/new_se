@@ -166,15 +166,20 @@ class module_controller extends ctrl_module
     static function ListUserDatabases($uid)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_mysql_dbmap WHERE mm_user_fk=:userid";
+        // IDOR/fuga: filtrar los mapeos por la cuenta actual (mm_acc_fk); sin esto, con el id de
+        // un usuario MySQL ajeno se listaban las BD mapeadas de otro cliente.
+        $owner = (int) ctrl_users::GetUserDetail()['userid'];
+        $sql = "SELECT * FROM x_mysql_dbmap WHERE mm_user_fk=:userid AND mm_acc_fk=:owner";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':userid', $uid);
+        $numrows->bindValue(':owner', $owner, PDO::PARAM_INT);
         $numrows->execute();
 
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $res = array();
             $sql->bindParam(':userid', $uid);
+            $sql->bindValue(':owner', $owner, PDO::PARAM_INT);
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
                 $numrows = $zdbh->prepare("SELECT * FROM x_mysql_databases WHERE my_id_pk=:database AND my_deleted_ts IS NULL");
@@ -198,14 +203,18 @@ class module_controller extends ctrl_module
     static function ListCurrentUser($mid)
     {
         global $zdbh;
-        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mid AND mu_deleted_ts IS NULL");
+        // IDOR/fuga: filtrar por dueño; ?other=<id ajeno> mostraba el usuario MySQL de otro.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $numrows = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mid AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
         $numrows->bindParam(':mid', $mid);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
 
         if ($numrows->fetchColumn() <> 0) {
-            $sql = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mid AND mu_deleted_ts IS NULL");
+            $sql = $zdbh->prepare("SELECT * FROM x_mysql_users WHERE mu_id_pk=:mid AND mu_acc_fk=:uid AND mu_deleted_ts IS NULL");
             $res = array();
             $sql->bindParam(':mid', $mid);
+            $sql->bindValue(':uid', $uid, PDO::PARAM_INT);
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
                 array_push($res, array(

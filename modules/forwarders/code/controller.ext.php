@@ -78,13 +78,17 @@ class module_controller extends ctrl_module
     static function ListCurrentForwarder($fid)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_forwarders WHERE fw_id_pk=:fid AND fw_deleted_ts IS NULL";
+        // IDOR/fuga: filtrar por dueño; ?other=<id ajeno> mostraba el forwarder de otro usuario.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $sql = "SELECT * FROM x_forwarders WHERE fw_id_pk=:fid AND fw_acc_fk=:uid AND fw_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':fid', $fid);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $sql->bindParam(':fid', $fid);
+            $sql->bindValue(':uid', $uid, PDO::PARAM_INT);
             $res = array();
             $sql->execute();
             while ($rowforwarders = $sql->fetch()) {

@@ -70,15 +70,19 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         global $controller;
-        $sql = "SELECT * FROM x_aliases WHERE al_id_pk=:aid AND al_deleted_ts IS NULL";
+        // IDOR/fuga: filtrar por dueño; ?other=<id ajeno> mostraba el alias de otro usuario.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $sql = "SELECT * FROM x_aliases WHERE al_id_pk=:aid AND al_acc_fk=:uid AND al_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':aid', $aid);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
 
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $res = array();
             $sql->bindParam(':aid', $aid);
+            $sql->bindValue(':uid', $uid, PDO::PARAM_INT);
             $sql->execute();
             while ($rowaliases = $sql->fetch()) {
                 array_push($res, array('address' => $rowaliases['al_address_vc'],

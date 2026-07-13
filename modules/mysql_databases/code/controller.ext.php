@@ -91,13 +91,17 @@ class module_controller extends ctrl_module
     static function ListCurrentDatabases($mysqlid)
     {
         global $zdbh;
-        $sql = "SELECT * FROM x_mysql_databases WHERE my_id_pk=:mysqlid AND my_deleted_ts IS NULL";
+        // IDOR/fuga: filtrar por dueño; si no, ?other=<id ajeno> mostraba la BD de otro usuario.
+        $uid = (int) ctrl_users::GetUserDetail()['userid'];
+        $sql = "SELECT * FROM x_mysql_databases WHERE my_id_pk=:mysqlid AND my_acc_fk=:uid AND my_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':mysqlid', $mysqlid);
+        $numrows->bindValue(':uid', $uid, PDO::PARAM_INT);
         $numrows->execute();
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
             $sql->bindParam(':mysqlid', $mysqlid);
+            $sql->bindValue(':uid', $uid, PDO::PARAM_INT);
             $res = array();
             $sql->execute();
             while ($rowmysql = $sql->fetch()) {
