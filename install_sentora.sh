@@ -862,16 +862,20 @@ ok "Dovecot configurado"
 info "Configurando OpenDKIM..."
 
 mkdir -p /usr/local/etc/opendkim/keys
-chown -R opendkim:opendkim /usr/local/etc/opendkim
-chmod 750 /usr/local/etc/opendkim
-chmod 750 /usr/local/etc/opendkim/keys
+# IMPORTANTE: el daemon opendkim corre como 'mailnull' (-u mailnull) y su chequeo de seguridad
+# exige que las claves y sus directorios sean propiedad del usuario EJECUTOR (mailnull) o root,
+# y NO escribibles por otros. Si se dejan como 'opendkim' (uid distinto), opendkim rechaza la
+# clave ("key data is not secure") y TEMPFAILEA el correo. Por eso: mailnull + 700/600.
+chown -R mailnull:mailnull /usr/local/etc/opendkim
+chmod 700 /usr/local/etc/opendkim
+chmod 700 /usr/local/etc/opendkim/keys
 
 # Ficheros de mapas — vacíos; el daemon los rellena al crear dominios DNS
 touch /usr/local/etc/opendkim/KeyTable
 touch /usr/local/etc/opendkim/SigningTable
-chown opendkim:opendkim /usr/local/etc/opendkim/KeyTable \
+chown mailnull:mailnull /usr/local/etc/opendkim/KeyTable \
                         /usr/local/etc/opendkim/SigningTable
-chmod 640 /usr/local/etc/opendkim/KeyTable \
+chmod 600 /usr/local/etc/opendkim/KeyTable \
           /usr/local/etc/opendkim/SigningTable
 
 cat > /usr/local/etc/opendkim/TrustedHosts <<DKIMTH
@@ -973,6 +977,42 @@ cat > /usr/local/etc/rspamd/local.d/greylist.conf <<RSGREYLIST
 enabled = true;
 servers = "127.0.0.1:6379";
 RSGREYLIST
+
+# Anti-abuso de SALIDA: rate-limit por usuario autenticado + tope de destinatarios (anti-spam).
+cat > /usr/local/etc/rspamd/local.d/ratelimit.conf <<RSRATE
+max_rcpt = 100;
+rates {
+    user {
+        bucket {
+            burst = 300;
+            rate = "300 / 1h";
+        }
+    }
+    to_ip_from {
+        bucket {
+            burst = 200;
+            rate = "200 / 1h";
+        }
+    }
+}
+RSRATE
+
+# Correo SALIENTE (clientes autenticados): no greylistear; sí ratelimit y firma DKIM.
+cat > /usr/local/etc/rspamd/local.d/settings.conf <<RSSET
+settings {
+    outbound_authenticated {
+        priority = high;
+        authenticated = true;
+        apply {
+            actions {
+                greylist = null;
+                "soft reject" = null;
+            }
+            symbols_disabled = ["GREYLIST_CHECK", "GREYLIST_SAVE"];
+        }
+    }
+}
+RSSET
 
 # DNS: rspamd usa resolver externo con recursión para consultas RBL/DQS.
 # El BIND local es autoritativo (recursion no) y no puede resolver zonas externas.

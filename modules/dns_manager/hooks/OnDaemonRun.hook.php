@@ -92,10 +92,13 @@ function CheckDKIMKeysHook()
 
         $keydir = "/usr/local/etc/opendkim/keys/$domain";
         if (!is_dir($keydir)) {
-            mkdir($keydir, 0750, true);
+            mkdir($keydir, 0700, true);
         }
-        chown($keydir, 'opendkim');
-        chgrp($keydir, 'opendkim');
+        @chmod($keydir, 0700);
+        // El daemon opendkim corre como 'mailnull'; las claves deben ser suyas (o de root) y no
+        // escribibles por otros, o rechaza la clave ("key data is not secure") y tempfailea el correo.
+        chown($keydir, 'mailnull');
+        chgrp($keydir, 'mailnull');
 
         // Generate 2048-bit RSA key pair using PHP OpenSSL (daemon runs as root)
         $res = openssl_pkey_new([
@@ -114,9 +117,9 @@ function CheckDKIMKeysHook()
         // Write private key — readable only by opendkim
         $privFile = "$keydir/default.private";
         file_put_contents($privFile, $privateKeyPem);
-        chmod($privFile, 0640);
-        chown($privFile, 'opendkim');
-        chgrp($privFile, 'opendkim');
+        chmod($privFile, 0600);
+        chown($privFile, 'mailnull');
+        chgrp($privFile, 'mailnull');
 
         // Build DKIM TXT value: strip PEM armor → bare base64 DER
         $pubB64    = preg_replace('/-----[^-]+-----|[\r\n]/', '', $details['key']);
