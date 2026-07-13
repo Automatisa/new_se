@@ -225,6 +225,14 @@ class module_controller extends ctrl_module
         list($type, $verify, $usePin) = self::securityToDb((string)$controller->GetControllerRequest('FORM', 'inDestSecurity'));
         $enabled = $controller->GetControllerRequest('FORM', 'inDestEnabled') ? 1 : 0;
 
+        // No permitir ACTIVAR el envío remoto sin host: dejaría el destino "activo" pero inútil,
+        // y el botón "Copia remota" seguiría deshabilitado (estado confuso). Se avisa.
+        $warn = '';
+        if ($enabled && $host === '') {
+            $enabled = 0;
+            $warn = ' AVISO: NO se activó el envío remoto porque falta el HOST del servidor FTP. Rellénalo y vuelve a guardar.';
+        }
+
         $exists = $zdbh->prepare("SELECT bd_id_pk, bd_pass_tx, bd_certsha_vc FROM x_backup_destinations WHERE bd_acc_fk=:u LIMIT 1");
         $exists->execute(array(':u' => $uid));
         $row = $exists->fetch(PDO::FETCH_ASSOC);
@@ -252,7 +260,7 @@ class module_controller extends ctrl_module
             $i = $zdbh->prepare("INSERT INTO x_backup_destinations (bd_acc_fk,bd_type_vc,bd_host_vc,bd_port_in,bd_user_vc,bd_pass_tx,bd_path_vc,bd_tlsverify_in,bd_certsha_vc,bd_enabled_in,bd_created_ts) VALUES (:u,:t,:h,:p,:us,:pw,:pa,:v,:cs,:e,:ts)");
             $i->execute(array(':u'=>$uid,':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':cs'=>$certsha,':e'=>$enabled,':ts'=>time()));
         }
-        $_SESSION['bk_restore_flash'] = array('ok', 'Destino remoto guardado.' . $pinMsg);
+        $_SESSION['bk_restore_flash'] = array($warn ? 'err' : 'ok', 'Destino remoto guardado.' . $pinMsg . $warn);
         if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=conn'); exit(); }
     }
 
