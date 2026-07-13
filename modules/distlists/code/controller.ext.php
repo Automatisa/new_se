@@ -39,6 +39,8 @@ class module_controller extends ctrl_module
     static $create;
     static $deleteuser;
     static $createuser;
+    static $notowner;
+    static $maxmembers;
 
     /**
      * The 'worker' methods.
@@ -261,10 +263,24 @@ class module_controller extends ctrl_module
             return false;
         }
 
-        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:du_distlist_fk AND dl_deleted_ts IS NULL");
+        // AUTZ (IDOR fix): la lista destino debe pertenecer al usuario actual. Sin esto un
+        // usuario podía añadir miembros a la lista de OTRO cliente pasando su dl_id.
+        $self = (int)ctrl_users::GetUserDetail()['userid'];
+        $numrows = $zdbh->prepare("SELECT * FROM x_distlists WHERE dl_id_pk=:du_distlist_fk AND dl_acc_fk=:self AND dl_deleted_ts IS NULL");
         $numrows->bindParam(':du_distlist_fk', $du_distlist_fk);
+        $numrows->bindValue(':self', $self, PDO::PARAM_INT);
         $numrows->execute();
         $rowdl = $numrows->fetch(); //WARNING : $rowdl is used in mail server specific file
+        if (!$rowdl) { self::$notowner = true; return false; }
+
+        // ANTI-ABUSO: tope de miembros por lista (evita construir listas masivas de spam a
+        // direcciones externas). Configurable con el ajuste 'distlist_max_members' (def. 50).
+        $max = (int)ctrl_options::GetSystemOption('distlist_max_members');
+        if ($max <= 0) $max = 50;
+        $cnt = $zdbh->prepare("SELECT COUNT(*) FROM x_distlistusers WHERE du_distlist_fk=:id AND du_deleted_ts IS NULL");
+        $cnt->bindValue(':id', (int)$du_distlist_fk, PDO::PARAM_INT);
+        $cnt->execute();
+        if ((int)$cnt->fetchColumn() >= $max) { self::$maxmembers = true; return false; }
 
         runtime_hook::Execute('OnBeforeAddDistListUser');
         self::$createuser = true;
@@ -637,6 +653,12 @@ class module_controller extends ctrl_module
         }
         if (!fs_director::CheckForEmptyValue(self::$validdomain)) {
             return ui_sysmessage::shout(ui_language::translate("The selected domain was not valid."), "zannounceerror");
+        }
+        if (!fs_director::CheckForEmptyValue(self::$notowner)) {
+            return ui_sysmessage::shout("Esa lista de distribución no te pertenece.", "zannounceerror");
+        }
+        if (!fs_director::CheckForEmptyValue(self::$maxmembers)) {
+            return ui_sysmessage::shout("La lista ha alcanzado el máximo de miembros permitido. Elimina alguno o pide al administrador que suba el límite.", "zannounceerror");
         }
         if (!fs_director::CheckForEmptyValue(self::$ok)) {
             return ui_sysmessage::shout(ui_language::translate("Changes to your distrubution lists have been saved successfully!"), "zannounceok");
