@@ -117,6 +117,16 @@ function ExecuteBackup($userid, $username, $download = 0, $mode = 'both') {
         return false;
     }
 
+    // GUARD DE DISCO: el .zip temporal se crea en una carpeta COMPARTIDA del sistema (no cuenta
+    // para la cuota del usuario). Sin control, muchas copias simultáneas de cuentas grandes
+    // llenarían el HD. Abortar si no queda margen de seguridad en el disco.
+    if (!sys_backup_retention::tempSpaceGuard($username, $temp_dir)) {
+        echo "<p><b>Aviso:</b> el servidor no tiene espacio temporal suficiente para generar la "
+           . "copia en este momento (protección para no llenar el disco). Inténtalo más tarde o "
+           . "avisa al administrador.</p>";
+        return false;
+    }
+
     $resault = exec(
         "cd " . escapeshellarg(dirname($homedir)) . " && "
         . escapeshellarg($zip_exe) . " -r9 "

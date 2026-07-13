@@ -107,4 +107,22 @@ class sys_backup_retention
         if ($quota <= 0) return false;
         return (self::diskUsedBytes($username) + (int)$addBytes) > $quota;
     }
+
+    /**
+     * GUARD DE DISCO DEL SERVIDOR: ¿hay espacio suficiente en $temp_dir (carpeta compartida donde
+     * se genera el .zip temporal, que NO cuenta para la cuota del usuario) para hacer una copia de
+     * esta cuenta sin dejar el disco por debajo del suelo de seguridad? Sin esto, muchas copias
+     * simultáneas de cuentas grandes llenarían el HD del servidor. El tamaño se estima por el uso
+     * de disco del home. Suelo configurable con la opción 'backup_disk_floor_mb' (por defecto 1 GB).
+     * Devuelve true si SE PUEDE proceder.
+     */
+    public static function tempSpaceGuard($username, $temp_dir)
+    {
+        $free = @disk_free_space($temp_dir);
+        if ($free === false) return true;   // no medible -> no bloquear
+        $needed  = self::diskUsedBytes($username);
+        $floorMb = ctrl_options::GetSystemOption('backup_disk_floor_mb');
+        $floor   = (is_numeric($floorMb) && (int)$floorMb > 0) ? (int)$floorMb * 1048576 : 1073741824;
+        return ($free - $needed) >= $floor;
+    }
 }

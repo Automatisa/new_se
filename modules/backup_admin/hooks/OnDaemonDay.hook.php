@@ -43,6 +43,13 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                 $temp_dir   = ctrl_options::GetSystemOption('temp_dir');
                 $zip_exe    = ctrl_options::GetSystemOption('zip_exe');
 
+                // GUARD DE DISCO: no generar la copia si dejaría el disco del servidor sin margen
+                // (el .zip temporal va a una carpeta compartida que no cuenta para la cuota).
+                if (class_exists('sys_backup_retention') && !sys_backup_retention::tempSpaceGuard($username, $temp_dir)) {
+                    echo "Copia OMITIDA para $username: espacio temporal insuficiente en el servidor." . fs_filehandler::NewLine();
+                    continue;
+                }
+
                 // File backup: proc_open with bypass_shell=true (no shell injection)
                 $zip_argv = [
                     $zip_exe, '-r9',
