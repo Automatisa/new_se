@@ -194,14 +194,19 @@ class module_controller extends ctrl_module
     {
         global $zdbh;
         $currentuser = ctrl_users::GetUserDetail($uid);
-        $sql = "SELECT * FROM x_groups WHERE ug_reseller_fk=:resellerid";
-        //$numrows = $zdbh->query($sql);
+        // Los grupos se POSEEN por userid (ug_reseller_fk = id del dueño), igual que exige la
+        // validación al guardar (doUpdateClient: ug_reseller_fk=selfid). Antes se filtraba por
+        // 'resellerid' (= ac_reseller_fk), que para el admin (zadmin) es 0 -> no coincidía con
+        // los grupos por defecto (ug_reseller_fk=1) y el desplegable salía VACÍO. Para resellers
+        // también estaba roto: mostraba grupos que el guardado luego rechazaba.
+        $ownerid = $currentuser['userid'];
+        $sql = "SELECT * FROM x_groups WHERE ug_reseller_fk=:ownerid";
         $numrows = $zdbh->prepare($sql);
-        $numrows->bindParam(':resellerid', $currentuser['resellerid']);
+        $numrows->bindParam(':ownerid', $ownerid);
         $numrows->execute();
         if ($numrows->fetchColumn() <> 0) {
             $sql = $zdbh->prepare($sql);
-            $sql->bindParam(':resellerid', $currentuser['resellerid']);
+            $sql->bindParam(':ownerid', $ownerid);
             $res = array();
             $sql->execute();
             while ($rowgroups = $sql->fetch()) {
