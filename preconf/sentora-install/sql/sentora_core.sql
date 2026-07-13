@@ -626,6 +626,41 @@ CREATE TABLE `x_backup_destinations` (
   KEY `bd_acc_fk` (`bd_acc_fk`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Programación de copias automáticas POR CUENTA (el usuario la configura desde backupmgr).
+-- Una fila por cuenta. El daemon (OnDaemonRun) encola las vencidas y las procesa por bloques.
+DROP TABLE IF EXISTS `x_backup_schedule`;
+CREATE TABLE `x_backup_schedule` (
+  `bs_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `bs_acc_fk` int(11) NOT NULL,
+  `bs_enabled_in` int(1) NOT NULL DEFAULT 0,
+  `bs_freq_vc` varchar(10) NOT NULL DEFAULT 'daily',
+  `bs_hour_in` int(2) NOT NULL DEFAULT 3,
+  `bs_dow_in` int(1) NOT NULL DEFAULT 1,
+  `bs_dom_in` int(2) NOT NULL DEFAULT 1,
+  `bs_dest_vc` varchar(10) NOT NULL DEFAULT 'local',
+  `bs_last_run_ts` int(11) DEFAULT NULL,
+  `bs_next_run_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`bs_id_pk`),
+  UNIQUE KEY `bs_acc` (`bs_acc_fk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- Cola/spool de copias pendientes de ejecutar. El daemon procesa N por tick (backup_batch_size).
+DROP TABLE IF EXISTS `x_backup_queue`;
+CREATE TABLE `x_backup_queue` (
+  `bq_id_pk` int(11) NOT NULL AUTO_INCREMENT,
+  `bq_acc_fk` int(11) NOT NULL,
+  `bq_mode_vc` varchar(10) NOT NULL DEFAULT 'local',
+  `bq_status_vc` varchar(10) NOT NULL DEFAULT 'pending',
+  `bq_enqueued_ts` int(11) NOT NULL,
+  `bq_started_ts` int(11) DEFAULT NULL,
+  `bq_finished_ts` int(11) DEFAULT NULL,
+  `bq_attempts_in` int(11) NOT NULL DEFAULT 0,
+  `bq_message_tx` text,
+  PRIMARY KEY (`bq_id_pk`),
+  KEY `bq_status` (`bq_status_vc`),
+  KEY `bq_acc` (`bq_acc_fk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 -- Registro persistente de operaciones de copia (local/remota/prueba) por cuenta. Se muestra en
 -- el módulo backupmgr con paginación y se conservan como máximo los últimos 100 por cuenta.
 DROP TABLE IF EXISTS `x_backup_log`;
@@ -801,6 +836,7 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES (NULL, 'backup_remote_retries', 'Remote backup retries', '3', NULL, 'Numero de reintentos de la subida remota (FTPS) de las copias', 'Backup Config', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES (NULL, 'backup_remote_retrydelay', 'Remote backup retry delay', '5', NULL, 'Espera base en segundos entre reintentos de la subida remota (backoff lineal)', 'Backup Config', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES (NULL, 'backup_disk_floor_mb', 'Backup disk floor MB', '1024', NULL, 'Margen minimo de disco libre (MB) que debe quedar tras generar el .zip temporal de una copia; si no hay, la copia se pospone para no llenar el HD', 'Backup Config', 'false');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES (NULL, 'backup_batch_size', 'Backup batch size', '2', NULL, 'Numero de copias automaticas a procesar por cada ejecucion del daemon (cada 5 min), para no colapsar el servidor', 'Backup Config', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('46', 'ftp_db', 'FTP Database', 'sentora_proftpd', NULL, 'The name of the ftp server database', 'FTP Config', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('47', 'ftp_php', 'FTP PHP', 'proftpd.php', NULL, 'Name of PHP to include when adding FTP data.', 'FTP Config', 'false');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('50', 'ftp_config_file', 'FTP Config File', '/usr/local/etc/sentora/proftpd/proftpd-mysql.conf', NULL, 'The path to the configuration file if applicable.', 'FTP Config', 'false');

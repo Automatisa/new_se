@@ -17,6 +17,9 @@
         <li class="nav-item"><a class="nav-link active" href="#bk-backups" data-bs-toggle="tab">
             <span class="bi bi-archive"></span> <: Copias :>
         </a></li>
+        <li class="nav-item"><a class="nav-link" href="#bk-auto" data-bs-toggle="tab">
+            <span class="bi bi-clock-history"></span> <: Automáticas :>
+        </a></li>
         <li class="nav-item"><a class="nav-link" href="#bk-conn" data-bs-toggle="tab">
             <span class="bi bi-hdd-network"></span> <: Conexión remota :>
         </a></li>
@@ -94,6 +97,11 @@
             </div>
         </div>
 
+        <!-- ======================================================= AUTOMÁTICAS -->
+        <div class="tab-pane" id="bk-auto">
+            <@ SchedulePanel @>
+        </div>
+
         <!-- ==================================================== CONEXIÓN REMOTA -->
         <div class="tab-pane" id="bk-conn">
             <@ RemoteDestPanel @>
@@ -114,7 +122,7 @@
     // tras guardar/probar/borrar o al paginar el registro).
     var m = window.location.search.match(/[?&]tab=([a-z]+)/);
     var tab = m ? m[1] : null;
-    var map = { backups: '#bk-backups', conn: '#bk-conn', log: '#bk-log' };
+    var map = { backups: '#bk-backups', auto: '#bk-auto', conn: '#bk-conn', log: '#bk-log' };
     if (tab && map[tab]) {
         var el = document.querySelector('#bkTabs a[href="' + map[tab] + '"]');
         if (el) el.click();

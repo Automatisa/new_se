@@ -17,8 +17,12 @@ echo fs_filehandler::NewLine() . "START Backup Config." . fs_filehandler::NewLin
 if (ui_module::CheckModuleEnabled('Backup Config')) {
     echo "Backup Config module ENABLED..." . fs_filehandler::NewLine();
 
-// Schedule daily backups are enabled...
-    if (strtolower(ctrl_options::GetSystemOption('schedule_bu')) == "true") {
+// LEGACY: el bucle "copiar TODAS las cuentas de golpe una vez al día" queda DESACTIVADO
+// (if (false)). Ahora las copias automáticas las gestiona el PROGRAMADOR por cuenta con spool
+// por bloques en backup_admin/OnDaemonRun.hook.php (sys_backup_scheduler), configurable por el
+// usuario (x_backup_schedule) y sin colapsar el servidor. El interruptor maestro sigue siendo
+// 'schedule_bu'.
+    if (false && strtolower(ctrl_options::GetSystemOption('schedule_bu')) == "true") {
         runtime_hook::Execute('OnBeforeScheduleBackup');
         echo "Backup Scheduling enabled - Backing up all enabled client files now..." . fs_filehandler::NewLine();
         // Get all accounts

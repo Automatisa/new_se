@@ -424,6 +424,89 @@ class module_controller extends ctrl_module
         if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=log'); exit(); }
     }
 
+    /** Guarda la programación de copias automáticas de la cuenta actual. */
+    static function doSaveSchedule()
+    {
+        global $zdbh, $controller;
+        runtime_csfr::Protect();
+        $cu  = ctrl_users::GetUserDetail();
+        $uid = (int)$cu['userid'];
+
+        $enabled = $controller->GetControllerRequest('FORM', 'inSchedEnabled') ? 1 : 0;
+        $freq = (string)$controller->GetControllerRequest('FORM', 'inSchedFreq');
+        if (!in_array($freq, array('daily', 'weekly', 'monthly'), true)) $freq = 'daily';
+        $hour = max(0, min(23, (int)$controller->GetControllerRequest('FORM', 'inSchedHour')));
+        $dow  = max(0, min(6,  (int)$controller->GetControllerRequest('FORM', 'inSchedDow')));
+        $dom  = max(1, min(28, (int)$controller->GetControllerRequest('FORM', 'inSchedDom')));
+        $dest = (string)$controller->GetControllerRequest('FORM', 'inSchedDest');
+        if (!in_array($dest, array('local', 'remote', 'both'), true)) $dest = 'local';
+        $next = sys_backup_scheduler::computeNextRun($freq, $hour, $dow, $dom);
+
+        $sql = $zdbh->prepare(
+            "INSERT INTO x_backup_schedule (bs_acc_fk,bs_enabled_in,bs_freq_vc,bs_hour_in,bs_dow_in,bs_dom_in,bs_dest_vc,bs_next_run_ts)
+             VALUES (:a,:e,:f,:h,:w,:d,:t,:n)
+             ON DUPLICATE KEY UPDATE bs_enabled_in=:e2,bs_freq_vc=:f2,bs_hour_in=:h2,bs_dow_in=:w2,bs_dom_in=:d2,bs_dest_vc=:t2,bs_next_run_ts=:n2");
+        $sql->execute(array(
+            ':a' => $uid, ':e' => $enabled, ':f' => $freq, ':h' => $hour, ':w' => $dow, ':d' => $dom, ':t' => $dest, ':n' => $next,
+            ':e2' => $enabled, ':f2' => $freq, ':h2' => $hour, ':w2' => $dow, ':d2' => $dom, ':t2' => $dest, ':n2' => $next,
+        ));
+        $_SESSION['bk_restore_flash'] = array('ok', $enabled
+            ? 'Copia automática guardada. Próxima ejecución: ' . date('d/m/Y H:i', $next) . '.'
+            : 'Copia automática desactivada.');
+        if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=auto'); exit(); }
+    }
+
+    /** Panel de configuración de copias automáticas (placeholder <@ SchedulePanel @>). */
+    static function getSchedulePanel()
+    {
+        global $zdbh;
+        $cu  = ctrl_users::GetUserDetail();
+        $uid = (int)$cu['userid'];
+        $q = $zdbh->prepare("SELECT * FROM x_backup_schedule WHERE bs_acc_fk=:a LIMIT 1");
+        $q->execute(array(':a' => $uid));
+        $s = $q->fetch(PDO::FETCH_ASSOC) ?: array();
+        $g = function ($k, $d = '') use ($s) { return isset($s[$k]) && $s[$k] !== null ? $s[$k] : $d; };
+        $freq = $g('bs_freq_vc', 'daily');
+        $dest = $g('bs_dest_vc', 'local');
+        $enabled = (int)$g('bs_enabled_in', 0);
+        $hour = (int)$g('bs_hour_in', 3);
+        $selF = function ($v) use ($freq) { return $freq === $v ? ' selected' : ''; };
+        $selD = function ($v) use ($dest) { return $dest === $v ? ' selected' : ''; };
+        $hasRemote = self::GetHasRemoteDest();
+        $csrf = self::getCSFR_Tag();
+
+        $html  = '<div class="zform_wrapper"><h2>Copias automáticas (programadas)</h2>';
+        $html .= '<p><small>El servidor hará la copia por ti a la hora elegida. Para no sobrecargar, '
+               . 'las copias de todos los clientes se procesan por bloques (unas pocas cada pocos minutos).</small></p>';
+        if (!empty($s['bs_last_run_ts'])) {
+            $html .= '<p><small>Última ejecución automática: <b>' . date('d/m/Y H:i', (int)$s['bs_last_run_ts']) . '</b></small></p>';
+        }
+        if ($enabled && !empty($s['bs_next_run_ts'])) {
+            $html .= '<p><small>Próxima ejecución programada: <b>' . date('d/m/Y H:i', (int)$s['bs_next_run_ts']) . '</b></small></p>';
+        }
+        $html .= '<form method="post" action="./?module=backupmgr&action=SaveSchedule">' . $csrf . '<table class="table">';
+        $html .= '<tr><th style="width:220px">Activar copia automática</th><td><input type="checkbox" name="inSchedEnabled" value="1" ' . ($enabled ? 'checked' : '') . '></td></tr>';
+        $html .= '<tr><th>Frecuencia</th><td><select name="inSchedFreq">'
+               . '<option value="daily"' . $selF('daily') . '>Diaria</option>'
+               . '<option value="weekly"' . $selF('weekly') . '>Semanal</option>'
+               . '<option value="monthly"' . $selF('monthly') . '>Mensual</option></select></td></tr>';
+        $html .= '<tr><th>Hora (0-23)</th><td><input class="form-control" type="number" min="0" max="23" name="inSchedHour" value="' . $hour . '" style="max-width:100px"></td></tr>';
+        $html .= '<tr><th>Día de la semana <small>(solo semanal)</small></th><td><select name="inSchedDow">';
+        $dias = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
+        foreach ($dias as $i => $nm) { $html .= '<option value="' . $i . '"' . ((int)$g('bs_dow_in', 1) === $i ? ' selected' : '') . '>' . $nm . '</option>'; }
+        $html .= '</select></td></tr>';
+        $html .= '<tr><th>Día del mes <small>(solo mensual, 1-28)</small></th><td><input class="form-control" type="number" min="1" max="28" name="inSchedDom" value="' . (int)$g('bs_dom_in', 1) . '" style="max-width:100px"></td></tr>';
+        $html .= '<tr><th>Destino</th><td><select name="inSchedDest">'
+               . '<option value="local"' . $selD('local') . '>Local (en el servidor)</option>';
+        if ($hasRemote) {
+            $html .= '<option value="remote"' . $selD('remote') . '>Remoto (FTP)</option>'
+                   . '<option value="both"' . $selD('both') . '>Ambos</option>';
+        }
+        $html .= '</select>' . ($hasRemote ? '' : '<br><small>Configura un destino remoto en la pestaña "Conexión remota" para poder elegir FTP.</small>') . '</td></tr>';
+        $html .= '</table><button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Guardar programación</button></form></div>';
+        return $html;
+    }
+
     /** Panel del registro persistente de copias (placeholder <@ BackupLogPanel @>). */
     static function getBackupLogPanel()
     {
