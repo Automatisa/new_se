@@ -111,7 +111,49 @@ class sys_backup_remote
         fclose($fp);
 
         if ($ok) return array(true, 'Subida completada a ' . $host . $path);
-        return array(false, 'Error de subida (' . $code . '): ' . $err);
+        return array(false, self::curlFtpError($code, $err, $host, $port));
+    }
+
+    /**
+     * Traduce un código de error de curl (FTP/FTPS) a un mensaje claro y accionable en
+     * castellano. Añade entre paréntesis el detalle técnico original para diagnóstico.
+     */
+    public static function curlFtpError($code, $rawErr, $host = '', $port = 0)
+    {
+        $where = $host !== '' ? ($host . ($port ? ':' . $port : '')) : 'el servidor';
+        switch ((int)$code) {
+            case 6:  // CURLE_COULDNT_RESOLVE_HOST
+                $m = 'No se pudo resolver el nombre «' . $host . '». Revisa que esté bien escrito o el DNS del servidor.'; break;
+            case 7:  // CURLE_COULDNT_CONNECT
+                $m = 'No se pudo conectar a ' . $where . '. El puerto puede estar cerrado o bloqueado por un firewall.'; break;
+            case 28: // CURLE_OPERATION_TIMEDOUT
+                $m = 'Tiempo de espera agotado con ' . $where . '. El servidor no responde (firewall, puerto de datos pasivo bloqueado o red lenta).'; break;
+            case 64: // CURLE_USE_SSL_FAILED
+                $m = 'El servidor FTP no admite cifrado TLS (rechazó AUTH TLS). Selecciona «FTP sin cifrar» o activa TLS (ssl_enable) en el servidor de destino.'; break;
+            case 35: // CURLE_SSL_CONNECT_ERROR
+                $m = 'Falló el handshake TLS con ' . $where . ' (versión de TLS o cifrados incompatibles).'; break;
+            case 51: // CURLE_PEER_FAILED_VERIFICATION
+                $m = 'El nombre del certificado no coincide con «' . $host . '». Usa el modo «fijar el certificado» si el FTP presenta el cert de otro dominio.'; break;
+            case 60: // CURLE_SSL_CACERT / peer cert cannot be authenticated
+                $m = 'El certificado del servidor no es de una CA de confianza (o es autofirmado). Usa el modo «fijar el certificado» o instala la CA correcta.'; break;
+            case 90: // CURLE_SSL_PINNEDPUBKEYNOTMATCH
+                $m = 'El certificado del servidor NO coincide con el fijado. Posible suplantación (MITM) o el servidor cambió de certificado: verifica y vuelve a fijarlo si es legítimo.'; break;
+            case 67: // CURLE_LOGIN_DENIED
+                $m = 'Usuario o contraseña incorrectos: el servidor rechazó el inicio de sesión.'; break;
+            case 9:  // CURLE_REMOTE_ACCESS_DENIED
+                $m = 'Acceso denegado a la ruta remota. Comprueba que la carpeta existe y que el usuario tiene permiso.'; break;
+            case 25: // CURLE_UPLOAD_FAILED
+                $m = 'El servidor rechazó la subida. Suele ser falta de permisos de escritura o cuota llena en la ruta de destino.'; break;
+            case 78: // CURLE_REMOTE_FILE_NOT_FOUND
+                $m = 'Ruta remota no encontrada en el servidor.'; break;
+            case 55: // CURLE_SEND_ERROR
+            case 56: // CURLE_RECV_ERROR
+                $m = 'La conexión se interrumpió durante la transferencia con ' . $where . '. Puede reintentarse.'; break;
+            default:
+                $m = 'Fallo de transferencia con ' . $where . '.'; break;
+        }
+        $raw = trim((string)$rawErr);
+        return $m . ($raw !== '' ? ' (detalle: ' . $raw . ' [curl ' . (int)$code . '])' : ' [curl ' . (int)$code . ']');
     }
 
     /**
@@ -153,14 +195,14 @@ class sys_backup_remote
                     }
                     return array(true, $msg . ($i > 1 ? " (al intento $i)" : ''));
                 }
-                $msg = "subida incompleta (remoto $remote != local $localSize bytes)";
+                $msg = "El fichero remoto quedó incompleto ($remote de $localSize bytes): transferencia truncada, se reintenta.";
             }
             $lastMsg = $msg;
             if ($i < $attempts) {
                 sleep($baseDelaySec * $i); // backoff lineal: 5s, 10s, 15s...
             }
         }
-        return array(false, "Fallo tras $attempts intentos: $lastMsg");
+        return array(false, "No se pudo completar la subida tras $attempts intentos. Último error: $lastMsg");
     }
 
     /** Tamaño del fichero remoto en bytes (comando SIZE vía curl), o null si no se puede saber. */
@@ -236,9 +278,13 @@ class sys_backup_remote
         curl_exec($ch);
         $info = curl_getinfo($ch);
         $err  = curl_error($ch);
+        $code = curl_errno($ch);
         curl_close($ch);
         if (empty($info['certinfo'][0]['Cert'])) {
-            return array('pin' => null, 'fp' => null, 'error' => ($err ?: 'no se pudo leer el certificado del servidor'));
+            // Si falló la conexión/TLS, dar el mensaje preciso (p.ej. servidor sin TLS = curl 64).
+            $reason = $code ? self::curlFtpError($code, $err, $host, $port)
+                            : 'no se pudo leer el certificado del servidor';
+            return array('pin' => null, 'fp' => null, 'error' => $reason);
         }
         $pem = $info['certinfo'][0]['Cert'];
         $pub = @openssl_pkey_get_public($pem);
