@@ -1157,92 +1157,9 @@ cat > /usr/local/etc/rspamd/local.d/antivirus.conf << 'RSAV'
 .include(try=true,priority=10) "/var/sentora/clamav/antivirus.conf"
 RSAV
 
-# Scripts privilegiados
-cat > /usr/local/sentora/bin/clamav_freshclam_update.sh << 'EOF'
-#!/bin/sh
-LOG=/var/sentora/clamav/freshclam_update.log
-echo "=== Actualización iniciada: $(date) ===" >> "$LOG"
-/usr/local/bin/freshclam --quiet >> "$LOG" 2>&1
-echo "=== Actualización finalizada: $(date) ===" >> "$LOG"
-chmod 644 "$LOG"
-EOF
-
-cat > /usr/local/sentora/bin/clamav_scan_mailboxes.sh << 'EOF'
-#!/bin/sh
-LOG=/var/sentora/clamav/scan_results.log
-QUARANTINE=/var/sentora/clamav/quarantine
-mkdir -p "$QUARANTINE"
-chmod 700 "$QUARANTINE"
-echo "=== Escaneo iniciado: $(date) ===" >> "$LOG"
-/usr/local/bin/clamdscan --quiet --move="$QUARANTINE" /var/mail >> "$LOG" 2>&1
-echo "=== Escaneo finalizado: $(date) ===" >> "$LOG"
-tail -1000 "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"
-chmod 644 "$LOG"
-EOF
-
-cat > /usr/local/sentora/bin/clamav_cron_update.sh << 'EOF'
-#!/bin/sh
-SCAN_CONF=/var/sentora/clamav/scan_schedule.conf
-CHECKS_CONF=/var/sentora/clamav/freshclam_checks.conf
-CHECKS=4
-if [ -f "$CHECKS_CONF" ]; then
-    VAL=$(head -1 "$CHECKS_CONF" | tr -d '\r\n ' | grep -E '^[0-9]+$')
-    [ -n "$VAL" ] && CHECKS="$VAL"
-fi
-FCCONF=/usr/local/etc/freshclam.conf
-if [ -f "$FCCONF" ]; then
-    grep -q '^Checks ' "$FCCONF" && \
-        sed -i '' "s/^Checks .*/Checks ${CHECKS}/" "$FCCONF" || \
-        echo "Checks ${CHECKS}" >> "$FCCONF"
-    service clamav_freshclam restart > /dev/null 2>&1
-fi
-SCAN_SCHED=""
-[ -f "$SCAN_CONF" ] && SCAN_SCHED=$(head -1 "$SCAN_CONF" | tr -d '\r')
-CTAB=$(crontab -l -u root 2>/dev/null | grep -v 'clamav_scan_mailboxes')
-if [ -n "$SCAN_SCHED" ] && [ "$SCAN_SCHED" != "disable" ]; then
-    printf '%s\n%s /usr/local/sentora/bin/clamav_scan_mailboxes.sh\n' \
-        "$CTAB" "$SCAN_SCHED" | crontab -u root -
-else
-    printf '%s\n' "$CTAB" | crontab -u root - 2>/dev/null
-fi
-EOF
-
-cat > /usr/local/sentora/bin/clamav_scan_launch.sh << 'EOF'
-#!/bin/sh
-# Lanza clamav_scan_mailboxes.sh como daemon verdadero (FreeBSD daemon(8)).
-# Retorna en milisegundos — no bloquea PHP-FPM aunque el escaneo tarde minutos.
-LOCK=/var/sentora/clamav/scan.lock
-if [ -f "$LOCK" ]; then
-    LPID=$(cat "$LOCK" 2>/dev/null)
-    if [ -n "$LPID" ] && kill -0 "$LPID" 2>/dev/null; then
-        exit 0
-    fi
-    rm -f "$LOCK"
-fi
-/usr/sbin/daemon -f -p "$LOCK" /usr/local/sentora/bin/clamav_scan_mailboxes.sh
-exit 0
-EOF
-
-cat > /usr/local/sentora/bin/clamav_freshclam_launch.sh << 'EOF'
-#!/bin/sh
-LOCK=/var/sentora/clamav/freshclam.lock
-if [ -f "$LOCK" ]; then
-    LPID=$(cat "$LOCK" 2>/dev/null)
-    if [ -n "$LPID" ] && kill -0 "$LPID" 2>/dev/null; then
-        exit 0
-    fi
-    rm -f "$LOCK"
-fi
-/usr/sbin/daemon -f -p "$LOCK" /usr/local/sentora/bin/clamav_freshclam_update.sh
-exit 0
-EOF
-
-cat > /usr/local/sentora/bin/clamav_clamd_stop.sh << 'EOF'
-#!/bin/sh
-/usr/sbin/daemon -f /usr/sbin/service clamav_clamd stop
-exit 0
-EOF
-
+# Scripts privilegiados de ClamAV: vienen del git clone (bin/clamav_*.sh),
+# ya no se generan aquí (así están versionados y no se pisan versiones nuevas
+# como la avanzada de clamav_scan_mailboxes.sh). Solo se ajustan permisos.
 chmod 500 /usr/local/sentora/bin/clamav_freshclam_update.sh \
           /usr/local/sentora/bin/clamav_scan_mailboxes.sh \
           /usr/local/sentora/bin/clamav_scan_launch.sh \
