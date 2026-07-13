@@ -216,12 +216,48 @@ class module_controller extends ctrl_module
         return self::GroupMoveTo($currentuser['userid'], $urlvars['other']);
     }
 
+    /**
+     * AUTZ: ¿puede el usuario actual editar/borrar este grupo?
+     * - Los grupos INTEGRADOS (Administrators=1, Resellers=2, Users=3) no se tocan por nadie
+     *   desde el panel: renombrar/borrar el grupo admin rompería los chequeos por nombre.
+     * - El resto debe pertenecer al usuario actual (ug_reseller_fk = su id). Sin esto, un
+     *   reseller podía manipular por ID (IDOR) grupos ajenos o del admin.
+     */
+    private static function canManageGroup($gid)
+    {
+        global $zdbh;
+        $gid = (int)$gid;
+        if ($gid <= 0 || in_array($gid, array(1, 2, 3), true)) {
+            return false;
+        }
+        $self = (int)ctrl_users::GetUserDetail()['userid'];
+        $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_groups WHERE ug_id_pk=:gid AND ug_reseller_fk=:uid");
+        $chk->execute(array(':gid' => $gid, ':uid' => $self));
+        return ((int) $chk->fetchColumn() > 0);
+    }
+
+    /** Valida el nombre de un grupo nuevo: no reservado y con caracteres seguros. */
+    private static function validGroupName($name)
+    {
+        $name = trim((string) $name);
+        $reserved = array('administrators', 'resellers', 'users');
+        if ($name === '' || in_array(strtolower($name), $reserved, true)) {
+            return false;
+        }
+        return (bool) preg_match('/^[A-Za-z0-9 _\-]{1,64}$/', $name);
+    }
+
     static function doCreateGroup()
     {
         global $controller;
         runtime_csfr::Protect();
         $currentuser = ctrl_users::GetUserDetail();
         $formvars = $controller->GetAllControllerRequests('FORM');
+        // No permitir nombres reservados (p.ej. "Administrators") ni caracteres raros:
+        // un grupo propio llamado "Administrators" podría engañar chequeos por nombre.
+        if (!self::validGroupName($formvars['inGroupName'])) {
+            return false;
+        }
         if (self::ExectuteCreateGroup($formvars['inGroupName'], $formvars['inDesc'], $currentuser['userid'])) {
             return true;
         } else {
@@ -254,8 +290,17 @@ class module_controller extends ctrl_module
         global $controller;
         runtime_csfr::Protect();
         $formvars = $controller->GetAllControllerRequests('FORM');
-        if (isset($formvars['inMoveGroup'])) {
+        // AUTZ: el grupo a borrar debe ser propio y no integrado (IDOR fix).
+        if (!self::canManageGroup($formvars['inGroupID'])) {
+            return false;
+        }
+        if (isset($formvars['inMoveGroup']) && $formvars['inMoveGroup'] !== "") {
             $inMoveGroup = $formvars['inMoveGroup'];
+            // El grupo destino de reasignación también debe ser propio (no mover cuentas
+            // a un grupo del admin/otro reseller).
+            if (!self::canManageGroup($inMoveGroup)) {
+                return false;
+            }
         } else {
             $inMoveGroup = "";
         }
@@ -269,6 +314,14 @@ class module_controller extends ctrl_module
         global $controller;
         runtime_csfr::Protect();
         $formvars = $controller->GetAllControllerRequests('FORM');
+        // AUTZ: el grupo a editar debe ser propio y no integrado (IDOR fix).
+        if (!self::canManageGroup($formvars['inGroupID'])) {
+            return false;
+        }
+        // Impedir renombrar un grupo a un nombre reservado.
+        if (!self::validGroupName($formvars['inGroupName'])) {
+            return false;
+        }
         if (self::ExectuteUpdateGroup($formvars['inGroupID'], $formvars['inGroupName'], $formvars['inDesc']))
             return true;
         return false;
