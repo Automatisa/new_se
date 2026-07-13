@@ -127,8 +127,8 @@ class ctrl_options {
         $results = $zdbh->returnRow();
 
         if ($result) {
-            $packageid = $result['ac_id_pk'];
-            $result = $zdbh->query("SELECT * FROM x_packages WHERE pk_id_pk = '$packageid'")->Fetch();
+            $packageid = (int)$result['ac_id_pk'];
+            $result = $zdbh->query("SELECT * FROM x_packages WHERE pk_id_pk = " . $packageid)->Fetch();
             if ($result) {
                 return $result;
             } else {
