@@ -46,9 +46,12 @@
                                 <button class="btn btn-primary" type="submit" name="inBackUp" value="<@ UserID @>" formaction="modules/backupmgr/code/launchbackup.php?id=<@ UserID @>&amp;mode=local"><i class="bi bi-hdd me-1"></i><: Copia local :></button>
                                 <% if HasRemoteDest %>
                                 <button class="btn btn-info" type="submit" name="inBackUp" value="<@ UserID @>" formaction="modules/backupmgr/code/launchbackup.php?id=<@ UserID @>&amp;mode=remote"><i class="bi bi-hdd-network me-1"></i><: Copia remota (FTP) :></button>
+                                <% else %>
+                                <button class="btn btn-info" type="button" disabled title="<: Configura un destino remoto en la pestaña Conexión remota :>"><i class="bi bi-hdd-network me-1"></i><: Copia remota (FTP) :></button>
                                 <% endif %>
                             </th>
-                            <td><: La copia local se guarda en el servidor (según el límite del paquete). La remota se sube al FTP configurado (con su propio límite). :></td>
+                            <td><: La copia local se guarda en el servidor (según el límite del paquete). La remota se sube al FTP configurado (con su propio límite). :>
+                                <% if HasRemoteDest %><% else %><br><small><: La copia remota está deshabilitada: configura y activa un destino en la pestaña «Conexión remota». :></small><% endif %></td>
                         </tr>
                     </table>
                 </form>
