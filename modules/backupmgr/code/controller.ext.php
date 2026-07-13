@@ -253,7 +253,7 @@ class module_controller extends ctrl_module
             $i->execute(array(':u'=>$uid,':t'=>$type,':h'=>$host,':p'=>$port,':us'=>$user,':pw'=>$encPass,':pa'=>$path,':v'=>$verify,':cs'=>$certsha,':e'=>$enabled,':ts'=>time()));
         }
         $_SESSION['bk_restore_flash'] = array('ok', 'Destino remoto guardado.' . $pinMsg);
-        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+        if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=conn'); exit(); }
     }
 
     /** Prueba la conexión/subida al destino remoto de la cuenta actual. */
@@ -327,7 +327,7 @@ class module_controller extends ctrl_module
         );
         $_SESSION['bk_restore_flash'] = array($ok ? 'ok' : 'err',
             ($ok ? '✓ Conexión correcta — ' : '✗ Fallo de conexión — ') . $msg);
-        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+        if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=conn'); exit(); }
     }
 
     /** HTML del panel de configuración del destino remoto (placeholder <@ RemoteDestPanel @>). */
@@ -421,7 +421,7 @@ class module_controller extends ctrl_module
         $cu = ctrl_users::GetUserDetail();
         $n  = sys_backup_log::clearForUser((int)$cu['userid']);
         $_SESSION['bk_restore_flash'] = array('ok', 'Registro de copias borrado (' . (int)$n . ' entradas).');
-        if (!headers_sent()) { header('Location: ./?module=backupmgr'); exit(); }
+        if (!headers_sent()) { header('Location: ./?module=backupmgr&tab=log'); exit(); }
     }
 
     /** Panel del registro persistente de copias (placeholder <@ BackupLogPanel @>). */
@@ -470,7 +470,7 @@ class module_controller extends ctrl_module
             $html .= '<nav><ul class="pagination pagination-sm">';
             $link = function ($p, $label, $disabled = false, $active = false) {
                 $cls = 'page-item' . ($disabled ? ' disabled' : '') . ($active ? ' active' : '');
-                return '<li class="' . $cls . '"><a class="page-link" href="./?module=backupmgr&bkpage=' . (int)$p . '">' . $label . '</a></li>';
+                return '<li class="' . $cls . '"><a class="page-link" href="./?module=backupmgr&tab=log&bkpage=' . (int)$p . '">' . $label . '</a></li>';
             };
             $html .= $link($page - 1, '&laquo;', $page <= 1);
             for ($p = 1; $p <= $pages; $p++) $html .= $link($p, (string)$p, false, $p === $page);

@@ -12,68 +12,107 @@
 
     <@ Result @>
 
-    <@ CreateBackupDirectory @>
+    <!-- Navegación de pestañas -->
+    <ul class="nav nav-tabs" style="margin:15px 15px 0;" id="bkTabs">
+        <li class="nav-item"><a class="nav-link active" href="#bk-backups" data-bs-toggle="tab">
+            <span class="bi bi-archive"></span> <: Copias :>
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#bk-conn" data-bs-toggle="tab">
+            <span class="bi bi-hdd-network"></span> <: Conexión remota :>
+        </a></li>
+        <li class="nav-item"><a class="nav-link" href="#bk-log" data-bs-toggle="tab">
+            <span class="bi bi-journal-text"></span> <: Registro :>
+        </a></li>
+    </ul>
 
-    <@ RemoteDestPanel @>
+    <div class="tab-content" style="padding:15px;">
 
-    <@ BackupLogPanel @>
+        <!-- ============================================================ COPIAS -->
+        <div class="tab-pane active show" id="bk-backups">
 
-    <div class="zform_wrapper">
-        <h2><: Backup your hosting account files :></h2>
-        <% if HasData %>
-        <form name="LaunchBackup" action="modules/backupmgr/code/launchbackup.php?id=<@ UserID @>" target="backup" method="post" onsubmit="var w=window.open('', 'backup', 'scrollbars=no,menubar=no,height=300,width=600,resizable=no,toolbar=no,location=no,status=no'); w.focus();">
-            <@ CSFR_Tag @>
-            <table class="table table-striped">
-                <tr>
-                    <th nowrap="nowrap"><button class="btn btn-primary" type="submit" name="inBackUp" value="<@ UserID @>"><i class="bi bi-play-circle me-1"></i><: Launch :></button></th>
-                    <td><: Backups your data whilst you wait and then prompt's you to download the backup archive. :></td>
-                </tr>
-            </table>
-        </form>
-        <% else %>
-        <: There are no files in your public folder to back up. :>
-        <% endif %>
-    </div>
+            <@ CreateBackupDirectory @>
 
-    <div class="zgrid_wrapper">
-        <h2><: Backup Archives :></h2>
-        <% if BackUpList %>
-        <% if PurgeDate %>
-        <p><: Archived files will automatically be deleted when they are older than :> <b><@ PurgeDate @></b> <: days :>.</p>
-        <% endif %>
-        <a href="./?module=backupmgr" title="<: Refresh archive list :>"><: Refresh archive list :></a><br><br>
-        <form action="./?module=backupmgr&action=DeleteBackup" method="post">
-            <table class="table table-striped">
-                <tr>
-                    <th></th>
-                    <th><: Location :></th>
-                    <th><: File :></th>
-                    <th><: File Size :></th>
-                    <th></th>
-                    <th></th>
-                </tr>
-                <% loop BackUpList %>
-                <tr>
-                    <td width="16px"><img src="<@ ModulePath @>assets/backup_icon.png" border="0" /></td>
-                    <!--
-                    <td width="16px"><input type="image" src="<@ ModulePath @>assets/delete_small.png" name="inDelete_<& backupfile &>" id="inDelete_<& backupfile &>" value="<& backupfile &>" title="<: DELETE BACKUP :>" /></td>
-                    -->
-                    <td width="50px"><@ FileLocation @></td>
-                    <td><& backupfile &>.zip</td>
-                    <td><b><& filesize &></b></td>
-                    <td><button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& backupfile &>" id="inDelete_<& backupfile &>" value="<& backupfile &>"><i class="bi bi-trash me-1"></i><: Delete Backup :></button></td>
-                    <td><button class="btn btn-warning" type="submit" formaction="./?module=backupmgr&action=RestoreBackup" name="inRestore" value="<& backupfile &>" onclick="return confirm('¿Restaurar esta copia? Se sobrescribirán los ficheros actuales de la cuenta y se importarán sus bases de datos y configuración del panel. Esta acción no se puede deshacer.');"><i class="bi bi-arrow-counterclockwise me-1"></i><: Restore :></button></td>
-                </tr>
-                <% endloop %>
-            </table>
-            <@ CSFR_Tag @>
-        </form>
-        <% else %>
-        <% if DiskAllowed %>
-        <p><: You have no backups at this time.  If you have just created a backup then try refreshing :>: <a href="./?module=backupmgr" title="<: Refresh archive list :>"><: Refresh archive list :></a></p>
-        <% else %>
-        <p><: Backup to disk is not enabled on the server. You may still download backups directly to your computer through your browser. :>
-            <% endif %>
-            <% endif %>
-    </div>
+            <div class="zform_wrapper">
+                <h2><: Backup your hosting account files :></h2>
+                <% if HasData %>
+                <form name="LaunchBackup" action="modules/backupmgr/code/launchbackup.php?id=<@ UserID @>" target="backup" method="post" onsubmit="var w=window.open('', 'backup', 'scrollbars=no,menubar=no,height=300,width=600,resizable=no,toolbar=no,location=no,status=no'); w.focus();">
+                    <@ CSFR_Tag @>
+                    <table class="table table-striped">
+                        <tr>
+                            <th nowrap="nowrap"><button class="btn btn-primary" type="submit" name="inBackUp" value="<@ UserID @>"><i class="bi bi-play-circle me-1"></i><: Launch :></button></th>
+                            <td><: Backups your data whilst you wait and then prompt's you to download the backup archive. :></td>
+                        </tr>
+                    </table>
+                </form>
+                <% else %>
+                <: There are no files in your public folder to back up. :>
+                <% endif %>
+            </div>
+
+            <div class="zgrid_wrapper">
+                <h2><: Backup Archives :></h2>
+                <% if BackUpList %>
+                <% if PurgeDate %>
+                <p><: Archived files will automatically be deleted when they are older than :> <b><@ PurgeDate @></b> <: days :>.</p>
+                <% endif %>
+                <a href="./?module=backupmgr" title="<: Refresh archive list :>"><: Refresh archive list :></a><br><br>
+                <form action="./?module=backupmgr&action=DeleteBackup" method="post">
+                    <table class="table table-striped">
+                        <tr>
+                            <th></th>
+                            <th><: Location :></th>
+                            <th><: File :></th>
+                            <th><: File Size :></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                        <% loop BackUpList %>
+                        <tr>
+                            <td width="16px"><img src="<@ ModulePath @>assets/backup_icon.png" border="0" /></td>
+                            <td width="50px"><@ FileLocation @></td>
+                            <td><& backupfile &>.zip</td>
+                            <td><b><& filesize &></b></td>
+                            <td><button class="button-loader delete btn btn-danger" type="submit" name="inDelete_<& backupfile &>" id="inDelete_<& backupfile &>" value="<& backupfile &>"><i class="bi bi-trash me-1"></i><: Delete Backup :></button></td>
+                            <td><button class="btn btn-warning" type="submit" formaction="./?module=backupmgr&action=RestoreBackup" name="inRestore" value="<& backupfile &>" onclick="return confirm('¿Restaurar esta copia? Se sobrescribirán los ficheros actuales de la cuenta y se importarán sus bases de datos y configuración del panel. Esta acción no se puede deshacer.');"><i class="bi bi-arrow-counterclockwise me-1"></i><: Restore :></button></td>
+                        </tr>
+                        <% endloop %>
+                    </table>
+                    <@ CSFR_Tag @>
+                </form>
+                <% else %>
+                <% if DiskAllowed %>
+                <p><: You have no backups at this time.  If you have just created a backup then try refreshing :>: <a href="./?module=backupmgr" title="<: Refresh archive list :>"><: Refresh archive list :></a></p>
+                <% else %>
+                <p><: Backup to disk is not enabled on the server. You may still download backups directly to your computer through your browser. :>
+                    <% endif %>
+                    <% endif %>
+            </div>
+        </div>
+
+        <!-- ==================================================== CONEXIÓN REMOTA -->
+        <div class="tab-pane" id="bk-conn">
+            <@ RemoteDestPanel @>
+        </div>
+
+        <!-- ========================================================== REGISTRO -->
+        <div class="tab-pane" id="bk-log">
+            <@ BackupLogPanel @>
+        </div>
+
+    </div><!-- /tab-content -->
 </div>
+
+<script>
+(function () {
+    "use strict";
+    // Activar la pestaña indicada por ?tab=xxx (para volver a la pestaña correcta
+    // tras guardar/probar/borrar o al paginar el registro).
+    var m = window.location.search.match(/[?&]tab=([a-z]+)/);
+    var tab = m ? m[1] : null;
+    var map = { backups: '#bk-backups', conn: '#bk-conn', log: '#bk-log' };
+    if (tab && map[tab]) {
+        var el = document.querySelector('#bkTabs a[href="' + map[tab] + '"]');
+        if (el) el.click();
+    }
+})();
+</script>
