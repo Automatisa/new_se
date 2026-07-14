@@ -4,8 +4,16 @@
 REDIS=/usr/local/bin/redis-cli
 RBL_CONF="/usr/local/etc/rspamd/local.d/rbl.conf"
 
-enabled=$($REDIS HGET sentora:antispam:spamhaus enabled 2>/dev/null | tr -d '[:space:]')
-key=$($REDIS HGET sentora:antispam:spamhaus key 2>/dev/null | tr -d '[:space:]')
+# Auth ACL de Redis (usuario 'panel'). Corre como root, lee la clave de cnf/ (640 root:www).
+RPASS=$(head -1 /usr/local/sentora/cnf/redis.pass 2>/dev/null)
+if [ -n "$RPASS" ]; then
+    RAUTH="--user panel -a $RPASS --no-auth-warning"
+else
+    RAUTH=""
+fi
+
+enabled=$($REDIS $RAUTH HGET sentora:antispam:spamhaus enabled 2>/dev/null | tr -d '[:space:]')
+key=$($REDIS $RAUTH HGET sentora:antispam:spamhaus key 2>/dev/null | tr -d '[:space:]')
 
 if [ "$enabled" = "1" ] && [ -n "$key" ]; then
     # Validar formato: solo letras minúsculas y dígitos, 10-50 chars

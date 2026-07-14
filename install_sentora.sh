@@ -926,7 +926,17 @@ ok "OpenDKIM configurado"
 ###############################################################################
 info "Configurando Redis..."
 
-# Configuración mínima: solo escucha en loopback, sin persistencia de disco
+# Credenciales ACL: cerramos el acceso anónimo a Redis para que un PHP infectado que corre
+# como cuenta de hosting (h_*) no pueda manipular contadores, robar datos ni FLUSHALL.
+# - panel: acceso completo, para el panel PHP (www) y los scripts root. Clave en cnf/ (640 root:www).
+# - rspamd: acceso completo (bayes/greylist/ratelimit). Clave embebida en su config (640).
+# - maillimit: SOLO INCR/EXPIRE sobre sentora:maillimit:* (para el wrapper de sendmail). Aunque el
+#   inquilino lea su clave, no puede resetear su contador ni tocar nada más.
+REDIS_PANEL_PASS=$(openssl rand -hex 24)
+REDIS_RSPAMD_PASS=$(openssl rand -hex 24)
+REDIS_ML_PASS=$(openssl rand -hex 24)
+
+# Configuración mínima: solo escucha en loopback, sin persistencia de disco, con ACLs
 cat > /usr/local/etc/redis.conf <<REDISCF
 bind 127.0.0.1
 port 6379
@@ -937,7 +947,26 @@ logfile /var/log/redis/redis.log
 databases 16
 save ""
 appendonly no
+user default off
+user panel on >$REDIS_PANEL_PASS ~* &* +@all
+user rspamd on >$REDIS_RSPAMD_PASS ~* &* +@all
+user maillimit on >$REDIS_ML_PASS resetchannels ~sentora:maillimit:* -@all +incr +expire
 REDISCF
+# El demonio Redis corre como usuario 'redis' (privdrop): debe poder leer su config,
+# pero NO las cuentas de hosting (las claves ACL están aquí en claro).
+chown root:redis /usr/local/etc/redis.conf
+chmod 640 /usr/local/etc/redis.conf
+
+# Fichero de credencial del panel (PHP www + scripts root)
+printf '%s\n' "$REDIS_PANEL_PASS" > /usr/local/sentora/cnf/redis.pass
+chown root:www /usr/local/sentora/cnf/redis.pass
+chmod 640 /usr/local/sentora/cnf/redis.pass
+
+# Fichero de credencial del wrapper (lo lee la cuenta h_*; usuario mínimo, no da poder extra)
+mkdir -p /var/sentora/mail_limits
+printf '%s\n' "$REDIS_ML_PASS" > /var/sentora/mail_limits/redis_pass
+chown root:wheel /var/sentora/mail_limits/redis_pass
+chmod 644 /var/sentora/mail_limits/redis_pass
 
 mkdir -p /var/log/redis
 chown redis:redis /var/log/redis 2>/dev/null || chown nobody:nobody /var/log/redis
@@ -945,12 +974,12 @@ chown redis:redis /var/log/redis 2>/dev/null || chown nobody:nobody /var/log/red
 sysrc redis_enable="YES"
 # Arrancar Redis ya: la configuración de rspamd/clamav usa redis-cli más abajo
 service redis restart 2>/dev/null || service redis start
-# Esperar a que Redis acepte conexiones
+# Esperar a que Redis acepte conexiones (default off => hay que autenticar como panel)
 for _i in 1 2 3 4 5 6 7 8 9 10; do
-    redis-cli ping > /dev/null 2>&1 && break
+    redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning ping > /dev/null 2>&1 && break
     sleep 1
 done
-ok "Redis configurado"
+ok "Redis configurado (ACLs: acceso anónimo cerrado)"
 
 ###############################################################################
 # 10d. RSPAMD
@@ -967,7 +996,12 @@ mkdir -p /usr/local/etc/rspamd/local.d
 
 cat > /usr/local/etc/rspamd/local.d/redis.conf <<RSREDIS
 servers = "127.0.0.1:6379";
+username = "rspamd";
+password = "$REDIS_RSPAMD_PASS";
 RSREDIS
+# Contiene la credencial de Redis: no debe ser legible por las cuentas de hosting.
+chown root:wheel /usr/local/etc/rspamd/local.d/redis.conf
+chmod 640 /usr/local/etc/rspamd/local.d/redis.conf
 
 cat > /usr/local/etc/rspamd/local.d/classifier-bayes.conf <<RSBAYES
 backend = "redis";
@@ -1038,7 +1072,7 @@ cat > /usr/local/etc/rspamd/local.d/options.inc <<RSOPTS
 RSOPTS
 
 # Guardar DNS por defecto en Redis para que el panel los muestre
-redis-cli HSET sentora:antispam:dns primary "8.8.8.8" secondary "8.8.4.4" > /dev/null
+redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning HSET sentora:antispam:dns primary "8.8.8.8" secondary "8.8.4.4" > /dev/null
 
 # Puntuaciones para símbolos Spamhaus DQS (sin esto los símbolos aparecen con score 0)
 cat > /usr/local/etc/rspamd/local.d/groups.conf <<RSGROUPS
@@ -1146,7 +1180,7 @@ chmod 640 /var/sentora/rspamd/phishing.conf \
           /var/sentora/rspamd/phishing_redirectors.map \
           /var/sentora/rspamd/phishing_strict_domains.map
 
-redis-cli HSET sentora:antispam:phishing openphish_enabled 0
+redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning HSET sentora:antispam:phishing openphish_enabled 0
 
 sysrc rspamd_enable="YES"
 ok "rspamd configurado"
@@ -1210,7 +1244,7 @@ chmod 500 /usr/local/sentora/bin/clamav_freshclam_update.sh \
           /usr/local/sentora/bin/clamav_cron_update.sh
 
 # Redis — estado inicial
-redis-cli HSET sentora:clamav email_enabled 0 email_action reject \
+redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning HSET sentora:clamav email_enabled 0 email_action reject \
                scan_freq disable scan_hour 3 freshclam_checks 4
 
 # Nota: el registro BD de clamav_admin (y clamav_user/antispam/…) está en

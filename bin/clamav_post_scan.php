@@ -35,7 +35,12 @@ function redisClient(): ?Redis {
     static $r = null;
     if ($r === null) {
         $r = new Redis();
-        if (!@$r->connect(REDIS_HOST, REDIS_PORT, 2)) $r = null;
+        if (!@$r->connect(REDIS_HOST, REDIS_PORT, 2)) {
+            $r = null;
+        } else {
+            $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+            if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
+        }
     }
     return $r;
 }

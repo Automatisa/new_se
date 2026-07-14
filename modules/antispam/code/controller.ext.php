@@ -31,6 +31,8 @@ class module_controller extends ctrl_module
                 $r = null;
                 throw new RuntimeException('Cannot connect to Redis');
             }
+            $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+            if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
         }
         return $r;
     }
