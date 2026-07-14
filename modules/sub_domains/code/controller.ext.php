@@ -58,6 +58,7 @@ class module_controller extends ctrl_module
                 array_push($res, array('subname' => $rowdomains['vh_name_vc'],
                     'subdirectory' => $rowdomains['vh_directory_vc'],
                     'subactive' => $rowdomains['vh_active_in'],
+                    'subenabled' => $rowdomains['vh_enabled_in'],
                     'subid' => $rowdomains['vh_id_pk']));
             }
             return $res;
@@ -281,7 +282,7 @@ class module_controller extends ctrl_module
         $subdomains = self::ListSubDomains($currentuser['userid']);
         if (!fs_director::CheckForEmptyValue($subdomains)) {
             foreach ($subdomains as $row) {
-                $status = self::getSubDomainStatusHTML($row['subactive'], $row['subid']);
+                $status = self::getSubDomainStatusHTML($row['subactive'], $row['subenabled'], $row['subid']);
                 $res[] = array('subname' => $row['subname'],
                     'subdirectory' => $row['subdirectory'],
                     'subactive' => $row['subactive'],
@@ -437,20 +438,68 @@ class module_controller extends ctrl_module
         }
     }
 
-    static function getSubDomainStatusHTML($int, $id)
+    static function getSubDomainStatusHTML($active, $enabled, $id)
     {
         global $controller;
         $mod = $controller->GetControllerRequest('URL', 'module');
-        if ($int == 1) {
-            $statusTd = '<td><font color="green">' . ui_language::translate('Live') . '</font></td>';
+
+        if ((int)$enabled === 0) {
+            $statusTd = '<td><span style="color:#e67e22;font-weight:bold">' . ui_language::translate('Suspended') . '</span></td>';
+        } elseif ((int)$active === 1) {
+            $statusTd = '<td><span style="color:green;font-weight:bold">' . ui_language::translate('Live') . '</span></td>';
         } else {
-            $statusTd = '<td><font color="orange">' . ui_language::translate("Pending") . '</font></td>';
+            $statusTd = '<td><span style="color:orange">' . ui_language::translate('Pending') . '</span></td>';
         }
-        // Botón PHP: cada subdominio es un vhost con su propio pool PHP-FPM (fpm_pool_manager
-        // procesa vh_type_in IN (1,2)), así que puede tener ajustes PHP propios en x_domain_php.
-        $phpTd = '<td><a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=PhpSettings&id=' . (int)$id . '"'
-               . ' class="btn btn-info btn-sm">PHP</a></td>';
-        return $statusTd . $phpTd;
+
+        $toggleLabel = ((int)$enabled === 0) ? ui_language::translate('Activate') : ui_language::translate('Suspend');
+        $toggleClass = ((int)$enabled === 0) ? 'btn-success' : 'btn-warning';
+
+        // Toggle (suspender/activar) + PHP. Cada subdominio es un vhost con su propio pool FPM.
+        $actionsTd = '<td style="white-space:nowrap">'
+            . '<button class="button-loader btn btn-sm ' . $toggleClass . '" type="submit"'
+            . ' name="inToggle_' . (int)$id . '" value="' . (int)$id . '"'
+            . ' formaction="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&action=ToggleSubDomain">'
+            . $toggleLabel . '</button> '
+            . '<a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=PhpSettings&id=' . (int)$id . '"'
+            . ' class="btn btn-info btn-sm">PHP</a>'
+            . '</td>';
+
+        return $statusTd . $actionsTd;
+    }
+
+    static function ExecuteToggleSubDomain($vhostid, $uid)
+    {
+        global $zdbh;
+        // Anti-IDOR: debe ser un subdominio (vh_type_in=2) del usuario autenticado.
+        $sql = $zdbh->prepare("SELECT vh_enabled_in FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_type_in=2 AND vh_deleted_ts IS NULL");
+        $sql->execute([':id' => $vhostid, ':uid' => $uid]);
+        $row = $sql->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return false;
+        $newState = ((int)$row['vh_enabled_in'] === 1) ? 0 : 1;
+        $upd = $zdbh->prepare("UPDATE x_vhosts SET vh_enabled_in=:state WHERE vh_id_pk=:id");
+        $upd->execute([':state' => $newState, ':id' => $vhostid]);
+        self::SetWriteApacheConfigTrue();
+        return true;
+    }
+
+    static function doToggleSubDomain()
+    {
+        global $controller;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $formvars = $controller->GetAllControllerRequests('FORM');
+        $subs = self::ListSubDomains($currentuser['userid']);
+        if ($subs) {
+            foreach ($subs as $row) {
+                if (isset($formvars['inToggle_' . $row['subid']])) {
+                    self::ExecuteToggleSubDomain($row['subid'], $currentuser['userid']);
+                    self::$ok = true;
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // -----------------------------------------------------------------------
