@@ -72,7 +72,7 @@ class runtime_controller
             self::prgInjectFlash();
         }
         if (isset($this->vars_get[0]['action'])) {
-            if (ctrl_groups::CheckGroupModulePermissions($user['usergroupid'], ui_module::GetModuleID())) {
+            if (ctrl_groups::CheckUserModuleAccess($user, ui_module::GetModuleID())) {
                 if ((class_exists('module_controller', FALSE)) && (method_exists('module_controller', 'do' . $this->vars_get[0]['action']))) {
                     call_user_func(array('module_controller', 'do' . $this->vars_get[0]['action']));
                     // PRG: tras un POST, guardar flash en sesión y redirigir sin

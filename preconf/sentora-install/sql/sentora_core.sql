@@ -551,6 +551,17 @@ CREATE TABLE `x_permissions` (
   PRIMARY KEY (`pe_id_pk`)
 ) ENGINE=MyISAM AUTO_INCREMENT=109 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Feature list por paquete (modelo hosting): qué módulos de tipo 'user' incluye cada paquete.
+-- Si un paquete no tiene filas aquí, el acceso hace fallback al ACL del grupo Users (compatibilidad).
+DROP TABLE IF EXISTS `x_package_modules`;
+CREATE TABLE `x_package_modules` (
+  `pm_id_pk` int(6) unsigned NOT NULL AUTO_INCREMENT,
+  `pm_package_fk` int(6) NOT NULL,
+  `pm_module_fk` int(6) NOT NULL,
+  PRIMARY KEY (`pm_id_pk`),
+  UNIQUE KEY `pm_pkg_mod` (`pm_package_fk`,`pm_module_fk`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 DROP TABLE IF EXISTS `x_profiles`;
 CREATE TABLE `x_profiles` (
   `ud_id_pk` int(6) unsigned NOT NULL AUTO_INCREMENT,

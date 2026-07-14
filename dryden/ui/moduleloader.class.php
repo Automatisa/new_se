@@ -50,7 +50,7 @@ class ui_moduleloader {
                 $checksql->bindParam(':cid', $row['mc_id_pk']);
                 $checksql->execute();
                 while ($rowcheck = $checksql->fetch()) {
-                    if (ctrl_groups::CheckGroupModulePermissions($user['usergroupid'], $rowcheck['mo_id_pk'])) {
+                    if (ctrl_groups::CheckUserModuleAccess($user, $rowcheck['mo_id_pk'])) {
                         $has_icons = true;
                     }
                 }
@@ -92,7 +92,7 @@ class ui_moduleloader {
             $res = array();
             $sql->execute();
             while ($row = $sql->fetch()) {
-                if (ctrl_groups::CheckGroupModulePermissions($user['usergroupid'], $row['mo_id_pk'])) {
+                if (ctrl_groups::CheckUserModuleAccess($user, $row['mo_id_pk'])) {
                     array_push($res, array('mo_id_pk' => $row['mo_id_pk'],
                         'mo_category_fk' => $row['mo_category_fk'],
                         'mo_name_vc' => $row['mo_name_vc'],
