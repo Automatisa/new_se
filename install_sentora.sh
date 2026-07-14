@@ -978,8 +978,12 @@ enabled = true;
 servers = "127.0.0.1:6379";
 RSGREYLIST
 
-# Anti-abuso de SALIDA: rate-limit por usuario autenticado + tope de destinatarios (anti-spam).
-cat > /usr/local/etc/rspamd/local.d/ratelimit.conf <<RSRATE
+# Anti-abuso de SALIDA: rate-limit editable DESDE EL PANEL (Antispam -> Límite de envío).
+# El fichero real lo escribe el panel (www) en /var/sentora/rspamd/ratelimit.conf; local.d solo
+# lo incluye. Se siembra con valores por defecto.
+mkdir -p /var/sentora/rspamd
+cat > /var/sentora/rspamd/ratelimit.conf <<RSRATE
+# Generado por el panel (Antispam -> Límite de envío). NO editar a mano.
 max_rcpt = 100;
 rates {
     user {
@@ -988,14 +992,12 @@ rates {
             rate = "300 / 1h";
         }
     }
-    to_ip_from {
-        bucket {
-            burst = 200;
-            rate = "200 / 1h";
-        }
-    }
 }
 RSRATE
+chown www:www /var/sentora/rspamd/ratelimit.conf
+cat > /usr/local/etc/rspamd/local.d/ratelimit.conf <<RSRATEINC
+.include(try=true,priority=10) "/var/sentora/rspamd/ratelimit.conf"
+RSRATEINC
 
 # Correo SALIENTE (clientes autenticados): no greylistear; sí ratelimit y firma DKIM.
 cat > /usr/local/etc/rspamd/local.d/settings.conf <<RSSET

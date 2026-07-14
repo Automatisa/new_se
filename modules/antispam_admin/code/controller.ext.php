@@ -95,6 +95,62 @@ class module_controller extends ctrl_module
         self::$ok_msg = 'Global antispam settings saved.';
     }
 
+    // ---- Rate-limit de SALIDA (editable desde el panel) --------------------------------------
+    const RATELIMIT_CONF = '/var/sentora/rspamd/ratelimit.conf';
+
+    /** Escribe /var/sentora/rspamd/ratelimit.conf (www-writable, incluido por rspamd) desde los
+     *  ajustes guardados. Devuelve true si se escribió. */
+    private static function writeRatelimitConf()
+    {
+        $enabled = ctrl_options::GetSystemOption('ratelimit_enabled');
+        $enabled = ($enabled === '0') ? '0' : '1';
+        $maxRcpt = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_max_rcpt')  ?: 100));
+        $uRate   = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_user_rate')  ?: 300));
+        $uBurst  = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_user_burst') ?: 300));
+        $dir = dirname(self::RATELIMIT_CONF);
+        if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+        if ($enabled === '0') {
+            $conf = "# Rate-limit de salida DESACTIVADO desde el panel (Antispam).\n";
+        } else {
+            $conf  = "# Generado por el panel (Antispam -> Límite de envío). NO editar a mano.\n";
+            $conf .= "max_rcpt = {$maxRcpt};\n";
+            $conf .= "rates {\n";
+            $conf .= "    user {\n        bucket {\n            burst = {$uBurst};\n            rate = \"{$uRate} / 1h\";\n        }\n    }\n";
+            $conf .= "}\n";
+        }
+        return @file_put_contents(self::RATELIMIT_CONF, $conf) !== false;
+    }
+
+    static function doSaveRatelimit()
+    {
+        runtime_csfr::Protect();
+        global $controller;
+        $enabled = $controller->GetControllerRequest('FORM', 'inRlEnabled') ? '1' : '0';
+        $maxRcpt = max(1, min(100000, (int)$controller->GetControllerRequest('FORM', 'inRlMaxRcpt')));
+        $uRate   = max(1, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inRlUserRate')));
+        $uBurst  = max(1, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inRlUserBurst')));
+        self::saveOption('ratelimit_enabled',   $enabled);
+        self::saveOption('ratelimit_max_rcpt',  (string)$maxRcpt);
+        self::saveOption('ratelimit_user_rate', (string)$uRate);
+        self::saveOption('ratelimit_user_burst', (string)$uBurst);
+        if (!self::writeRatelimitConf()) {
+            self::$err_msg = 'No se pudo escribir la configuración del rate-limit.';
+            return;
+        }
+        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+        try {
+            privilege::run('rspamd_restart', [], true);
+            self::$ok_msg = 'Límite de envío guardado y aplicado (rspamd recargado).';
+        } catch (Exception $e) {
+            self::$err_msg = 'Guardado, pero no se pudo recargar rspamd: ' . $e->getMessage();
+        }
+    }
+
+    static function getRlEnabled()   { return ctrl_options::GetSystemOption('ratelimit_enabled') === '0' ? '' : 'checked'; }
+    static function getRlMaxRcpt()   { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_max_rcpt')  ?: '100'), ENT_QUOTES); }
+    static function getRlUserRate()  { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_user_rate')  ?: '300'), ENT_QUOTES); }
+    static function getRlUserBurst() { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_user_burst') ?: '300'), ENT_QUOTES); }
+
     static function doRestartRspamd()
     {
         runtime_csfr::Protect();
