@@ -536,5 +536,54 @@
         asInit();
     }
 
+    // ---- Cuentas exentas de mail(): buscador + paginación (client-side) ----
+    var ML_PAGE_SIZE = 10;
+    var mlPage = 1;
+    function mlAllRows() {
+        return Array.prototype.slice.call(document.querySelectorAll('#mlExemptBody .mlExemptRow'));
+    }
+    window.mlExemptRender = function () {
+        var body = document.getElementById('mlExemptBody');
+        if (!body) return;
+        var rows   = mlAllRows();
+        var search = document.getElementById('mlExemptSearch');
+        var q      = search ? search.value.toLowerCase().trim() : '';
+        if (q !== window._mlLastQ) { mlPage = 1; window._mlLastQ = q; }
+        var filtered = rows.filter(function (tr) { return !q || tr.textContent.toLowerCase().indexOf(q) !== -1; });
+        var total = filtered.length;
+        var pages = Math.max(1, Math.ceil(total / ML_PAGE_SIZE));
+        if (mlPage > pages) mlPage = pages;
+        var start = (mlPage - 1) * ML_PAGE_SIZE, end = start + ML_PAGE_SIZE;
+        rows.forEach(function (tr) {
+            var idx = filtered.indexOf(tr);
+            tr.style.display = (idx >= start && idx < end) ? '' : 'none';
+        });
+        // El buscador solo aparece si hay más de una página de cuentas.
+        if (search) search.style.display = (rows.length > ML_PAGE_SIZE) ? '' : 'none';
+        var cnt = document.getElementById('mlExemptCount');
+        if (cnt) cnt.textContent = (q ? total + ' de ' + rows.length : rows.length) + ' cuenta(s) exenta(s)';
+        var pager = document.getElementById('mlExemptPager');
+        if (!pager) return;
+        if (pages <= 1) { pager.innerHTML = ''; return; }
+        var html = '<ul class="pagination pagination-sm" style="margin:0;">';
+        html += '<li class="' + (mlPage === 1 ? 'disabled' : '') + '"><a href="#" onclick="mlExemptGoPage(' + (mlPage - 1) + ');return false;">&laquo;</a></li>';
+        var win = 3, lo = Math.max(1, mlPage - win), hi = Math.min(pages, mlPage + win);
+        if (lo > 1) html += '<li class="disabled"><a>…</a></li>';
+        for (var p = lo; p <= hi; p++)
+            html += '<li class="' + (p === mlPage ? 'active' : '') + '"><a href="#" onclick="mlExemptGoPage(' + p + ');return false;">' + p + '</a></li>';
+        if (hi < pages) html += '<li class="disabled"><a>…</a></li>';
+        html += '<li class="' + (mlPage === pages ? 'disabled' : '') + '"><a href="#" onclick="mlExemptGoPage(' + (mlPage + 1) + ');return false;">&raquo;</a></li>';
+        html += '</ul>';
+        pager.innerHTML = html;
+    };
+    window.mlExemptGoPage = function (p) {
+        var pages = Math.max(1, Math.ceil(mlAllRows().length / ML_PAGE_SIZE));
+        mlPage = Math.max(1, Math.min(p, pages));
+        window.mlExemptRender();
+    };
+    if (document.getElementById('mlExemptBody')) window.mlExemptRender();
+    var mlCfgTab = document.querySelector('#asTabs a[href="#as-config"]');
+    if (mlCfgTab) mlCfgTab.addEventListener('shown.bs.tab', function () { mlPage = 1; window.mlExemptRender(); });
+
 })();
 </script>

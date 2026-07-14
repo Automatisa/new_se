@@ -286,16 +286,21 @@ class module_controller extends ctrl_module
              . '</form>';
     }
 
-    /** Lista de cuentas exentas, cada una con su botón Eliminar. */
+    /** Lista de cuentas exentas, cada una con su botón Eliminar. Con buscador + paginación cliente
+     *  (se activan solos si hay muchas) para que 50+ cuentas no generen una página larguísima. */
     static function getMlExemptList()
     {
         $wl = self::mlReadWhitelist();
         if (!$wl) return '<p class="text-muted" style="margin:0;">Ninguna cuenta exenta: todas están limitadas.</p>';
         $csrf = self::getCSFR_Tag();
-        $h  = '<table class="table table-sm" style="max-width:420px;margin:0;">';
+        $h  = '<div id="mlExemptWrap">';
+        $h .= '<input type="text" id="mlExemptSearch" class="form-control" placeholder="Filtrar cuentas exentas..." '
+            . 'autocomplete="off" style="max-width:280px;margin-bottom:8px;display:none;" onkeyup="mlExemptRender()">';
+        $h .= '<div id="mlExemptCount" class="text-muted" style="font-size:12px;margin-bottom:6px;"></div>';
+        $h .= '<table class="table table-sm" style="max-width:420px;margin:0;"><tbody id="mlExemptBody">';
         foreach ($wl as $u) {
             $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
-            $h .= '<tr><td style="vertical-align:middle;">' . $esc . '</td>'
+            $h .= '<tr class="mlExemptRow"><td style="vertical-align:middle;">' . $esc . '</td>'
                 . '<td style="text-align:right;">'
                 . '<form method="post" action="./?module=antispam_admin&action=RemoveMailLimitAcct&tab=config" style="display:inline;">'
                 . $csrf
@@ -303,7 +308,9 @@ class module_controller extends ctrl_module
                 . '<button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button>'
                 . '</form></td></tr>';
         }
-        $h .= '</table>';
+        $h .= '</tbody></table>';
+        $h .= '<div id="mlExemptPager" style="margin-top:8px;"></div>';
+        $h .= '</div>';
         return $h;
     }
 
