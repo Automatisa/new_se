@@ -32,6 +32,55 @@
     </div>
     <% endif %>
 
+    <% if isPhpSettings %>
+    <div class="zform_wrapper">
+        <p><a href="./?module=sub_domains"><i class="bi bi-arrow-left me-1"></i><: Volver a subdominios :></a></p>
+        <h2>PHP &mdash; <@ PhpDomainName @></h2>
+        <p style="color:#666;font-size:0.9em">Los cambios se aplican en el próximo ciclo del daemon (aprox. 1&nbsp;min).</p>
+        <form action="./?module=sub_domains&action=SavePhpSettings" method="post">
+            <input type="hidden" name="inVhostId" value="<@ PhpVhostId @>">
+            <table class="table table-striped">
+                <tr>
+                    <th style="width:220px">upload_max_filesize</th>
+                    <td><input type="text" name="inUploadMax" value="<@ PhpUploadMax @>" size="10" maxlength="10"></td>
+                    <td><small>Ej: 50M, 100M, 2G</small></td>
+                </tr>
+                <tr>
+                    <th>post_max_size</th>
+                    <td><input type="text" name="inPostMax" value="<@ PhpPostMax @>" size="10" maxlength="10"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th>memory_limit</th>
+                    <td><input type="text" name="inMemoryLimit" value="<@ PhpMemoryLimit @>" size="10" maxlength="10"></td>
+                    <td><small>Ej: 128M, 256M, 512M</small></td>
+                </tr>
+                <tr>
+                    <th>max_execution_time (s)</th>
+                    <td><input type="number" name="inMaxExec" value="<@ PhpMaxExec @>" min="1" max="3600" size="6"></td>
+                    <td><small>Segundos</small></td>
+                </tr>
+                <tr>
+                    <th>max_input_time (s)</th>
+                    <td><input type="number" name="inMaxInput" value="<@ PhpMaxInput @>" min="1" max="3600" size="6"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th>display_errors</th>
+                    <td><input type="checkbox" name="inDisplayErrors" value="1" {! PhpDisplayErrorsChecked !}></td>
+                    <td><small>Solo activar en desarrollo</small></td>
+                </tr>
+            </table>
+            <div style="text-align:right;margin-top:8px">
+                <button class="button-loader btn btn-primary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar</button>
+                <a href="./?module=sub_domains" class="btn btn-secondary">Cancelar</a>
+            </div>
+            <@ CSFR_Tag @>
+        </form>
+    </div>
+    <% endif %>
+
+    <% if isSubDomainMain %>
     <div class="zgrid_wrapper">
         <h2><: Current Sub-domains :></h2>
         <% if SubDomainList %>
@@ -95,6 +144,7 @@
             </tr></table>
 </div><!-- /table-responsive -->
     </div>
+    <% endif %>
 
 </div>
 

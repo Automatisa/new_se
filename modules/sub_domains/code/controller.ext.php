@@ -440,15 +440,164 @@ class module_controller extends ctrl_module
     static function getSubDomainStatusHTML($int, $id)
     {
         global $controller;
+        $mod = $controller->GetControllerRequest('URL', 'module');
         if ($int == 1) {
-            return '<td><font color="green">' . ui_language::translate('Live') . '</font></td>'
-                    . '<td></td>';
+            $statusTd = '<td><font color="green">' . ui_language::translate('Live') . '</font></td>';
         } else {
-            return '<td><font color="orange">' . ui_language::translate("Pending") . '</font></td>'
-                    . '<td><a href="#" class="help_small" id="help_small_' . $id . '_a"'
-                    . 'title="' . ui_language::translate('Your domain will become active at the next scheduled update.  This can take up to one hour.') . '">'
-                    . '<img src="/modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/help_small.png" border="0" /></a></td>';
+            $statusTd = '<td><font color="orange">' . ui_language::translate("Pending") . '</font></td>';
         }
+        // Botón PHP: cada subdominio es un vhost con su propio pool PHP-FPM (fpm_pool_manager
+        // procesa vh_type_in IN (1,2)), así que puede tener ajustes PHP propios en x_domain_php.
+        $phpTd = '<td><a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=PhpSettings&id=' . (int)$id . '"'
+               . ' class="btn btn-info btn-sm">PHP</a></td>';
+        return $statusTd . $phpTd;
+    }
+
+    // -----------------------------------------------------------------------
+    // Ajustes PHP por subdominio (x_domain_php + pools FPM). Portado de domains:
+    // los subdominios son vhosts (vh_type_in=2) y fpm_pool_manager ya aplica x_domain_php.
+    // -----------------------------------------------------------------------
+
+    private static $phpSettingsCache = null;
+
+    private static function loadPhpSettings()
+    {
+        if (self::$phpSettingsCache !== null) return self::$phpSettingsCache;
+        global $controller, $zdbh;
+        $urlvars = $controller->GetAllControllerRequests('URL');
+        if (!isset($urlvars['show']) || $urlvars['show'] !== 'PhpSettings' || !isset($urlvars['id'])) {
+            self::$phpSettingsCache = false;
+            return false;
+        }
+        $vhostid     = (int)$urlvars['id'];
+        $currentuser = ctrl_users::GetUserDetail();
+        // Debe ser un SUBDOMINIO (vh_type_in=2) del usuario autenticado (anti-IDOR).
+        $chk = $zdbh->prepare("SELECT vh_name_vc FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_type_in=2 AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $currentuser['userid']]);
+        $vhost = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$vhost) { self::$phpSettingsCache = false; return false; }
+        $row = $zdbh->prepare("SELECT * FROM x_domain_php WHERE dp_vhost_fk=:id");
+        $row->execute([':id' => $vhostid]);
+        $s = $row->fetch(PDO::FETCH_ASSOC) ?: [];
+        self::$phpSettingsCache = [
+            'domain_name'    => $vhost['vh_name_vc'],
+            'vhost_id'       => $vhostid,
+            'upload_max'     => $s['dp_upload_max_vc']    ?? '50M',
+            'post_max'       => $s['dp_post_max_vc']      ?? '50M',
+            'memory_limit'   => $s['dp_memory_limit_vc']  ?? '128M',
+            'max_exec'       => $s['dp_max_exec_in']      ?? 30,
+            'max_input'      => $s['dp_max_input_in']     ?? 60,
+            'display_errors' => $s['dp_display_errors_in'] ?? 0,
+        ];
+        return self::$phpSettingsCache;
+    }
+
+    static function getisPhpSettings()      { return self::loadPhpSettings() !== false; }
+
+    /** Vista principal (lista + crear) solo cuando NO se está en ajustes PHP ni borrando. */
+    static function getisSubDomainMain()    { return !self::getisPhpSettings() && !self::getisDeleteDomain(); }
+
+    static function getPhpDomainName()       { $s = self::loadPhpSettings(); return $s ? htmlspecialchars($s['domain_name'], ENT_QUOTES) : ''; }
+    static function getPhpVhostId()          { $s = self::loadPhpSettings(); return $s ? (int)$s['vhost_id'] : 0; }
+    static function getPhpUploadMax()        { $s = self::loadPhpSettings(); return $s ? htmlspecialchars($s['upload_max'], ENT_QUOTES) : '50M'; }
+    static function getPhpPostMax()          { $s = self::loadPhpSettings(); return $s ? htmlspecialchars($s['post_max'], ENT_QUOTES) : '50M'; }
+    static function getPhpMemoryLimit()      { $s = self::loadPhpSettings(); return $s ? htmlspecialchars($s['memory_limit'], ENT_QUOTES) : '128M'; }
+    static function getPhpMaxExec()          { $s = self::loadPhpSettings(); return $s ? (int)$s['max_exec'] : 30; }
+    static function getPhpMaxInput()         { $s = self::loadPhpSettings(); return $s ? (int)$s['max_input'] : 60; }
+    static function getPhpDisplayErrorsChecked() { $s = self::loadPhpSettings(); return ($s && $s['display_errors']) ? 'checked' : ''; }
+
+    static function doSavePhpSettings()
+    {
+        global $controller;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $formvars    = $controller->GetAllControllerRequests('FORM');
+        $vhostid     = (int)($formvars['inVhostId'] ?? 0);
+        if (self::ExecuteSavePhpSettings($vhostid, $currentuser['userid'], $formvars)) {
+            self::$ok = true;
+            // Diferir el reload de FPM a después de responder (evita 503 por execvp del worker).
+            register_shutdown_function(function() {
+                if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+                if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+                try { privilege::run('fpm_regenerate'); }
+                catch (\Throwable $e) { error_log('sub_domains: fpm_regenerate (shutdown) failed: ' . $e->getMessage()); }
+            });
+            return true;
+        }
+        return false;
+    }
+
+    static function ExecuteSavePhpSettings($vhostid, $uid, $formvars)
+    {
+        global $zdbh;
+        // Anti-IDOR: el vhost debe ser un subdominio del usuario.
+        $chk = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_type_in=2 AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $uid]);
+        if (!$chk->fetch()) return false;
+
+        // Límites del paquete del propietario (cap de los valores).
+        $pkgLimits = $zdbh->prepare("
+            SELECT COALESCE(q.qt_php_memory_vc,  '128M') AS pkg_memory,
+                   COALESCE(q.qt_php_upload_vc,  '50M')  AS pkg_upload,
+                   COALESCE(q.qt_php_post_vc,    '50M')  AS pkg_post,
+                   COALESCE(q.qt_php_exec_in,    30)     AS pkg_exec,
+                   COALESCE(q.qt_php_maxinput_in,60)     AS pkg_maxinput
+            FROM x_accounts a
+            LEFT JOIN x_packages pk ON pk.pk_id_pk = a.ac_package_fk AND pk.pk_deleted_ts IS NULL
+            LEFT JOIN x_quotas q ON q.qt_package_fk = pk.pk_id_pk
+            WHERE a.ac_id_pk = :uid AND a.ac_deleted_ts IS NULL
+        ");
+        $pkgLimits->execute([':uid' => $uid]);
+        $pkg = $pkgLimits->fetch(PDO::FETCH_ASSOC) ?: [
+            'pkg_memory' => '128M', 'pkg_upload' => '50M', 'pkg_post' => '50M',
+            'pkg_exec' => 30, 'pkg_maxinput' => 60,
+        ];
+
+        $upload_max  = self::capPhpSize(self::sanitizeSizeValue($formvars['inUploadMax']   ?? '50M',  '50M'),  $pkg['pkg_upload']);
+        $post_max    = self::capPhpSize(self::sanitizeSizeValue($formvars['inPostMax']     ?? '50M',  '50M'),  $pkg['pkg_post']);
+        $memory      = self::capPhpSize(self::sanitizeSizeValue($formvars['inMemoryLimit'] ?? '128M', '128M'), $pkg['pkg_memory']);
+        $max_exec    = min(max(1, (int)($formvars['inMaxExec']  ?? 30)),  (int)$pkg['pkg_exec']);
+        $max_input   = min(max(1, (int)($formvars['inMaxInput'] ?? 60)),  (int)$pkg['pkg_maxinput']);
+        $display_err = isset($formvars['inDisplayErrors']) ? 1 : 0;
+
+        $upd = $zdbh->prepare("INSERT INTO x_domain_php
+                (dp_vhost_fk, dp_upload_max_vc, dp_post_max_vc, dp_memory_limit_vc,
+                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in)
+            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err)
+            ON DUPLICATE KEY UPDATE
+                dp_upload_max_vc=:umax, dp_post_max_vc=:pmax, dp_memory_limit_vc=:mem,
+                dp_max_exec_in=:exec, dp_max_input_in=:input, dp_display_errors_in=:err");
+        $upd->execute([
+            ':vid' => $vhostid, ':umax' => $upload_max, ':pmax' => $post_max, ':mem' => $memory,
+            ':exec' => $max_exec, ':input' => $max_input, ':err' => $display_err,
+        ]);
+        return true;
+    }
+
+    private static function sanitizeSizeValue($val, $default)
+    {
+        $val = strtoupper(trim((string)$val));
+        return preg_match('/^\d+[KMG]?$/', $val) ? $val : $default;
+    }
+
+    private static function parsePhpSize(string $s): int
+    {
+        $s    = trim($s);
+        $unit = strtolower(substr($s, -1));
+        $val  = (int)$s;
+        switch ($unit) {
+            case 'g': return $val * 1073741824;
+            case 'm': return $val * 1048576;
+            case 'k': return $val * 1024;
+            default:  return $val;
+        }
+    }
+
+    private static function capPhpSize(string $domain_val, string $pkg_val): string
+    {
+        return (self::parsePhpSize($domain_val) <= self::parsePhpSize($pkg_val)) ? $domain_val : $pkg_val;
     }
 
     static function getResult()
