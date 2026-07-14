@@ -256,7 +256,8 @@ class module_controller extends ctrl_module
         self::$ok_msg = 'Cuenta "' . htmlspecialchars($acct, ENT_QUOTES, 'UTF-8') . '" quitada de las exentas.';
     }
 
-    /** Desplegable con las cuentas AÚN NO exentas + botón Añadir. */
+    /** Campo con autocompletado (datalist) de las cuentas AÚN NO exentas + botón Añadir.
+     *  Escala a cientos de cuentas: se busca escribiendo, no hay que recorrer un desplegable. */
     static function getMlAddForm()
     {
         $wl    = array_flip(self::mlReadWhitelist());
@@ -271,15 +272,18 @@ class module_controller extends ctrl_module
         $csrf = self::getCSFR_Tag();
         $opts = '';
         foreach ($avail as $u) {
-            $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
-            $opts .= '<option value="' . $esc . '">' . $esc . '</option>';
+            $opts .= '<option value="' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') . '">';
         }
         return '<form method="post" action="./?module=antispam_admin&action=AddMailLimitAcct&tab=config" style="margin-bottom:12px;">'
              . $csrf
              . '<div style="display:flex;gap:8px;max-width:420px;">'
-             . '<select name="inMlAcct" class="form-control">' . $opts . '</select>'
+             . '<input type="text" name="inMlAcct" list="mlAcctList" autocomplete="off" class="form-control" '
+             . 'placeholder="Escribe para buscar una cuenta...">'
+             . '<datalist id="mlAcctList">' . $opts . '</datalist>'
              . '<button type="submit" class="btn btn-success" style="white-space:nowrap;"><i class="bi bi-plus-lg me-1"></i>Añadir</button>'
-             . '</div></form>';
+             . '</div>'
+             . '<span class="help-block" style="margin-top:4px;">' . count($avail) . ' cuenta(s) disponible(s). Empieza a escribir y elige de las sugerencias.</span>'
+             . '</form>';
     }
 
     /** Lista de cuentas exentas, cada una con su botón Eliminar. */
