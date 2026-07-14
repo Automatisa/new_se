@@ -1775,9 +1775,21 @@ chmod -R 755 "$PANEL_PATH/etc/tmp"
 chown vmail:vmail "$PANEL_DATA/vmail"
 chmod 2770 "$PANEL_DATA/vmail"
 
-# Logs dovecot: vmail escribe, www puede leer
+# Logs dovecot: vmail escribe, www puede leer. IMPORTANTE: la entrega LMTP/LDA corre como
+# 'vmail' y abre estos ficheros DIRECTAMENTE; si dovecot (master, root) los crea root-owned,
+# vmail no puede escribir y la entrega se DIFIERE ("Can't open log file ... Permission denied").
+# Se pre-crean como vmail:vmail para que la entrega funcione desde el primer arranque.
+mkdir -p "$PANEL_DATA/logs/dovecot"
+touch "$PANEL_DATA/logs/dovecot/dovecot.log" \
+      "$PANEL_DATA/logs/dovecot/dovecot-info.log" \
+      "$PANEL_DATA/logs/dovecot/dovecot-debug.log"
 chown -R vmail:vmail "$PANEL_DATA/logs/dovecot"
 chmod 750 "$PANEL_DATA/logs/dovecot"
+chmod 640 "$PANEL_DATA/logs/dovecot/"*.log
+
+# Construir la base de datos de alias local de Postfix (/etc/mail/aliases.db); sin esto el
+# correo a cuentas de sistema se difiere con "alias database unavailable".
+newaliases 2>/dev/null || true
 
 # Logs de Apache / panel: www escribe
 chown www:www "$PANEL_DATA/logs/sentora.log" \
