@@ -127,7 +127,7 @@ class module_controller extends ctrl_module {
 
 	static function getAdmin() {
 		$user = ctrl_users::GetUserDetail();
-		return ($user['usergroup'] == 'Administrators');
+		return ((int)$user['usergroupid'] === ctrl_groups::GROUP_ADMIN);
 	}
 	
 	static function getList_of_Panel_Domains() {
@@ -605,7 +605,7 @@ class module_controller extends ctrl_module {
 		// Ownership: domain must belong to this user, or be the panel domain for admins only
 		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
 		if ($domain === $panelDomain) {
-			if ($currentuser['usergroup'] !== 'Administrators') return false;
+			if ((int)$currentuser['usergroupid'] !== ctrl_groups::GROUP_ADMIN) return false;
 		} else {
 			$chk = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
 			$chk->execute([':d' => $domain, ':u' => $currentuser['userid']]);
@@ -839,7 +839,7 @@ class module_controller extends ctrl_module {
 				return false;
 			}
 		} else {
-			if ($currentuser['usergroup'] !== 'Administrators') {
+			if ((int)$currentuser['usergroupid'] !== ctrl_groups::GROUP_ADMIN) {
 				self::$error = true;
 				return false;
 			}

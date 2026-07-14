@@ -15,6 +15,16 @@
  */
 class ctrl_groups {
 
+    // IDs FIJOS de los grupos de rol por defecto (seed sentora_core.sql). El nivel de privilegio se
+    // decide SIEMPRE por estos ids, nunca por el nombre del grupo (ug_name_vc), que es solo un texto
+    // para mostrar y podría renombrarse/localizarse/falsificarse.
+    const GROUP_ADMIN    = 1;
+    const GROUP_RESELLER = 2;
+    const GROUP_USER     = 3;
+
+    /** ¿El grupo (por id) es el de administradores? */
+    static function IsAdminGroupId($groupid) { return (int)$groupid === self::GROUP_ADMIN; }
+
     /**
      * Checks permissions to a module for a given user group.
      * @author Bobby Allen (ballen@bobbyallen.me)

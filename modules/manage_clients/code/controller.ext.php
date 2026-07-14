@@ -119,8 +119,8 @@ class module_controller extends ctrl_module
                 $numrows->bindParam(':ac_group_fk', $rowclients['ac_group_fk']);
                 $numrows->execute();
                 $getgroup = $numrows->fetch();
-                if ($rowclients['ac_id_pk'] != $moveid && $getgroup['ug_name_vc'] == "Administrators" ||
-                        $rowclients['ac_id_pk'] != $moveid && $getgroup['ug_name_vc'] == "Resellers") {
+                if ($rowclients['ac_id_pk'] != $moveid && (int)$rowclients['ac_group_fk'] === ctrl_groups::GROUP_ADMIN ||
+                        $rowclients['ac_id_pk'] != $moveid && (int)$rowclients['ac_group_fk'] === ctrl_groups::GROUP_RESELLER) {
                     array_push($res, array('moveclientid' => $rowclients['ac_id_pk'],
                         'moveclientname' => $rowclients['ac_user_vc']));
                 }
@@ -210,7 +210,7 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowgroups = $sql->fetch()) {
-                if (strtoupper($currentuser['usergroup']) == "ADMINISTRATORS") {
+                if ((int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
                     $selected = "";
                     if ($rowgroups['ug_id_pk'] == $currentuser['usergroupid']) {
                         $selected = " selected";
@@ -219,7 +219,7 @@ class module_controller extends ctrl_module
                         'groupname' => runtime_xss::xssClean(ui_language::translate($rowgroups['ug_name_vc'])),
                         'groupselected' => $selected));
                 } else {
-                    if (strtoupper($rowgroups['ug_name_vc']) == "USERS") {
+                    if ((int)$rowgroups['ug_id_pk'] === ctrl_groups::GROUP_USER) {
                         array_push($res, array('groupid' => $rowgroups['ug_id_pk'],
                             'groupname' => runtime_xss::xssClean(ui_language::translate($rowgroups['ug_name_vc'])),
                             'groupselected' => $selected));
@@ -248,7 +248,7 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowgroups = $sql->fetch()) {
-                if (strtoupper($reseller['usergroup']) == "ADMINISTRATORS") {
+                if ((int)$reseller['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
                     $selected = "";
                     if ($rowgroups['ug_id_pk'] == $currentuser['usergroupid']) {
                         $selected = " selected";
@@ -257,7 +257,7 @@ class module_controller extends ctrl_module
                         'groupname' => ui_language::translate($rowgroups['ug_name_vc']),
                         'groupselected' => $selected));
                 } else {
-                    if (strtoupper($rowgroups['ug_name_vc']) == "USERS") {
+                    if ((int)$rowgroups['ug_id_pk'] === ctrl_groups::GROUP_USER) {
                         $selected = "";
                         if ($rowgroups['ug_id_pk'] == $currentuser['usergroupid']) {
                             $selected = " selected";

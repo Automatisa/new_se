@@ -21,8 +21,8 @@ class ui_tpl_sysnotice {
 		$lastest_tagged = ' (<strong>' . $lastest . '</strong>)';
 		$user = ctrl_users::GetUserDetail();
 		
-		# Check if admin
-		if ( $user['usergroup'] == 'Administrators') {
+		# Check if admin (por id de grupo, no por nombre)
+		if ( (int)$user['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
 			# Check version and load message here
 			# If NEW version
 			if ($installed < $lastest) {

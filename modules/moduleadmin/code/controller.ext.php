@@ -159,7 +159,7 @@ class module_controller extends ctrl_module
                     $line .= "</td>";
                     $groupssql = $zdbh->query("SELECT * FROM x_groups ORDER BY ug_name_vc ASC");
                     while ($groups = $groupssql->fetch()) {
-                        if ($groups['ug_name_vc'] == 'Administrators' && $ismodadmin == 1) {
+                        if ((int)$groups['ug_id_pk'] === ctrl_groups::GROUP_ADMIN && $ismodadmin == 1) {
                             $line .= "<input type=\"hidden\" value=\"1\" name=\"inEnable_" . $groups['ug_id_pk'] . "_" . $modules['mo_id_pk'] . "\" id=\"inEnable_" . $groups['ug_id_pk'] . "_" . $modules['mo_id_pk'] . "\"/>";
                             $disabled = "disabled=\"disabled\"";
                         } else {

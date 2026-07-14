@@ -68,9 +68,9 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowgroups = $sql->fetch()) {
-                if ($rowgroups['ug_name_vc'] != "Administrators" &&
-                        $rowgroups['ug_name_vc'] != "Resellers" &&
-                        $rowgroups['ug_name_vc'] != "Users") {
+                // Grupos "propios" del reseller = todos menos los 3 de rol por defecto (ids 1/2/3).
+                // Se clasifica por id fijo, no por nombre (que es solo texto).
+                if (!in_array((int)$rowgroups['ug_id_pk'], array(ctrl_groups::GROUP_ADMIN, ctrl_groups::GROUP_RESELLER, ctrl_groups::GROUP_USER), true)) {
                     $stmt = $zdbh->prepare("SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=:gid");
                     $stmt->execute([':gid' => $rowgroups['ug_id_pk']]);
                     $totalnoaccs = $stmt->fetch();
@@ -97,9 +97,8 @@ class module_controller extends ctrl_module
             $res = array();
             $sql->execute();
             while ($rowgroups = $sql->fetch()) {
-                if ($rowgroups['ug_name_vc'] == "Administrators" ||
-                        $rowgroups['ug_name_vc'] == "Resellers" ||
-                        $rowgroups['ug_name_vc'] == "Users") {
+                // Grupos de rol por defecto = ids fijos 1/2/3 (Administrators/Resellers/Users).
+                if (in_array((int)$rowgroups['ug_id_pk'], array(ctrl_groups::GROUP_ADMIN, ctrl_groups::GROUP_RESELLER, ctrl_groups::GROUP_USER), true)) {
                     $stmt = $zdbh->prepare("SELECT COUNT(*) AS total FROM x_accounts WHERE ac_group_fk=:gid");
                     $stmt->execute([':gid' => $rowgroups['ug_id_pk']]);
                     $totalnoaccs = $stmt->fetch();

@@ -93,10 +93,10 @@ class module_controller extends ctrl_module
             $res = array();
             foreach ($faqs as $faq) {
                 $createdby = NULL;
-                if ($faq['reseller'] == $currentuser['resellerid'] || $faq['reseller'] == $currentuser['userid'] || $currentuser['usergroup'] == "Administrators" || $faq['global'] <> 0) {
-                    if ($faq['reseller'] == $currentuser['userid'] || $currentuser['usergroup'] == "Administrators") {
+                if ($faq['reseller'] == $currentuser['resellerid'] || $faq['reseller'] == $currentuser['userid'] || (int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN || $faq['global'] <> 0) {
+                    if ($faq['reseller'] == $currentuser['userid'] || (int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
                         $allowdelete = "<input type=\"image\" src=\"" . self::getModulePath() . "assets/delete_small.png\" name=\"inDelete_" . $faq['id'] . "\" id=\"inDelete_" . $faq['id'] . "\" value=\"" . $faq['id'] . "\" title=\"DELETE FAQ\">";
-                        if ($currentuser['usergroup'] == "Administrators") {
+                        if ((int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
                             $createdbyid = ctrl_users::GetUserDetail($faq['reseller']);
                             $createdby = " (" . $createdbyid['username'] . ")";
                         }
@@ -122,7 +122,7 @@ class module_controller extends ctrl_module
     {
         global $controller;
         $currentuser = ctrl_users::GetUserDetail();
-        if ($currentuser['usergroup'] == "Administrators" || $currentuser['usergroup'] == "Resellers") {
+        if ((int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN || (int)$currentuser['usergroupid'] === ctrl_groups::GROUP_RESELLER) {
             return true;
         } else {
             return false;
@@ -153,7 +153,7 @@ class module_controller extends ctrl_module
         // (fq_acc_fk). Antes se borraba por inDelete sin comprobar dueño.
         $cu  = ctrl_users::GetUserDetail();
         $fid = (int) $formvars['inDelete'];
-        if ($cu['usergroup'] !== "Administrators") {
+        if ((int)$cu['usergroupid'] !== ctrl_groups::GROUP_ADMIN) {
             $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_faqs WHERE fq_id_pk=:fid AND fq_acc_fk=:uid AND fq_deleted_ts IS NULL");
             $chk->execute(array(':fid' => $fid, ':uid' => (int) $cu['userid']));
             if ((int) $chk->fetchColumn() === 0) {
@@ -174,7 +174,7 @@ class module_controller extends ctrl_module
             $question = $controller->GetControllerRequest('FORM', 'question');
             $answer = $controller->GetControllerRequest('FORM', 'answer');
             $userid = $currentuser['userid'];
-            if ($currentuser['usergroup'] == "Administrators") {
+            if ((int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN) {
                 $global = 1;
             } else {
                 $global = 0;
