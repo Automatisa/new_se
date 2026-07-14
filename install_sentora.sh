@@ -1868,13 +1868,18 @@ chown -R vmail:vmail "$PANEL_DATA/logs/dovecot"
 chmod 750 "$PANEL_DATA/logs/dovecot"
 chmod 640 "$PANEL_DATA/logs/dovecot/"*.log
 
-# Redirigir el correo LOCAL del sistema (root/postmaster: rebotes MAILER-DAEMON, salida de cron,
-# avisos de seguridad...) al email de postmaster que indicó el administrador. Sin esto, ese correo
-# se queda en la cuenta 'root' local (sin buzón real) y rebota. Solo toca la línea 'root:'.
+# Correo LOCAL del sistema (rebotes MAILER-DAEMON, salida de cron, avisos de seguridad...).
+# Con $myhostname en mydestination, 'root' ya se entrega en el buzón local /var/mail/root (legible
+# en el servidor) en vez de rebotar. Además, si el email de postmaster está en OTRO dominio
+# (p.ej. externo o un buzón alojado distinto), redirigimos root ahí. NO lo hacemos si está en el
+# propio FQDN, porque 'postmaster: root' + 'root: postmaster@FQDN' (local) sería un bucle de alias.
+PM_DOMAIN="${POSTMASTER_EMAIL##*@}"
 if [ -f /etc/mail/aliases ]; then
     sed -i '' -e '/^[[:space:]]*root:/d' /etc/mail/aliases
 fi
-printf 'root: %s\n' "$POSTMASTER_EMAIL" >> /etc/mail/aliases
+if [ "$POSTMASTER_EMAIL" != "$PM_DOMAIN" ] && [ "$PM_DOMAIN" != "$PANEL_FQDN" ]; then
+    printf 'root: %s\n' "$POSTMASTER_EMAIL" >> /etc/mail/aliases
+fi
 
 # Construir la base de datos de alias local de Postfix (/etc/mail/aliases.db); sin esto el
 # correo a cuentas de sistema se difiere con "alias database unavailable".
