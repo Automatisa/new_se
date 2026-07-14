@@ -107,6 +107,7 @@ class module_controller extends ctrl_module
         $maxRcpt = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_max_rcpt')  ?: 100));
         $uRate   = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_user_rate')  ?: 300));
         $uBurst  = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_user_burst') ?: 300));
+        $dRate   = max(1, (int)(ctrl_options::GetSystemOption('ratelimit_domain_rate') ?: 200));
         $dir = dirname(self::RATELIMIT_CONF);
         if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
         if ($enabled === '0') {
@@ -115,7 +116,11 @@ class module_controller extends ctrl_module
             $conf  = "# Generado por el panel (Antispam -> Límite de envío). NO editar a mano.\n";
             $conf .= "max_rcpt = {$maxRcpt};\n";
             $conf .= "rates {\n";
+            // Por usuario autenticado (correo por submission/587).
             $conf .= "    user {\n        bucket {\n            burst = {$uBurst};\n            rate = \"{$uRate} / 1h\";\n        }\n    }\n";
+            // Por dominio del remitente: cubre el correo LOCAL (PHP mail()/PHPMailer), que no
+            // tiene usuario autenticado. Así una web comprometida queda capada por su dominio.
+            $conf .= "    senderdomain {\n        selector = \"smtp_from.domain\";\n        bucket {\n            burst = {$dRate};\n            rate = \"{$dRate} / 1h\";\n        }\n    }\n";
             $conf .= "}\n";
         }
         return @file_put_contents(self::RATELIMIT_CONF, $conf) !== false;
@@ -129,10 +134,12 @@ class module_controller extends ctrl_module
         $maxRcpt = max(1, min(100000, (int)$controller->GetControllerRequest('FORM', 'inRlMaxRcpt')));
         $uRate   = max(1, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inRlUserRate')));
         $uBurst  = max(1, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inRlUserBurst')));
+        $dRate   = max(1, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inRlDomainRate')));
         self::saveOption('ratelimit_enabled',   $enabled);
         self::saveOption('ratelimit_max_rcpt',  (string)$maxRcpt);
         self::saveOption('ratelimit_user_rate', (string)$uRate);
         self::saveOption('ratelimit_user_burst', (string)$uBurst);
+        self::saveOption('ratelimit_domain_rate', (string)$dRate);
         if (!self::writeRatelimitConf()) {
             self::$err_msg = 'No se pudo escribir la configuración del rate-limit.';
             return;
@@ -150,6 +157,7 @@ class module_controller extends ctrl_module
     static function getRlMaxRcpt()   { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_max_rcpt')  ?: '100'), ENT_QUOTES); }
     static function getRlUserRate()  { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_user_rate')  ?: '300'), ENT_QUOTES); }
     static function getRlUserBurst() { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_user_burst') ?: '300'), ENT_QUOTES); }
+    static function getRlDomainRate() { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_domain_rate') ?: '200'), ENT_QUOTES); }
 
     static function doRestartRspamd()
     {

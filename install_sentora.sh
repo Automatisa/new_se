@@ -916,7 +916,7 @@ chmod 644 /usr/local/etc/mail/opendkim.conf
 postconf -e 'milter_default_action = accept'
 postconf -e 'milter_protocol = 6'
 postconf -e 'smtpd_milters = inet:127.0.0.1:8891'
-postconf -e 'non_smtpd_milters = inet:127.0.0.1:8891'
+postconf -e 'non_smtpd_milters = inet:127.0.0.1:8891, inet:127.0.0.1:11332'
 
 sysrc milteropendkim_enable="YES"
 ok "OpenDKIM configurado"
@@ -959,7 +959,7 @@ info "Configurando rspamd..."
 
 # Integrar rspamd con Postfix como milter
 postconf -e 'smtpd_milters = inet:127.0.0.1:8891, inet:127.0.0.1:11332'
-postconf -e 'non_smtpd_milters = inet:127.0.0.1:8891'
+postconf -e 'non_smtpd_milters = inet:127.0.0.1:8891, inet:127.0.0.1:11332'
 postconf -e 'milter_mail_macros = i {mail_addr} {client_addr} {client_name} {auth_authen}'
 
 # Configuración local de rspamd: usar Redis, activar greylisting y greylist en Redis

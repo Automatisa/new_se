@@ -358,6 +358,11 @@
                     <div class="col-sm-3"><input type="number" min="1" max="1000000" name="inRlUserBurst" class="form-control" value="<@ RlUserBurst @>">
                         <span class="help-block">Envíos seguidos permitidos antes de aplicar el ritmo.</span></div>
                 </div>
+                <div class="mb-3">
+                    <label class="col-sm-4 col-form-label">Correos/hora por dominio (correo local)</label>
+                    <div class="col-sm-3"><input type="number" min="1" max="1000000" name="inRlDomainRate" class="form-control" value="<@ RlDomainRate @>">
+                        <span class="help-block">Cubre el correo de PHP mail()/PHPMailer (una web comprometida queda capada por su dominio).</span></div>
+                </div>
                 <div class="mb-3"><div class="offset-sm-4 col-sm-8">
                     <button type="submit" class="btn btn-primary"><span class="bi bi-floppy"></span> Guardar y aplicar</button>
                 </div></div>
