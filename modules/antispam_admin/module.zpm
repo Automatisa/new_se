@@ -386,8 +386,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="col-sm-4 col-form-label">Cuentas exentas (allowlist)</label>
-                    <div class="col-sm-6"><textarea name="inMlWhitelist" class="form-control" rows="4" style="font-family:monospace;font-size:13px;"><@ MlWhitelist @></textarea>
-                        <span class="help-block">Una cuenta por línea (el usuario, p.ej. <code>zadmin</code>, sin <code>h_</code>). Para tiendas de alto volumen legítimo (PrestaShop con muchos pedidos, etc.).</span></div>
+                    <div class="col-sm-6"><@ MlAccounts @>
+                        <span class="help-block">Marca las cuentas exentas del límite (para tiendas de alto volumen legítimo, p.ej. PrestaShop con muchos pedidos). Desmarca para quitarlas.</span></div>
                 </div>
                 <div class="mb-3"><div class="offset-sm-4 col-sm-8">
                     <button type="submit" class="btn btn-primary"><span class="bi bi-floppy"></span> Guardar límite</button>

@@ -172,18 +172,24 @@ class module_controller extends ctrl_module
     static function doSaveMailLimit()
     {
         runtime_csfr::Protect();
-        global $controller;
+        global $controller, $zdbh;
         // 0 = ilimitado; tope alto de seguridad.
         $limit = max(0, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inMlLimit')));
-        $wlRaw = (string)$controller->GetControllerRequest('FORM', 'inMlWhitelist');
 
-        // La allowlist va por CUENTA de hosting (usuario Unix sin el prefijo h_): solo [a-z0-9_-].
+        // La allowlist se elige marcando cuentas en la lista. Validamos cada cuenta marcada contra
+        // las cuentas REALES (evita typos e inyección): solo entra lo que existe en x_accounts.
+        $valid = [];
+        try {
+            $q = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_enabled_in=1 AND ac_deleted_ts IS NULL");
+            $q->execute();
+            while ($r = $q->fetch()) $valid[strtolower($r['ac_user_vc'])] = true;
+        } catch (Exception $e) {}
+
+        $posted = (isset($_POST['inMlAccounts']) && is_array($_POST['inMlAccounts'])) ? $_POST['inMlAccounts'] : [];
         $wl = [];
-        foreach (preg_split('/[\r\n,]+/', $wlRaw) as $acct) {
-            $acct = strtolower(trim($acct));
-            if ($acct === '') continue;
-            $acct = preg_replace('/^h_/', '', $acct);          // por si pegan el usuario completo
-            if (preg_match('/^[a-z0-9_-]{1,32}$/', $acct)) $wl[$acct] = true;
+        foreach ($posted as $acct) {
+            $acct = preg_replace('/^h_/', '', strtolower(trim((string)$acct)));
+            if (isset($valid[$acct]) && preg_match('/^[a-z0-9_-]{1,32}$/', $acct)) $wl[$acct] = true;
         }
         $wl = array_keys($wl);
         sort($wl);
@@ -207,10 +213,43 @@ class module_controller extends ctrl_module
         return htmlspecialchars($v, ENT_QUOTES);
     }
 
-    static function getMlWhitelist()
+    /** Lista de cuentas de hosting como casillas (marcadas = exentas). Evita escribir el nombre
+     *  a mano: se ven las añadidas y se quitan desmarcando. Incluye un buscador cliente. */
+    static function getMlAccounts()
     {
-        if (!is_readable(self::MAILLIMIT_WL)) return '';
-        return htmlspecialchars(trim(@file_get_contents(self::MAILLIMIT_WL)), ENT_QUOTES, 'UTF-8');
+        global $zdbh;
+        // Cuentas actualmente exentas (fichero whitelist).
+        $wl = [];
+        if (is_readable(self::MAILLIMIT_WL)) {
+            foreach (preg_split('/\s+/', trim((string)@file_get_contents(self::MAILLIMIT_WL))) as $a) {
+                $a = strtolower(trim($a));
+                if ($a !== '') $wl[$a] = true;
+            }
+        }
+        $rows = [];
+        try {
+            $q = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_enabled_in=1 AND ac_deleted_ts IS NULL ORDER BY ac_user_vc");
+            $q->execute();
+            while ($r = $q->fetch()) $rows[] = (string)$r['ac_user_vc'];
+        } catch (Exception $e) {}
+
+        if (!$rows) return '<p class="text-muted" style="margin:0;">No hay cuentas de hosting.</p>';
+
+        $h  = '<input type="text" class="form-control" placeholder="Buscar cuenta..." '
+            . 'style="margin-bottom:8px;max-width:280px;" onkeyup="mlFilterAccts(this.value)">';
+        $h .= '<div style="max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:8px;background:#fff;">';
+        foreach ($rows as $u) {
+            $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
+            $chk = isset($wl[strtolower($u)]) ? ' checked' : '';
+            $h  .= '<label class="mlAcctRow" style="display:block;padding:2px 0;font-weight:normal;cursor:pointer;">'
+                 . '<input type="checkbox" name="inMlAccounts[]" value="' . $esc . '"' . $chk . '>&nbsp; ' . $esc
+                 . '</label>';
+        }
+        $h .= '</div>';
+        $h .= '<script>function mlFilterAccts(q){q=q.toLowerCase();'
+            . 'var r=document.querySelectorAll(".mlAcctRow");'
+            . 'for(var i=0;i<r.length;i++){r[i].style.display=r[i].textContent.toLowerCase().indexOf(q)>-1?"":"none";}}</script>';
+        return $h;
     }
 
     static function doRestartRspamd()
