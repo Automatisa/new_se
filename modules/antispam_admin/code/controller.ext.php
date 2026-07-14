@@ -172,34 +172,15 @@ class module_controller extends ctrl_module
     static function doSaveMailLimit()
     {
         runtime_csfr::Protect();
-        global $controller, $zdbh;
-        // 0 = ilimitado; tope alto de seguridad.
+        global $controller;
+        // 0 = ilimitado; tope alto de seguridad. La allowlist se gestiona aparte (Add/Remove).
         $limit = max(0, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inMlLimit')));
-
-        // La allowlist se elige marcando cuentas en la lista. Validamos cada cuenta marcada contra
-        // las cuentas REALES (evita typos e inyección): solo entra lo que existe en x_accounts.
-        $valid = [];
-        try {
-            $q = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_enabled_in=1 AND ac_deleted_ts IS NULL");
-            $q->execute();
-            while ($r = $q->fetch()) $valid[strtolower($r['ac_user_vc'])] = true;
-        } catch (Exception $e) {}
-
-        $posted = (isset($_POST['inMlAccounts']) && is_array($_POST['inMlAccounts'])) ? $_POST['inMlAccounts'] : [];
-        $wl = [];
-        foreach ($posted as $acct) {
-            $acct = preg_replace('/^h_/', '', strtolower(trim((string)$acct)));
-            if (isset($valid[$acct]) && preg_match('/^[a-z0-9_-]{1,32}$/', $acct)) $wl[$acct] = true;
-        }
-        $wl = array_keys($wl);
-        sort($wl);
 
         if (!is_dir(self::MAILLIMIT_DIR)) { @mkdir(self::MAILLIMIT_DIR, 0755, true); }
         if (@file_put_contents(self::MAILLIMIT_LIMIT, (string)$limit . "\n") === false) {
             self::$err_msg = 'No se pudo escribir ' . self::MAILLIMIT_LIMIT . ' (¿permisos www?).';
             return;
         }
-        @file_put_contents(self::MAILLIMIT_WL, $wl ? implode("\n", $wl) . "\n" : '');
         self::saveOption('maillimit_per_hour', (string)$limit);
         self::$ok_msg = $limit === 0
             ? 'Límite de mail() por cuenta DESACTIVADO (0 = ilimitado).'
@@ -213,12 +194,11 @@ class module_controller extends ctrl_module
         return htmlspecialchars($v, ENT_QUOTES);
     }
 
-    /** Lista de cuentas de hosting como casillas (marcadas = exentas). Evita escribir el nombre
-     *  a mano: se ven las añadidas y se quitan desmarcando. Incluye un buscador cliente. */
-    static function getMlAccounts()
+    // ---- Allowlist de mail(): gestión por cuenta con Añadir/Eliminar ----------------------------
+
+    /** Cuentas actualmente exentas (fichero whitelist), como array normalizado. */
+    private static function mlReadWhitelist()
     {
-        global $zdbh;
-        // Cuentas actualmente exentas (fichero whitelist).
         $wl = [];
         if (is_readable(self::MAILLIMIT_WL)) {
             foreach (preg_split('/\s+/', trim((string)@file_get_contents(self::MAILLIMIT_WL))) as $a) {
@@ -226,29 +206,100 @@ class module_controller extends ctrl_module
                 if ($a !== '') $wl[$a] = true;
             }
         }
-        $rows = [];
+        $wl = array_keys($wl);
+        sort($wl);
+        return $wl;
+    }
+
+    private static function mlWriteWhitelist(array $wl)
+    {
+        if (!is_dir(self::MAILLIMIT_DIR)) { @mkdir(self::MAILLIMIT_DIR, 0755, true); }
+        return @file_put_contents(self::MAILLIMIT_WL, $wl ? implode("\n", $wl) . "\n" : '') !== false;
+    }
+
+    /** Cuentas de hosting reales (activas), como set [cuenta => true]. */
+    private static function mlValidAccounts()
+    {
+        global $zdbh;
+        $valid = [];
         try {
-            $q = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_enabled_in=1 AND ac_deleted_ts IS NULL ORDER BY ac_user_vc");
+            $q = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_enabled_in=1 AND ac_deleted_ts IS NULL");
             $q->execute();
-            while ($r = $q->fetch()) $rows[] = (string)$r['ac_user_vc'];
+            while ($r = $q->fetch()) $valid[strtolower($r['ac_user_vc'])] = true;
         } catch (Exception $e) {}
+        return $valid;
+    }
 
-        if (!$rows) return '<p class="text-muted" style="margin:0;">No hay cuentas de hosting.</p>';
-
-        $h  = '<input type="text" class="form-control" placeholder="Buscar cuenta..." '
-            . 'style="margin-bottom:8px;max-width:280px;" onkeyup="mlFilterAccts(this.value)">';
-        $h .= '<div style="max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:8px;background:#fff;">';
-        foreach ($rows as $u) {
-            $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
-            $chk = isset($wl[strtolower($u)]) ? ' checked' : '';
-            $h  .= '<label class="mlAcctRow" style="display:block;padding:2px 0;font-weight:normal;cursor:pointer;">'
-                 . '<input type="checkbox" name="inMlAccounts[]" value="' . $esc . '"' . $chk . '>&nbsp; ' . $esc
-                 . '</label>';
+    static function doAddMailLimitAcct()
+    {
+        runtime_csfr::Protect();
+        global $controller;
+        $acct = preg_replace('/^h_/', '', strtolower(trim((string)$controller->GetControllerRequest('FORM', 'inMlAcct'))));
+        if (!preg_match('/^[a-z0-9_-]{1,32}$/', $acct) || !isset(self::mlValidAccounts()[$acct])) {
+            self::$err_msg = 'Cuenta no válida.';
+            return;
         }
-        $h .= '</div>';
-        $h .= '<script>function mlFilterAccts(q){q=q.toLowerCase();'
-            . 'var r=document.querySelectorAll(".mlAcctRow");'
-            . 'for(var i=0;i<r.length;i++){r[i].style.display=r[i].textContent.toLowerCase().indexOf(q)>-1?"":"none";}}</script>';
+        $wl = self::mlReadWhitelist();
+        if (!in_array($acct, $wl, true)) $wl[] = $acct;
+        sort($wl);
+        if (!self::mlWriteWhitelist($wl)) { self::$err_msg = 'No se pudo escribir la allowlist (¿permisos www?).'; return; }
+        self::$ok_msg = 'Cuenta "' . htmlspecialchars($acct, ENT_QUOTES, 'UTF-8') . '" añadida a las exentas.';
+    }
+
+    static function doRemoveMailLimitAcct()
+    {
+        runtime_csfr::Protect();
+        global $controller;
+        $acct = preg_replace('/^h_/', '', strtolower(trim((string)$controller->GetControllerRequest('FORM', 'inMlAcct'))));
+        $wl = array_values(array_filter(self::mlReadWhitelist(), function ($a) use ($acct) { return $a !== $acct; }));
+        if (!self::mlWriteWhitelist($wl)) { self::$err_msg = 'No se pudo escribir la allowlist (¿permisos www?).'; return; }
+        self::$ok_msg = 'Cuenta "' . htmlspecialchars($acct, ENT_QUOTES, 'UTF-8') . '" quitada de las exentas.';
+    }
+
+    /** Desplegable con las cuentas AÚN NO exentas + botón Añadir. */
+    static function getMlAddForm()
+    {
+        $wl    = array_flip(self::mlReadWhitelist());
+        $valid = self::mlValidAccounts();          // ya en minúsculas
+        $avail = [];
+        foreach (array_keys($valid) as $u) { if (!isset($wl[$u])) $avail[] = $u; }
+        sort($avail);
+
+        if (!$avail) {
+            return '<p class="text-muted" style="margin:0 0 10px;">Todas las cuentas están ya exentas o no hay cuentas disponibles.</p>';
+        }
+        $csrf = self::getCSFR_Tag();
+        $opts = '';
+        foreach ($avail as $u) {
+            $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
+            $opts .= '<option value="' . $esc . '">' . $esc . '</option>';
+        }
+        return '<form method="post" action="./?module=antispam_admin&action=AddMailLimitAcct&tab=config" style="margin-bottom:12px;">'
+             . $csrf
+             . '<div style="display:flex;gap:8px;max-width:420px;">'
+             . '<select name="inMlAcct" class="form-control">' . $opts . '</select>'
+             . '<button type="submit" class="btn btn-success" style="white-space:nowrap;"><i class="bi bi-plus-lg me-1"></i>Añadir</button>'
+             . '</div></form>';
+    }
+
+    /** Lista de cuentas exentas, cada una con su botón Eliminar. */
+    static function getMlExemptList()
+    {
+        $wl = self::mlReadWhitelist();
+        if (!$wl) return '<p class="text-muted" style="margin:0;">Ninguna cuenta exenta: todas están limitadas.</p>';
+        $csrf = self::getCSFR_Tag();
+        $h  = '<table class="table table-sm" style="max-width:420px;margin:0;">';
+        foreach ($wl as $u) {
+            $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
+            $h .= '<tr><td style="vertical-align:middle;">' . $esc . '</td>'
+                . '<td style="text-align:right;">'
+                . '<form method="post" action="./?module=antispam_admin&action=RemoveMailLimitAcct&tab=config" style="display:inline;">'
+                . $csrf
+                . '<input type="hidden" name="inMlAcct" value="' . $esc . '">'
+                . '<button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button>'
+                . '</form></td></tr>';
+        }
+        $h .= '</table>';
         return $h;
     }
 

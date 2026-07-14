@@ -384,15 +384,19 @@
                     <div class="col-sm-3"><input type="number" min="0" max="1000000" name="inMlLimit" class="form-control" value="<@ MlLimit @>">
                         <span class="help-block">Tope por cuenta de hosting y hora. <strong>0 = ilimitado</strong> (desactiva el límite).</span></div>
                 </div>
-                <div class="mb-3">
-                    <label class="col-sm-4 col-form-label">Cuentas exentas (allowlist)</label>
-                    <div class="col-sm-6"><@ MlAccounts @>
-                        <span class="help-block">Marca las cuentas exentas del límite (para tiendas de alto volumen legítimo, p.ej. PrestaShop con muchos pedidos). Desmarca para quitarlas.</span></div>
-                </div>
                 <div class="mb-3"><div class="offset-sm-4 col-sm-8">
                     <button type="submit" class="btn btn-primary"><span class="bi bi-floppy"></span> Guardar límite</button>
                 </div></div>
             </form>
+
+            <div class="mb-3">
+                <label class="col-sm-4 col-form-label">Cuentas exentas (allowlist)</label>
+                <div class="col-sm-8">
+                    <p class="help-block" style="margin-top:0;">Cuentas que NO tienen límite (para tiendas de alto volumen legítimo, p.ej. PrestaShop con muchos pedidos). Añade una del desplegable; elimina con su botón.</p>
+                    <@ MlAddForm @>
+                    <@ MlExemptList @>
+                </div>
+            </div>
 
             <hr>
             <h4>Resolvers DNS de rspamd</h4>
