@@ -1770,6 +1770,7 @@ permit nopass www as root cmd /usr/sbin/service args rspamd stop
 permit nopass www as root cmd /usr/sbin/service args rspamd reload
 permit nopass www as root cmd /usr/sbin/service args rspamd restart
 permit nopass www as root cmd $PANEL_PATH/bin/antispam_rbl_apply.sh
+permit nopass www as root cmd $PANEL_PATH/bin/sysmail_alias_apply.sh
 
 # ---- ClamAV (clamav_admin) ----
 permit nopass www as root cmd /usr/sbin/service args clamav_clamd start
@@ -1877,9 +1878,14 @@ PM_DOMAIN="${POSTMASTER_EMAIL##*@}"
 if [ -f /etc/mail/aliases ]; then
     sed -i '' -e '/^[[:space:]]*root:/d' /etc/mail/aliases
 fi
+SYSMAIL_VAL=""
 if [ "$POSTMASTER_EMAIL" != "$PM_DOMAIN" ] && [ "$PM_DOMAIN" != "$PANEL_FQDN" ]; then
     printf 'root: %s\n' "$POSTMASTER_EMAIL" >> /etc/mail/aliases
+    SYSMAIL_VAL="$POSTMASTER_EMAIL"
 fi
+# Reflejar el destino en el panel (mail_admin -> ajuste system_mail_to), para que quede editable
+# y sincronizado tras la instalación.
+$MYSQL sentora_core -e "UPDATE x_settings SET so_value_tx='$SYSMAIL_VAL' WHERE so_name_vc='system_mail_to';" 2>/dev/null || true
 
 # Construir la base de datos de alias local de Postfix (/etc/mail/aliases.db); sin esto el
 # correo a cuentas de sistema se difiere con "alias database unavailable".

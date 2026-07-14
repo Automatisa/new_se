@@ -334,6 +334,13 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/antispam_rbl_apply.sh',
             'doas_rule' => 'cmd /usr/local/sentora/bin/antispam_rbl_apply.sh',
         ),
+        // Correo del sistema (root/postmaster) — usado por mail_admin. Sin args: el destino se
+        // lee del ajuste system_mail_to en la BD.
+        'sysmail_alias_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/sysmail_alias_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/sysmail_alias_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/sysmail_alias_apply.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(

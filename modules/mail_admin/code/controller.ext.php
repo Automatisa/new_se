@@ -117,10 +117,59 @@ class module_controller extends ctrl_module
 
     static function getResult()
     {
+        if (self::$sysmail_msg) {
+            return ui_sysmessage::shout(ui_language::translate(self::$sysmail_msg), self::$sysmail_err ? 'zannounceerror' : 'zannounceok');
+        }
         if (!fs_director::CheckForEmptyValue(self::$ok)) {
             return ui_sysmessage::shout(ui_language::translate("Changes to your settings have been saved successfully!"));
         }
         return;
+    }
+
+    // ---- Destino del correo del SISTEMA (root/postmaster) ---------------------------------------
+    // Rebotes MAILER-DAEMON, salida de cron, avisos de seguridad... Se puede reenviar a un buzón
+    // (del propio servidor o externo) editando el ajuste system_mail_to y aplicándolo a
+    // /etc/mail/aliases con un script privilegiado (doas).
+    static $sysmail_msg = null;
+    static $sysmail_err = false;
+
+    static function getSysMailTo()
+    {
+        $v = ctrl_options::GetSystemOption('system_mail_to');
+        return htmlspecialchars($v === false ? '' : (string)$v, ENT_QUOTES, 'UTF-8');
+    }
+
+    static function doSaveSysMail()
+    {
+        runtime_csfr::Protect();
+        global $controller;
+        $dest = trim((string)$controller->GetControllerRequest('FORM', 'inSysMailTo'));
+
+        // Vacío = entrega local (/var/mail/root). Si no, debe ser un email válido.
+        if ($dest !== '' && !filter_var($dest, FILTER_VALIDATE_EMAIL)) {
+            self::$sysmail_err = true;
+            self::$sysmail_msg = 'Introduce un email válido o déjalo vacío para entrega local.';
+            return;
+        }
+
+        if (ctrl_options::GetSystemOption('system_mail_to') !== false) {
+            ctrl_options::SetSystemOption('system_mail_to', $dest);
+        } else {
+            ctrl_options::SetSystemOption('system_mail_to', $dest, true);
+        }
+
+        if (!class_exists('privilege')) {
+            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+        }
+        try {
+            privilege::run('sysmail_alias_apply', array(), true);
+            self::$sysmail_msg = $dest === ''
+                ? 'Guardado. El correo del sistema se entregará en el buzón local del servidor (/var/mail/root).'
+                : 'Guardado. El correo del sistema se reenviará a ' . htmlspecialchars($dest, ENT_QUOTES, 'UTF-8') . '.';
+        } catch (Exception $e) {
+            self::$sysmail_err = true;
+            self::$sysmail_msg = 'Guardado, pero no se pudo aplicar el alias: ' . $e->getMessage();
+        }
     }
 
 }

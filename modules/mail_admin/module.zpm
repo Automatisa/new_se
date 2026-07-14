@@ -34,4 +34,28 @@
         </form>
     </div>
 
+    <div class="zgrid_wrapper">
+        <div class="card" style="max-width:640px;">
+            <div class="card-header"><h4 class="card-title" style="margin:0;">Correo del sistema (root / postmaster)</h4></div>
+            <div class="card-body">
+                <p class="text-muted" style="margin-top:0;">
+                    A dónde van los avisos internos del servidor: rebotes (MAILER-DAEMON), salida de
+                    tareas cron y alertas de seguridad. Escribe un buzón (del propio servidor o
+                    externo) para <strong>reenviar</strong> ahí ese correo, o déjalo
+                    <strong>vacío</strong> para que quede en el buzón local del servidor
+                    (<code>/var/mail/root</code>). No afecta al correo de los dominios de tus clientes.
+                </p>
+                <form method="post" action="./?module=mail_admin&action=SaveSysMail">
+                    <@ CSFR_Tag @>
+                    <div class="input-group" style="max-width:420px;">
+                        <span class="input-group-text"><i class="bi bi-envelope-at"></i></span>
+                        <input type="email" name="inSysMailTo" class="form-control" value="<@ SysMailTo @>" placeholder="admin@ejemplo.com (vacío = buzón local)">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Guardar</button>
+                    </div>
+                    <span class="help-block" style="margin-top:4px;">Si el email está en el mismo dominio que el propio panel, se usa entrega local (evita bucles de alias).</span>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
