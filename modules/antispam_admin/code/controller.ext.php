@@ -274,16 +274,24 @@ class module_controller extends ctrl_module
         foreach ($avail as $u) {
             $opts .= '<option value="' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') . '">';
         }
-        return '<form method="post" action="./?module=antispam_admin&action=AddMailLimitAcct&tab=config" style="margin-bottom:12px;">'
+        return '<form method="post" action="./?module=antispam_admin&action=AddMailLimitAcct&tab=config">'
              . $csrf
-             . '<div style="display:flex;gap:8px;max-width:420px;">'
+             . '<div class="input-group input-group-sm" style="max-width:420px;">'
+             . '<span class="input-group-text"><i class="bi bi-search"></i></span>'
              . '<input type="text" name="inMlAcct" list="mlAcctList" autocomplete="off" class="form-control" '
              . 'placeholder="Escribe para buscar una cuenta...">'
-             . '<datalist id="mlAcctList">' . $opts . '</datalist>'
-             . '<button type="submit" class="btn btn-success" style="white-space:nowrap;"><i class="bi bi-plus-lg me-1"></i>Añadir</button>'
+             . '<button type="submit" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Añadir</button>'
              . '</div>'
-             . '<span class="help-block" style="margin-top:4px;">' . count($avail) . ' cuenta(s) disponible(s). Empieza a escribir y elige de las sugerencias.</span>'
+             . '<datalist id="mlAcctList">' . $opts . '</datalist>'
+             . '<div class="form-text" style="margin-top:4px;">' . count($avail) . ' cuenta(s) disponible(s). Empieza a escribir y elige de las sugerencias.</div>'
              . '</form>';
+    }
+
+    /** Badge con el nº de cuentas exentas para la cabecera de la tarjeta. */
+    static function getMlExemptBadge()
+    {
+        $n = count(self::mlReadWhitelist());
+        return '<span class="badge ' . ($n ? 'bg-primary' : 'bg-secondary') . '">' . $n . ' exenta' . ($n === 1 ? '' : 's') . '</span>';
     }
 
     /** Lista de cuentas exentas, cada una con su botón Eliminar. Con buscador + paginación cliente
@@ -291,25 +299,30 @@ class module_controller extends ctrl_module
     static function getMlExemptList()
     {
         $wl = self::mlReadWhitelist();
-        if (!$wl) return '<p class="text-muted" style="margin:0;">Ninguna cuenta exenta: todas están limitadas.</p>';
         $csrf = self::getCSFR_Tag();
-        $h  = '<div id="mlExemptWrap">';
-        $h .= '<input type="text" id="mlExemptSearch" class="form-control" placeholder="Filtrar cuentas exentas..." '
-            . 'autocomplete="off" style="max-width:280px;margin-bottom:8px;display:none;" onkeyup="mlExemptRender()">';
-        $h .= '<div id="mlExemptCount" class="text-muted" style="font-size:12px;margin-bottom:6px;"></div>';
-        $h .= '<table class="table table-sm" style="max-width:420px;margin:0;"><tbody id="mlExemptBody">';
+        $h  = '<hr style="margin:12px 0;">';
+        if (!$wl) {
+            return $h . '<p class="text-muted" style="margin:0;"><i class="bi bi-info-circle me-1"></i>Ninguna cuenta exenta: todas están limitadas.</p>';
+        }
+        $h .= '<div id="mlExemptWrap">';
+        $h .= '<input type="text" id="mlExemptSearch" class="form-control form-control-sm" placeholder="Filtrar cuentas exentas..." '
+            . 'autocomplete="off" style="max-width:260px;margin-bottom:8px;display:none;" onkeyup="mlExemptRender()">';
+        $h .= '<div id="mlExemptCount" class="form-text" style="margin:0 0 6px;"></div>';
+        $h .= '<div style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">';
+        $h .= '<table class="table table-hover table-sm align-middle" style="margin:0;"><tbody id="mlExemptBody">';
         foreach ($wl as $u) {
             $esc = htmlspecialchars($u, ENT_QUOTES, 'UTF-8');
-            $h .= '<tr class="mlExemptRow"><td style="vertical-align:middle;">' . $esc . '</td>'
-                . '<td style="text-align:right;">'
+            $h .= '<tr class="mlExemptRow">'
+                . '<td style="padding:8px 12px;"><i class="bi bi-person-check text-muted me-2"></i>' . $esc . '</td>'
+                . '<td style="text-align:right;padding:6px 12px;">'
                 . '<form method="post" action="./?module=antispam_admin&action=RemoveMailLimitAcct&tab=config" style="display:inline;">'
                 . $csrf
                 . '<input type="hidden" name="inMlAcct" value="' . $esc . '">'
-                . '<button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button>'
+                . '<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Eliminar</button>'
                 . '</form></td></tr>';
         }
-        $h .= '</tbody></table>';
-        $h .= '<div id="mlExemptPager" style="margin-top:8px;"></div>';
+        $h .= '</tbody></table></div>';
+        $h .= '<div id="mlExemptPager" class="d-flex justify-content-center mt-2"></div>';
         $h .= '</div>';
         return $h;
     }
