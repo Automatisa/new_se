@@ -201,6 +201,13 @@ input[type=submit] {
     </div>
     <% endif %>
 
+    <% if isCreateClient %>
+    <ul class="nav nav-tabs" style="margin:15px 15px 0;">
+        <li class="nav-item"><a class="nav-link active" href="#mc-list" data-bs-toggle="tab"><i class="bi bi-people me-1"></i><: Current Clients :></a></li>
+        <li class="nav-item"><a class="nav-link" href="#mc-create" data-bs-toggle="tab"><i class="bi bi-person-plus me-1"></i><: Create new client account :></a></li>
+    </ul>
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="mc-list">
     <div class="zgrid_wrapper">
         <h2><: Current Clients :></h2>
         <% if ClientList %>
@@ -282,9 +289,10 @@ input[type=submit] {
         </form>
     </div>
     <% endif %>
+    </div><!-- /#mc-list -->
 
+    <div class="tab-pane fade" id="mc-create">
     <% if HasPackage %>
-    <% if isCreateClient %>
     <div class="zform_wrapper">
         <h2><: Create new client account :></h2>
         <form action="./?module=manage_clients&action=CreateClient" method="post">
@@ -376,9 +384,23 @@ input[type=submit] {
             <@ CSFR_Tag @>
         </form>
     </div>
-    <% endif %>
-    <% endif %>
+    <% endif %><!-- /HasPackage -->
+    </div><!-- /#mc-create -->
+    </div><!-- /tab-content -->
+    <% endif %><!-- /isCreateClient -->
 </div>
+
+<script>
+// Si un alta falló, el formulario viene repoblado (inNewUserName con valor): abrir esa pestaña
+// para que el usuario vea el error y sus datos, en vez de aterrizar en la lista.
+window.addEventListener('load', function () {
+    var u = document.getElementById('inNewUserName');
+    if (u && u.value.trim() !== '') {
+        var t = document.querySelector('a[href="#mc-create"]');
+        if (t) { try { new bootstrap.Tab(t).show(); } catch (e) { t.click(); } }
+    }
+});
+</script>
 
 <script type="text/javascript">
     <!--
