@@ -248,21 +248,10 @@ class module_controller extends ctrl_module
 
     static function doCreateGroup()
     {
-        global $controller;
+        // Creación de grupos personalizados DESACTIVADA (ver getisCreateGroup). Guard contra POST
+        // directo: no se crea ningún grupo aunque llegue el formulario.
         runtime_csfr::Protect();
-        $currentuser = ctrl_users::GetUserDetail();
-        $formvars = $controller->GetAllControllerRequests('FORM');
-        // No permitir nombres reservados (p.ej. "Administrators") ni caracteres raros:
-        // un grupo propio llamado "Administrators" podría engañar chequeos por nombre.
-        if (!self::validGroupName($formvars['inGroupName'])) {
-            return false;
-        }
-        if (self::ExectuteCreateGroup($formvars['inGroupName'], $formvars['inDesc'], $currentuser['userid'])) {
-            return true;
-        } else {
-            return false;
-        }
-        return;
+        return false;
     }
 
     static function doEditGroup()
@@ -328,10 +317,9 @@ class module_controller extends ctrl_module
 
     static function getisCreateGroup()
     {
-        global $controller;
-        $urlvars = $controller->GetAllControllerRequests('URL');
-        if (!isset($urlvars['show']))
-            return true;
+        // Creación de grupos personalizados DESACTIVADA: en el modelo de rol (admin/reseller/user
+        // por id) + paquetes=cuotas, los grupos a medida no aportan utilidad y confunden. El
+        // formulario "Create new user group" no se muestra. (Reversible: devolver true si no hay show.)
         return false;
     }
 

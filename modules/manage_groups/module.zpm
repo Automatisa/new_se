@@ -118,6 +118,15 @@
     </div>
     <% endif %>
 
+    <div class="zform_wrapper">
+        <div class="alert alert-info" style="margin:0;">
+            <i class="bi bi-info-circle me-1"></i>
+            La creación de grupos personalizados está desactivada. El acceso a los módulos del panel
+            se rige por el <strong>rol</strong> de la cuenta (administrador / reseller / usuario);
+            los <strong>recursos</strong> (dominios, correo, disco…) se definen en el <strong>paquete</strong>.
+        </div>
+    </div>
+
     <% if isEditGroup %>
     <div class="zform_wrapper">
         <h2><: Edit user group :></h2>
