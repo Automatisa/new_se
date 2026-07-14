@@ -962,11 +962,13 @@ printf '%s\n' "$REDIS_PANEL_PASS" > /usr/local/sentora/cnf/redis.pass
 chown root:www /usr/local/sentora/cnf/redis.pass
 chmod 640 /usr/local/sentora/cnf/redis.pass
 
-# Fichero de credencial del wrapper (lo lee la cuenta h_*; usuario mínimo, no da poder extra)
+# Credencial 'maillimit' de Redis: la lee SOLO el ayudante setgid (grupo maillimit), no las
+# cuentas de hosting. Así el inquilino no tiene credencial y no puede falsear/sabotear contadores.
+pw groupadd maillimit 2>/dev/null || true
 mkdir -p /var/sentora/mail_limits
 printf '%s\n' "$REDIS_ML_PASS" > /var/sentora/mail_limits/redis_pass
-chown root:wheel /var/sentora/mail_limits/redis_pass
-chmod 644 /var/sentora/mail_limits/redis_pass
+chown root:maillimit /var/sentora/mail_limits/redis_pass
+chmod 640 /var/sentora/mail_limits/redis_pass
 
 mkdir -p /var/log/redis
 chown redis:redis /var/log/redis 2>/dev/null || chown nobody:nobody /var/log/redis
@@ -1517,13 +1519,23 @@ info "Configurando límite de correo saliente por cuenta..."
 chmod 755 "$PANEL_PATH/bin/sentora_mail_limit.sh"
 chown root:wheel "$PANEL_PATH/bin/sentora_mail_limit.sh"
 
-# Config www-writable que edita el panel (Antispam → Límite de mail()).
+# Ayudante setgid que hace el conteo en Redis (grupo maillimit). El inquilino lo EJECUTA
+# (2755) pero no puede leer la credencial ni extraerla (setgid => sin ptrace del mismo uid).
+pw groupadd maillimit 2>/dev/null || true
+cc -O2 -o "$PANEL_PATH/bin/sentora_maillimit_helper" "$PANEL_PATH/src/sentora_maillimit_helper.c"
+chown root:maillimit "$PANEL_PATH/bin/sentora_maillimit_helper"
+chmod 2755 "$PANEL_PATH/bin/sentora_maillimit_helper"
+
+# Config del panel (limit/whitelist www-writable; redis_pass es solo del grupo maillimit).
 mkdir -p /var/sentora/mail_limits
 [ -f /var/sentora/mail_limits/limit ]     || printf '200\n' > /var/sentora/mail_limits/limit
 [ -f /var/sentora/mail_limits/whitelist ] || : > /var/sentora/mail_limits/whitelist
-chown -R www:www /var/sentora/mail_limits
 chmod 755 /var/sentora/mail_limits
+chown www:www /var/sentora/mail_limits /var/sentora/mail_limits/limit /var/sentora/mail_limits/whitelist
 chmod 644 /var/sentora/mail_limits/limit /var/sentora/mail_limits/whitelist
+# Reafirmar la credencial (no debe quedar en www:www).
+chown root:maillimit /var/sentora/mail_limits/redis_pass
+chmod 640 /var/sentora/mail_limits/redis_pass
 
 # Apuntar sendmail_path de PHP al wrapper (-t lee destinatarios de cabeceras, -i no corta en ".").
 if grep -qE '^;?[[:space:]]*sendmail_path[[:space:]]*=' "$PHP_INI"; then

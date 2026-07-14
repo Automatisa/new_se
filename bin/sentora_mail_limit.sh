@@ -15,14 +15,13 @@
 #   /var/sentora/mail_limits/whitelist  -> cuentas exentas (una por línea, sin el prefijo h_)
 
 REAL="/usr/local/sbin/sendmail"
-REDIS="/usr/local/bin/redis-cli"
 CONF_DIR="/var/sentora/mail_limits"
 LIMIT_FILE="$CONF_DIR/limit"
 WL_FILE="$CONF_DIR/whitelist"
-# Credencial ACL de Redis para este wrapper: usuario 'maillimit', que SOLO puede
-# INCR/EXPIRE sobre las claves sentora:maillimit:* (no puede resetear ni leer nada más).
-# Aunque el inquilino lea esta clave, no puede saltarse ni sabotear el resto de Redis.
-RPASS_FILE="$CONF_DIR/redis_pass"
+# El conteo lo hace un ayudante setgid (grupo maillimit). La cuenta de hosting NO tiene la
+# credencial de Redis: no puede resetear su contador ni tocar el de otra cuenta (griefing).
+# El ayudante deduce la cuenta del uid real, hace INCR+EXPIRE e imprime el contador.
+HELPER="/usr/local/sentora/bin/sentora_maillimit_helper"
 
 U=$(id -un 2>/dev/null)
 ACCT=${U#h_}
@@ -45,19 +44,9 @@ if [ "$LIMIT" -eq 0 ] 2>/dev/null; then
     exec "$REAL" "$@"
 fi
 
-HOUR=$(date +%Y%m%d%H)
-KEY="sentora:maillimit:${ACCT}:${HOUR}"
-# Auth ACL de Redis. La clave es hexadecimal (openssl rand -hex) => sin espacios ni
-# metacaracteres, así que el split sin comillas de $RAUTH es seguro. NO usamos `set --`
-# porque machacaría $@ (los argumentos de sendmail que se pasan al exec final).
-RPASS=$(head -1 "$RPASS_FILE" 2>/dev/null)
-if [ -n "$RPASS" ]; then
-    RAUTH="--user maillimit -a $RPASS --no-auth-warning"
-else
-    RAUTH=""
-fi
-CNT=$([ -x "$REDIS" ] && "$REDIS" $RAUTH INCR "$KEY" 2>/dev/null)
-[ -n "$CNT" ] && "$REDIS" $RAUTH EXPIRE "$KEY" 3700 >/dev/null 2>&1
+# El ayudante cuenta (INCR+EXPIRE) e imprime el contador de esta cuenta/hora. Si no está
+# disponible o Redis falla, imprime vacío => fail-open (el correo pasa).
+CNT=$([ -x "$HELPER" ] && "$HELPER" 2>/dev/null)
 
 if [ -n "$CNT" ] && [ "$CNT" -gt "$LIMIT" ] 2>/dev/null; then
     logger -t sentora-maillimit "BLOCKED acct=$ACCT count=$CNT limit=$LIMIT/h"
