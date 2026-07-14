@@ -538,6 +538,7 @@ CREATE TABLE `x_packages` (
   `pk_name_vc` varchar(30) CHARACTER SET latin1 COLLATE latin1_general_ci DEFAULT NULL,
   `pk_reseller_fk` int(6) DEFAULT NULL,
   `pk_enablephp_in` int(1) DEFAULT 0,
+  `pk_modulelist_in` tinyint(1) NOT NULL DEFAULT 0,
   `pk_created_ts` int(30) DEFAULT NULL,
   `pk_deleted_ts` int(30) DEFAULT NULL,
   PRIMARY KEY (`pk_id_pk`)

@@ -52,16 +52,17 @@ class ctrl_groups {
     }
 
     /**
-     * ¿El paquete tiene una lista de módulos (feature list) definida?
-     * Si la tabla no existe (instalaciones previas a la migración) o no hay filas, devuelve false
-     * para que el llamador haga fallback al ACL de grupo. Se llama en CADA carga: nunca debe fatalar.
+     * ¿El paquete usa su propia feature list? Es un OPT-IN explícito por paquete
+     * (x_packages.pk_modulelist_in = 1). Así se distingue "lista vacía = denegar todo" de
+     * "sin lista = fallback al ACL de grupo". Si la columna/tabla no existe (instalaciones previas),
+     * devuelve false -> fallback. Se llama en CADA carga: nunca debe fatalar.
      */
     static function PackageHasModuleList($packageid) {
         global $zdbh;
         try {
-            $q = $zdbh->prepare("SELECT COUNT(*) FROM x_package_modules WHERE pm_package_fk = :pid");
+            $q = $zdbh->prepare("SELECT pk_modulelist_in FROM x_packages WHERE pk_id_pk = :pid");
             $q->execute(array(':pid' => (int)$packageid));
-            return ((int)$q->fetchColumn()) > 0;
+            return ((int)$q->fetchColumn()) === 1;
         } catch (Exception $e) {
             return false;
         }

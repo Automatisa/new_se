@@ -157,6 +157,10 @@
                     <td><input name="inDbQuota" type="text" id="inDbQuota" size="8" maxlength="8" value="<@ EditCurrentDbQuota @>" onkeypress="return isNumberKey(event)"/> (0 = ilimitado ; sobre el límite se bloquea la escritura, sigue leyendo)</td>
                 </tr>
                 <tr>
+                    <th style="vertical-align:top;">Módulos incluidos<br><small>(funciones del panel)</small>:</th>
+                    <td><@ PackageModulesHTML @></td>
+                </tr>
+                <tr>
                     <th></th>
                     <td>
                         <input type="hidden" name="inPackageID" value="<@ EditCurrentPackageID @>"/>
