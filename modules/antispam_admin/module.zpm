@@ -369,6 +369,32 @@
             </form>
 
             <hr>
+            <h4>Límite DURO de <code>mail()</code> por cuenta</h4>
+            <p class="text-muted" style="margin-bottom:15px;">
+                Segunda barrera, independiente de rspamd: cada dominio ejecuta PHP como su propio
+                usuario del sistema, así que este tope es <strong>infalsificable</strong>. Si un PHP
+                infectado intenta enviar spam masivo con <code>mail()</code>, al superar el límite/hora
+                el correo se descarta (protege la IP del servidor de acabar en listas negras).
+                El correo del sistema/panel nunca se limita.
+            </p>
+            <form method="post" action="./?module=antispam_admin&action=SaveMailLimit&tab=config">
+                <@ CSFR_Tag @>
+                <div class="mb-3">
+                    <label class="col-sm-4 col-form-label">Correos/hora por cuenta</label>
+                    <div class="col-sm-3"><input type="number" min="0" max="1000000" name="inMlLimit" class="form-control" value="<@ MlLimit @>">
+                        <span class="help-block">Tope por cuenta de hosting y hora. <strong>0 = ilimitado</strong> (desactiva el límite).</span></div>
+                </div>
+                <div class="mb-3">
+                    <label class="col-sm-4 col-form-label">Cuentas exentas (allowlist)</label>
+                    <div class="col-sm-6"><textarea name="inMlWhitelist" class="form-control" rows="4" style="font-family:monospace;font-size:13px;"><@ MlWhitelist @></textarea>
+                        <span class="help-block">Una cuenta por línea (el usuario, p.ej. <code>zadmin</code>, sin <code>h_</code>). Para tiendas de alto volumen legítimo (PrestaShop con muchos pedidos, etc.).</span></div>
+                </div>
+                <div class="mb-3"><div class="offset-sm-4 col-sm-8">
+                    <button type="submit" class="btn btn-primary"><span class="bi bi-floppy"></span> Guardar límite</button>
+                </div></div>
+            </form>
+
+            <hr>
             <h4>Resolvers DNS de rspamd</h4>
             <p class="text-muted" style="margin-bottom:15px;">
                 rspamd usa estos resolvers para consultas RBL y Spamhaus DQS.

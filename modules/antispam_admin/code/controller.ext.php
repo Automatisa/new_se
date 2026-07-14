@@ -159,6 +159,58 @@ class module_controller extends ctrl_module
     static function getRlUserBurst() { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_user_burst') ?: '300'), ENT_QUOTES); }
     static function getRlDomainRate() { return htmlspecialchars((string)(ctrl_options::GetSystemOption('ratelimit_domain_rate') ?: '200'), ENT_QUOTES); }
 
+    // ---- Límite DURO de mail() por cuenta (wrapper sendmail_path) --------------------------------
+    // Complementa el rate-limit de rspamd: aquí PHP-FPM corre cada dominio como h_<cuenta>, así que
+    // el emisor es INFALSIFICABLE. El wrapper /usr/local/sentora/bin/sentora_mail_limit.sh lee estos
+    // dos ficheros (www-writable) y descarta el correo de una cuenta que supere el límite/hora.
+    const MAILLIMIT_DIR   = '/var/sentora/mail_limits';
+    const MAILLIMIT_LIMIT = '/var/sentora/mail_limits/limit';
+    const MAILLIMIT_WL    = '/var/sentora/mail_limits/whitelist';
+
+    static function doSaveMailLimit()
+    {
+        runtime_csfr::Protect();
+        global $controller;
+        // 0 = ilimitado; tope alto de seguridad.
+        $limit = max(0, min(1000000, (int)$controller->GetControllerRequest('FORM', 'inMlLimit')));
+        $wlRaw = (string)$controller->GetControllerRequest('FORM', 'inMlWhitelist');
+
+        // La allowlist va por CUENTA de hosting (usuario Unix sin el prefijo h_): solo [a-z0-9_-].
+        $wl = [];
+        foreach (preg_split('/[\r\n,]+/', $wlRaw) as $acct) {
+            $acct = strtolower(trim($acct));
+            if ($acct === '') continue;
+            $acct = preg_replace('/^h_/', '', $acct);          // por si pegan el usuario completo
+            if (preg_match('/^[a-z0-9_-]{1,32}$/', $acct)) $wl[$acct] = true;
+        }
+        $wl = array_keys($wl);
+        sort($wl);
+
+        if (!is_dir(self::MAILLIMIT_DIR)) { @mkdir(self::MAILLIMIT_DIR, 0755, true); }
+        if (@file_put_contents(self::MAILLIMIT_LIMIT, (string)$limit . "\n") === false) {
+            self::$err_msg = 'No se pudo escribir ' . self::MAILLIMIT_LIMIT . ' (¿permisos www?).';
+            return;
+        }
+        @file_put_contents(self::MAILLIMIT_WL, $wl ? implode("\n", $wl) . "\n" : '');
+        self::saveOption('maillimit_per_hour', (string)$limit);
+        self::$ok_msg = $limit === 0
+            ? 'Límite de mail() por cuenta DESACTIVADO (0 = ilimitado).'
+            : 'Límite de mail() guardado: ' . $limit . ' correos/hora por cuenta.';
+    }
+
+    static function getMlLimit()
+    {
+        $v = is_readable(self::MAILLIMIT_LIMIT) ? trim(@file_get_contents(self::MAILLIMIT_LIMIT)) : '';
+        if ($v === '' || !ctype_digit($v)) $v = (string)(ctrl_options::GetSystemOption('maillimit_per_hour') ?: '200');
+        return htmlspecialchars($v, ENT_QUOTES);
+    }
+
+    static function getMlWhitelist()
+    {
+        if (!is_readable(self::MAILLIMIT_WL)) return '';
+        return htmlspecialchars(trim(@file_get_contents(self::MAILLIMIT_WL)), ENT_QUOTES, 'UTF-8');
+    }
+
     static function doRestartRspamd()
     {
         runtime_csfr::Protect();

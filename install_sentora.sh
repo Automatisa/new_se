@@ -1471,6 +1471,35 @@ sysrc php_fpm_enable="YES"
 ok "PHP-FPM configurado"
 
 ###############################################################################
+# 11b. Límite DURO de correo saliente por cuenta (wrapper de sendmail_path)
+###############################################################################
+# PHP mail() invoca sendmail_path. Lo apuntamos a un wrapper que cuenta los envíos
+# por cuenta de hosting (usuario Unix h_<cuenta>, INFALSIFICABLE) y descarta el
+# correo que supere el límite/hora → un PHP infectado no puede quemar la IP en
+# listas negras. El wrapper (bin/sentora_mail_limit.sh) viene del git clone.
+info "Configurando límite de correo saliente por cuenta..."
+
+# Debe ser ejecutable por las cuentas h_* (no basta root:wheel 750 como el resto de bin/).
+chmod 755 "$PANEL_PATH/bin/sentora_mail_limit.sh"
+chown root:wheel "$PANEL_PATH/bin/sentora_mail_limit.sh"
+
+# Config www-writable que edita el panel (Antispam → Límite de mail()).
+mkdir -p /var/sentora/mail_limits
+[ -f /var/sentora/mail_limits/limit ]     || printf '200\n' > /var/sentora/mail_limits/limit
+[ -f /var/sentora/mail_limits/whitelist ] || : > /var/sentora/mail_limits/whitelist
+chown -R www:www /var/sentora/mail_limits
+chmod 755 /var/sentora/mail_limits
+chmod 644 /var/sentora/mail_limits/limit /var/sentora/mail_limits/whitelist
+
+# Apuntar sendmail_path de PHP al wrapper (-t lee destinatarios de cabeceras, -i no corta en ".").
+if grep -qE '^;?[[:space:]]*sendmail_path[[:space:]]*=' "$PHP_INI"; then
+    sed -i '' -e "s|^;\{0,1\}[[:space:]]*sendmail_path[[:space:]]*=.*|sendmail_path = \"$PANEL_PATH/bin/sentora_mail_limit.sh -t -i\"|" "$PHP_INI"
+else
+    printf 'sendmail_path = "%s/bin/sentora_mail_limit.sh -t -i"\n' "$PANEL_PATH" >> "$PHP_INI"
+fi
+ok "Límite de correo saliente por cuenta configurado (200/h por defecto, editable en el panel)"
+
+###############################################################################
 # 12. BIND
 ###############################################################################
 info "Configurando BIND..."
