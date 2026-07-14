@@ -52,56 +52,6 @@ class ctrl_groups {
     }
 
     /**
-     * ¿El paquete usa su propia feature list? Es un OPT-IN explícito por paquete
-     * (x_packages.pk_modulelist_in = 1). Así se distingue "lista vacía = denegar todo" de
-     * "sin lista = fallback al ACL de grupo". Si la columna/tabla no existe (instalaciones previas),
-     * devuelve false -> fallback. Se llama en CADA carga: nunca debe fatalar.
-     */
-    static function PackageHasModuleList($packageid) {
-        global $zdbh;
-        try {
-            $q = $zdbh->prepare("SELECT pk_modulelist_in FROM x_packages WHERE pk_id_pk = :pid");
-            $q->execute(array(':pid' => (int)$packageid));
-            return ((int)$q->fetchColumn()) === 1;
-        } catch (Exception $e) {
-            return false;
-        }
-    }
-
-    /** ¿El paquete incluye ese módulo en su feature list? */
-    static function CheckPackageModule($packageid, $moduleid) {
-        global $zdbh;
-        try {
-            $q = $zdbh->prepare("SELECT 1 FROM x_package_modules WHERE pm_package_fk = :pid AND pm_module_fk = :mid LIMIT 1");
-            $q->execute(array(':pid' => (int)$packageid, ':mid' => (int)$moduleid));
-            return (bool)$q->fetchColumn();
-        } catch (Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Acceso EFECTIVO de un usuario a un módulo (modelo hosting):
-     *  - admin (1) / reseller (2): por ACL de grupo (x_permissions), como siempre.
-     *  - user (3): por la LISTA DE MÓDULOS DEL PAQUETE (x_package_modules). Si el paquete no tiene
-     *    lista definida, FALLBACK al ACL del grupo -> sin cambio de comportamiento en instalaciones
-     *    existentes. Así se puede activar el modelo paquete-a-paquete sin romper nada.
-     * @param array $user  Array de ctrl_users::GetUserDetail() (usa usergroupid y packageid).
-     * @param int   $moduleid
-     */
-    static function CheckUserModuleAccess($user, $moduleid) {
-        $gid = (int)($user['usergroupid'] ?? self::GROUP_USER);
-        if ($gid !== self::GROUP_USER) {
-            return self::CheckGroupModulePermissions($gid, $moduleid);
-        }
-        $pid = (int)($user['packageid'] ?? 0);
-        if ($pid > 0 && self::PackageHasModuleList($pid)) {
-            return self::CheckPackageModule($pid, $moduleid);
-        }
-        return self::CheckGroupModulePermissions($gid, $moduleid);
-    }
-
-    /**
      * Adds permission to enable a module for a given user group.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @global db_driver $zdbh The ZPX database handle.

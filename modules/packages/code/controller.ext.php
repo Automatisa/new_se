@@ -665,11 +665,8 @@ class module_controller extends ctrl_module
         if (!self::canManagePackage($formvars['inPackageID'])) {
             return false;
         }
-        if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg)) {
-            // Feature list: qué módulos ve el cliente con este paquete.
-            self::SavePackageModules((int)$formvars['inPackageID'], $currentuser);
+        if (self::ExecuteUpdatePackage($currentuser['userid'], $formvars['inPackageID'], $pkg))
             return true;
-        }
         return false;
     }
 
@@ -780,81 +777,6 @@ class module_controller extends ctrl_module
             return $current[0]['packageid'];
         } else {
             return "";
-        }
-    }
-
-    // ---- Feature list del paquete (qué módulos ve el cliente) -----------------------------------
-
-    /** Módulos de tipo 'user' que el editor (admin/reseller) puede otorgar. Admin: todos. Reseller:
-     *  solo los que su propio grupo permite (no puede dar más de lo que él tiene). [mo_id => nombre] */
-    private static function AllowedUserModules($currentuser)
-    {
-        global $zdbh;
-        $res = array();
-        $isAdmin = ((int)$currentuser['usergroupid'] === ctrl_groups::GROUP_ADMIN);
-        $q = $zdbh->query("SELECT mo_id_pk, mo_name_vc FROM x_modules WHERE mo_type_en='user' AND mo_enabled_en='true' ORDER BY mo_name_vc");
-        foreach ($q as $m) {
-            $mid = (int)$m['mo_id_pk'];
-            if ($isAdmin || ctrl_groups::CheckGroupModulePermissions($currentuser['usergroupid'], $mid)) {
-                $res[$mid] = $m['mo_name_vc'];
-            }
-        }
-        return $res;
-    }
-
-    static function getPackageModulesHTML()
-    {
-        global $controller, $zdbh;
-        $pid = (int)$controller->GetControllerRequest('URL', 'other');
-        if ($pid <= 0) return '';
-        $currentuser = ctrl_users::GetUserDetail();
-        $allowed = self::AllowedUserModules($currentuser);
-
-        $useList = 0;
-        try { $r = $zdbh->prepare("SELECT pk_modulelist_in FROM x_packages WHERE pk_id_pk=:p"); $r->execute(array(':p'=>$pid)); $useList = (int)$r->fetchColumn(); } catch (Exception $e) {}
-        $checked = array();
-        try {
-            $r = $zdbh->prepare("SELECT pm_module_fk FROM x_package_modules WHERE pm_package_fk=:p");
-            $r->execute(array(':p'=>$pid));
-            foreach ($r->fetchAll(PDO::FETCH_COLUMN) as $mid) $checked[(int)$mid] = true;
-        } catch (Exception $e) {}
-        // Si el paquete aún NO usa lista, pre-marcar según el acceso efectivo actual (grupo Users),
-        // para que las casillas reflejen lo que el cliente ve hoy y solo haya que desmarcar.
-        if (!$useList) {
-            foreach (array_keys($allowed) as $mid) {
-                if (ctrl_groups::CheckGroupModulePermissions(ctrl_groups::GROUP_USER, $mid)) $checked[$mid] = true;
-            }
-        }
-
-        $h  = '<div class="mb-2"><label style="font-weight:normal;"><input type="checkbox" name="inPkgUseList" value="1" ' . ($useList ? 'checked' : '') . '> '
-            . '<strong>Controlar los módulos que ve el cliente con este paquete</strong></label>';
-        $h .= '<div class="help-block" style="margin:2px 0 8px;">Desactivado: el cliente ve los módulos por defecto (grupo). Activado: ve solo los marcados abajo.</div></div>';
-        $h .= '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px;max-height:260px;overflow:auto;column-width:230px;">';
-        foreach ($allowed as $mid => $name) {
-            $c = isset($checked[$mid]) ? ' checked' : '';
-            $h .= '<label style="display:block;font-weight:normal;"><input type="checkbox" name="inPkgModule[]" value="' . $mid . '"' . $c . '> ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</label>';
-        }
-        $h .= '</div>';
-        return $h;
-    }
-
-    /** Guarda el flag + la lista de módulos del paquete (validando contra los módulos permitidos). */
-    private static function SavePackageModules($pid, $currentuser)
-    {
-        global $zdbh;
-        $pid = (int)$pid;
-        $useList = (isset($_POST['inPkgUseList']) && $_POST['inPkgUseList']) ? 1 : 0;
-        $allowed = self::AllowedUserModules($currentuser);
-        $posted  = (isset($_POST['inPkgModule']) && is_array($_POST['inPkgModule'])) ? $_POST['inPkgModule'] : array();
-        try {
-            $zdbh->prepare("UPDATE x_packages SET pk_modulelist_in=:u WHERE pk_id_pk=:p")->execute(array(':u'=>$useList, ':p'=>$pid));
-            $zdbh->prepare("DELETE FROM x_package_modules WHERE pm_package_fk=:p")->execute(array(':p'=>$pid));
-            if ($useList) {
-                $ins = $zdbh->prepare("INSERT IGNORE INTO x_package_modules (pm_package_fk,pm_module_fk) VALUES (:p,:m)");
-                foreach ($posted as $mid) { $mid = (int)$mid; if (isset($allowed[$mid])) $ins->execute(array(':p'=>$pid, ':m'=>$mid)); }
-            }
-        } catch (Exception $e) {
-            error_log('packages: SavePackageModules: ' . $e->getMessage());
         }
     }
 
