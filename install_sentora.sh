@@ -572,7 +572,11 @@ inet_protocols        = ipv4
 myhostname            = $PANEL_FQDN
 mydomain              = $PANEL_FQDN
 mynetworks            = 127.0.0.0/8, ${SERVER_IP}/32
-mydestination         = localhost.\$mydomain, localhost
+# Incluimos \$myhostname (el FQDN del panel) como destino LOCAL para que el correo del sistema a
+# 'root'/'postmaster' (que Postfix cualifica a root@\$myhostname) sea local y se aplique el alias
+# 'root: <postmaster>' de /etc/mail/aliases. Sin esto se cualifica a un dominio no-local y rebota.
+# El FQDN del panel no es un dominio de correo virtual, así que no hay conflicto.
+mydestination         = \$myhostname, localhost.\$mydomain, localhost
 delay_warning_time    = 4h
 
 # Dominios virtuales via MySQL
@@ -1863,6 +1867,14 @@ touch "$PANEL_DATA/logs/dovecot/dovecot.log" \
 chown -R vmail:vmail "$PANEL_DATA/logs/dovecot"
 chmod 750 "$PANEL_DATA/logs/dovecot"
 chmod 640 "$PANEL_DATA/logs/dovecot/"*.log
+
+# Redirigir el correo LOCAL del sistema (root/postmaster: rebotes MAILER-DAEMON, salida de cron,
+# avisos de seguridad...) al email de postmaster que indicó el administrador. Sin esto, ese correo
+# se queda en la cuenta 'root' local (sin buzón real) y rebota. Solo toca la línea 'root:'.
+if [ -f /etc/mail/aliases ]; then
+    sed -i '' -e '/^[[:space:]]*root:/d' /etc/mail/aliases
+fi
+printf 'root: %s\n' "$POSTMASTER_EMAIL" >> /etc/mail/aliases
 
 # Construir la base de datos de alias local de Postfix (/etc/mail/aliases.db); sin esto el
 # correo a cuentas de sistema se difiere con "alias database unavailable".
