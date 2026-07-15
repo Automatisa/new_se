@@ -1,3 +1,4 @@
+<@ AutoRefresh @>
 <div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
     <div class="card-header">
         <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
@@ -10,8 +11,19 @@
 
     </div>
 
+    <@ Result @>
+
+    <div class="zgrid_wrapper">
+        <div class="card" style="max-width:620px;">
+            <div class="card-header"><h4 class="card-title" style="margin:0;"><i class="bi bi-hdd-network me-1"></i>Sistema y paquetes</h4></div>
+            <div class="card-body">
+                <@ SystemStatusHTML @>
+            </div>
+        </div>
+    </div>
+
     <div class="zform_wrapper">
-        <@ SentoraUpdates @>
+        <p class="text-muted"><@ SentoraUpdates @></p>
     </div>
 
 </div>

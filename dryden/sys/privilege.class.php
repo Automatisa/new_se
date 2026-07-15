@@ -341,6 +341,22 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/sysmail_alias_apply.sh',
             'doas_rule' => 'cmd /usr/local/sentora/bin/sysmail_alias_apply.sh',
         ),
+        // Actualizaciones del sistema — usadas por el módulo updates (solo admin).
+        'sys_update_check' => array(
+            'argv'      => array('/usr/local/sentora/bin/sys_update_check.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/sys_update_check.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/sys_update_check.sh',
+        ),
+        'pkg_upgrade' => array(
+            'argv'      => array('/usr/local/sentora/bin/pkg_upgrade.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/pkg_upgrade.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/pkg_upgrade.sh',
+        ),
+        'freebsd_update_apply' => array(
+            'argv'      => array('/usr/local/sentora/bin/freebsd_update_apply.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/freebsd_update_apply.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/freebsd_update_apply.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(
