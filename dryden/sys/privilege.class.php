@@ -106,10 +106,13 @@ class privilege
         // (cron_reload_command, _flag, _user, _path). With sudo/doas, only
         // the service wrapper is needed; `service cron reload` already
         // reloads every user's crontab including the panel-managed file.
-        'cron_reload' => array(
-            'argv' => array('/usr/sbin/service', 'cron', 'reload'),
-            'sudo_rule' => '/usr/sbin/service cron reload',
-            'doas_rule' => 'cmd /usr/sbin/service args cron reload',
+        // FreeBSD cron NO soporta `service cron reload`. La crontab del panel se instala con
+        // `crontab -u www <staging>` (el staging lo escribe el panel en /var/sentora/cron/www.cron,
+        // www-writable; crontab lo coloca en /var/cron/tabs/www y avisa a cron). Sin argumentos.
+        'cron_install' => array(
+            'argv' => array('/usr/local/sentora/bin/cron_install.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/cron_install.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/cron_install.sh',
         ),
 
         // chmod the BIND log file (was `chmod 0777 <bindlog>` in dns_admin).

@@ -24,8 +24,12 @@ class fs_filehandler {
         $new_file = "";
         if (!is_dir($file)) {
             $fp = @fopen($file, 'w');
-            @fwrite($fp, $new_file);
-            @fclose($fp);
+            // PHP 8: fwrite($fp,...) con $fp=false (fopen falló, p.ej. sin permiso) lanza TypeError
+            // que @ NO suprime -> 500. Comprobar el recurso antes de escribir.
+            if ($fp !== false) {
+                @fwrite($fp, $new_file);
+                @fclose($fp);
+            }
         }
     }
 
@@ -186,6 +190,11 @@ class fs_filehandler {
         if (!file_exists($path))
             fs_filehandler::ResetFile($path);
         $fp = @fopen($path, 'w');
+        // PHP 8: si fopen falla (sin permiso), fwrite($fp,...) lanzaría TypeError (500). Devolver
+        // false para que el llamador sepa que no se pudo escribir (antes devolvía true siempre).
+        if ($fp === false) {
+            return false;
+        }
         @fwrite($fp, $string);
         @fclose($fp);
         fs_director::SetFileSystemPermissions($path, $chmod);

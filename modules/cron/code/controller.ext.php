@@ -493,7 +493,7 @@ JS;
             }
         }
         if (fs_filehandler::UpdateFile(ctrl_options::GetSystemOption('cron_file'), 0644, $line)) {
-            privilege::run('cron_reload');
+            privilege::run('cron_install');
             return true;
         } else {
             return false;

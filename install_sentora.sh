@@ -1211,6 +1211,9 @@ grep -q '^Checks ' "$FC_CONF" && \
     echo "Checks 4" >> "$FC_CONF"
 
 # Directorio Sentora para ClamAV (www:www)
+mkdir -p /var/sentora/cron
+chown www:www /var/sentora/cron
+chmod 755 /var/sentora/cron
 mkdir -p /var/sentora/clamav/quarantine
 chown -R www:www /var/sentora/clamav
 chmod 750 /var/sentora/clamav
@@ -1647,6 +1650,9 @@ chmod 755 "$PANEL_DATA/named" "$PANEL_DATA/named/data"
 
 sysrc named_enable="YES"
 sysrc named_conf="$PANEL_CONF/bind/named.conf"
+# Si la interfaz es DHCP, el arranque debe ESPERAR a que tenga IP antes de seguir; si no, named
+# arranca sin IP y solo bindea loopback (el panel lo ve "parado" y BIND falla el interface em0).
+sysrc synchronous_dhclient="YES"
 ok "BIND configurado"
 
 ###############################################################################
@@ -1725,7 +1731,7 @@ permit nopass www as root cmd /bin/chmod args 0664 /var/sentora/logs/bind/bind.l
 permit nopass www as root cmd /usr/sbin/chown args bind:www /var/sentora/logs/bind/bind.log
 
 # ---- Cron (reload tras escribir crontab del panel) ----
-permit nopass www as root cmd /usr/sbin/service args cron reload
+permit nopass www as root cmd /usr/local/sentora/bin/cron_install.sh
 
 # ---- PHP-FPM ----
 permit nopass www as root cmd /usr/sbin/service args php_fpm reload
