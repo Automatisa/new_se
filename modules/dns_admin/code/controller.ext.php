@@ -836,9 +836,12 @@ class module_controller extends ctrl_module
         if (is_writable($bindlog)) {
             $log = $bindlog;
             if (file_exists($bindlog)) {
+                // PHP 8: fwrite($fp,...) con $fp=false lanza TypeError que 500ea; comprobar el recurso.
                 $fp = fopen($log, 'w');
-                fwrite($fp, '');
-                fclose($fp);
+                if ($fp !== false) {
+                    fwrite($fp, '');
+                    fclose($fp);
+                }
             }
         } else {
             self::$notwritable = true;
