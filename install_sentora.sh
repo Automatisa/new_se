@@ -1650,9 +1650,12 @@ chmod 755 "$PANEL_DATA/named" "$PANEL_DATA/named/data"
 
 sysrc named_enable="YES"
 sysrc named_conf="$PANEL_CONF/bind/named.conf"
-# Si la interfaz es DHCP, el arranque debe ESPERAR a que tenga IP antes de seguir; si no, named
-# arranca sin IP y solo bindea loopback (el panel lo ve "parado" y BIND falla el interface em0).
-sysrc synchronous_dhclient="YES"
+# En producción lo normal es IP FIJA: entonces no hay carrera de arranque y esto NO se aplica.
+# Solo si alguna interfaz usa DHCP, hacemos que el arranque espere a tener IP antes de seguir
+# (si no, named arrancaría sin IP y solo bindearía loopback -> panel lo ve "parado", BIND falla em0).
+if grep -qiE '^ifconfig_[a-z0-9]+=.*DHCP' /etc/rc.conf 2>/dev/null; then
+    sysrc synchronous_dhclient="YES"
+fi
 ok "BIND configurado"
 
 ###############################################################################
