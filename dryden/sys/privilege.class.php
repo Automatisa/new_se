@@ -365,6 +365,17 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/panel_update.sh',
             'doas_rule' => 'cmd /usr/local/sentora/bin/panel_update.sh',
         ),
+        // Pinning de paquetes: salto de MAYOR de un paquete gestionado, confirmado por el admin.
+        // El nombre del paquete es dinámico (__PKG_NAME__): se valida con regex en PHP y, sobre
+        // todo, contra la whitelist MANAGED dentro de pkg_pin.sh (fuente única). doas 'command-only'
+        // (sin args) porque el argumento es dinámico; la seguridad la impone el script.
+        // check/auto-sub/lock-all NO necesitan regla: los llama el daemon/instalador ya como root,
+        // y 'check' va dentro de sys_update_check.sh.
+        'pkg_pin_verify' => array(
+            'argv_template' => array('/usr/local/sentora/bin/pkg_pin.sh', 'verify-major', '__PKG_NAME__'),
+            'sudo_rule' => '/usr/local/sentora/bin/pkg_pin.sh verify-major',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/pkg_pin.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(
@@ -704,6 +715,15 @@ class privilege
                             throw new RuntimeException("privilege::run: invalid bind_log path '$value'");
                         }
                         $out[] = $real;
+                        break;
+                    case '__PKG_NAME__':
+                        // Nombre de paquete pkg(8): letras/dígitos/._- ; sin metacaracteres ni
+                        // rutas. La whitelist real (qué paquetes se pueden tocar) la impone
+                        // pkg_pin.sh (MANAGED); esto es el saneo de forma.
+                        if (!preg_match('/^[A-Za-z][A-Za-z0-9._-]{0,39}$/', $value)) {
+                            throw new RuntimeException("privilege::run: invalid pkg name '$value'");
+                        }
+                        $out[] = $value;
                         break;
                     default:
                         throw new RuntimeException("privilege::run: unknown template slot '$slot'");

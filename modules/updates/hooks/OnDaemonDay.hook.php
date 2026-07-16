@@ -12,4 +12,10 @@ if (is_file('/usr/local/sentora/bin/sys_update_check.sh')) {
         error_log('updates OnDaemonDay: ' . $e->getMessage());
     }
 }
+// Aplica automáticamente las SUBVERSIONES (parches) de los paquetes gestionados/pinados; los
+// saltos de MAYOR quedan retenidos para "Verificar y actualizar" desde el panel. Corre como root
+// (el daemon ya es root) y refresca el catálogo por su cuenta; hace su propio fork en 2º plano.
+if (is_file('/usr/local/sentora/bin/pkg_pin.sh')) {
+    @exec('/usr/local/sentora/bin/pkg_pin.sh auto-sub >/dev/null 2>&1');
+}
 return true;

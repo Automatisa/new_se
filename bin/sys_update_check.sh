@@ -52,6 +52,10 @@ printf 'check' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
         printf '}\n'
     } > "$TMP"
     mv "$TMP" "$OUT"; chown root:www "$OUT" 2>/dev/null || true; chmod 644 "$OUT"
+
+    # Clasificación de paquetes gestionados (pinning): refresca pkgpins.json en el mismo chequeo.
+    [ -x /usr/local/sentora/bin/pkg_pin.sh ] && /usr/local/sentora/bin/pkg_pin.sh check >/dev/null 2>&1
+
     rm -f "$RUN"
 } >/dev/null 2>&1 &
 

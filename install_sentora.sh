@@ -1721,6 +1721,15 @@ chown root:wheel /usr/local/etc/doas.conf
 chmod 600 /usr/local/etc/doas.conf
 ok "doas configurado"
 
+# Pinning de paquetes críticos: bloquea (pkg lock) los paquetes de nombre SIN versión que pueden
+# saltar de MAYOR con un 'pkg upgrade' (dovecot-mysql, redis...) y rompernos el servicio. Las
+# subversiones (parches) se aplican solas desde el panel/daemon; los saltos de mayor esperan
+# verificación del admin. Idempotente. Ver bin/pkg_pin.sh.
+if [ -x "$PANEL_PATH/bin/pkg_pin.sh" ]; then
+    "$PANEL_PATH/bin/pkg_pin.sh" lock-all >/dev/null 2>&1 || true
+    ok "Paquetes críticos bloqueados (pin de mayor)"
+fi
+
 ###############################################################################
 # 16. CRON — DAEMON DE SENTORA
 ###############################################################################

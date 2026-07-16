@@ -9,9 +9,14 @@ require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
 class module_controller extends ctrl_module
 {
     const STATUS_FILE = '/var/sentora/updates/status.json';
+    const PINS_FILE   = '/var/sentora/updates/pkgpins.json';
     const RUN_FILE    = '/var/sentora/updates/running';
     const RESULT_FILE = '/var/sentora/updates/last_result';
     const LOG_FILE    = '/var/sentora/updates/last_action.log';
+
+    // Paquetes gestionados con pin de mayor (espejo de la whitelist de pkg_pin.sh, para validar
+    // la acción de verificación). La fuente única real es MANAGED en pkg_pin.sh.
+    const MANAGED = array('dovecot-mysql', 'redis');
 
     static $ok_msg;
     static $err_msg;
@@ -30,16 +35,23 @@ class module_controller extends ctrl_module
         return is_array($j) ? $j : null;
     }
 
-    /** Tarea en curso ('check'|'pkg'|'base') o '' si no hay ninguna. */
+    private static function pins()
+    {
+        if (!is_readable(self::PINS_FILE)) return null;
+        $j = json_decode((string)@file_get_contents(self::PINS_FILE), true);
+        return (is_array($j) && isset($j['packages']) && is_array($j['packages'])) ? $j : null;
+    }
+
+    /** Tarea en curso ('check'|'pkg'|'base'|'pin') o '' si no hay ninguna. */
     private static function running()
     {
         return is_readable(self::RUN_FILE) ? trim((string)@file_get_contents(self::RUN_FILE)) : '';
     }
 
-    private static function runPriv($cmd)
+    private static function runPriv($cmd, array $args = array())
     {
         if (!class_exists('privilege')) require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
-        privilege::run($cmd, array(), true);
+        privilege::run($cmd, $args, true);
     }
 
     // ---- acciones (solo admin) -----------------------------------------------------------------
@@ -73,6 +85,20 @@ class module_controller extends ctrl_module
         if (!self::isAdmin()) { self::$err_msg = 'Solo el administrador puede actualizar el panel.'; return; }
         try { self::runPriv('panel_update'); self::$ok_msg = 'Actualización del panel iniciada en segundo plano.'; }
         catch (Exception $e) { self::$err_msg = 'No se pudo iniciar: ' . $e->getMessage(); }
+    }
+
+    static function doVerifyMajor()
+    {
+        runtime_csfr::Protect();
+        if (!self::isAdmin()) { self::$err_msg = 'Solo el administrador puede actualizar paquetes.'; return; }
+        $pkg = (string)$GLOBALS['controller']->GetControllerRequest('FORM', 'inPkg');
+        if (!in_array($pkg, self::MANAGED, true)) { self::$err_msg = 'Paquete no gestionado.'; return; }
+        try {
+            self::runPriv('pkg_pin_verify', array($pkg));
+            self::$ok_msg = 'Salto de versión mayor de "' . htmlspecialchars($pkg, ENT_QUOTES) . '" iniciado en segundo plano.';
+        } catch (Exception $e) {
+            self::$err_msg = 'No se pudo iniciar: ' . $e->getMessage();
+        }
     }
 
     static function getPanelStatusHTML()
@@ -144,11 +170,14 @@ class module_controller extends ctrl_module
         $ts     = (int)($p[2] ?? 0);
         $n      = $p[3] ?? '';
         $label  = ($action === 'pkg') ? 'Actualización de paquetes'
-                : (($action === 'base') ? 'Parches del sistema base' : 'Acción');
+                : (($action === 'base') ? 'Parches del sistema base'
+                : (($action === 'pin') ? 'Actualización de paquete gestionado' : 'Acción'));
         $when   = $ts ? ' (' . date('d/m/Y H:i', $ts) . ')' : '';
 
         if ($rc === 0) {
-            $extra = ($action === 'pkg' && $n !== '' && (int)$n > 0) ? ' — ' . (int)$n . ' paquete(s) afectados' : '';
+            $extra = '';
+            if ($action === 'pkg' && $n !== '' && (int)$n > 0) { $extra = ' — ' . (int)$n . ' paquete(s) afectados'; }
+            elseif ($action === 'pin' && $n !== '') { $extra = ' — ' . htmlspecialchars((string)$n, ENT_QUOTES); }
             $msg = ui_sysmessage::shout($label . ' completada correctamente' . $extra . '.' . $when, 'zannounceok');
         } else {
             $msg = ui_sysmessage::shout($label . ' terminó con ERRORES (código ' . $rc . ').' . $when, 'zannounceerror');
@@ -163,6 +192,70 @@ class module_controller extends ctrl_module
             }
         }
         return $msg;
+    }
+
+    static function getManagedPackagesHTML()
+    {
+        $admin   = self::isAdmin();
+        $running = self::running();
+        $pins    = self::pins();
+        $csrf    = self::getCSFR_Tag();
+
+        $intro = '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">'
+               . 'Paquetes críticos con la <strong>mayor bloqueada</strong>: las subversiones (parches de '
+               . 'seguridad) se aplican solas; un salto de <strong>mayor</strong> se retiene hasta que lo '
+               . 'verificas aquí.</p>';
+
+        if ($pins === null) {
+            return $intro . '<p class="text-muted">Sin datos aún. Pulsa "Comprobar ahora".</p>';
+        }
+        if (empty($pins['packages'])) {
+            return $intro . '<p class="text-muted">No hay paquetes gestionados instalados en este servidor.</p>';
+        }
+
+        $stateBadge = function ($state) {
+            switch ($state) {
+                case 'subversion': return '<span class="badge bg-warning">Subversión disponible</span>';
+                case 'major':      return '<span class="badge bg-danger">Nueva mayor</span>';
+                default:           return '<span class="badge bg-success">Al día</span>';
+            }
+        };
+
+        $h  = $intro;
+        $h .= '<table class="table table-sm align-middle" style="max-width:600px;margin-bottom:6px;">';
+        $h .= '<thead><tr><th>Paquete</th><th>Instalada</th><th>Disponible</th><th>Estado</th>'
+            . '<th style="text-align:right;">Acción</th></tr></thead><tbody>';
+        foreach ($pins['packages'] as $p) {
+            $name  = htmlspecialchars((string)($p['pkg'] ?? ''), ENT_QUOTES);
+            $inst  = htmlspecialchars((string)($p['installed'] ?? ''), ENT_QUOTES);
+            $cand  = htmlspecialchars((string)($p['candidate'] ?? ''), ENT_QUOTES);
+            $state = (string)($p['state'] ?? 'uptodate');
+            $lock  = !empty($p['locked']) ? ' <i class="bi bi-lock-fill text-muted" title="Bloqueado (pin)"></i>' : '';
+
+            $action = '<span class="text-muted">—</span>';
+            if ($admin && $running === '' && $state === 'major' && in_array($p['pkg'] ?? '', self::MANAGED, true)) {
+                $confirm = 'Actualizar ' . addslashes((string)$p['pkg']) . ' a la nueva versión MAYOR ('
+                         . addslashes((string)($p['candidate'] ?? '')) . ')? Puede requerir migración de config y reiniciar el servicio.';
+                $action = '<form method="post" action="./?module=updates&action=VerifyMajor" style="display:inline;">' . $csrf
+                        . '<input type="hidden" name="inPkg" value="' . $name . '">'
+                        . '<button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'' . htmlspecialchars($confirm, ENT_QUOTES) . '\')">'
+                        . '<i class="bi bi-arrow-up-circle me-1"></i>Verificar y actualizar</button></form>';
+            } elseif ($state === 'subversion') {
+                $action = '<span class="text-muted" style="font-size:12px;">automática</span>';
+            }
+
+            $h .= '<tr><td><strong>' . $name . '</strong>' . $lock . '</td>'
+                . '<td>' . $inst . '</td><td>' . $cand . '</td>'
+                . '<td>' . $stateBadge($state) . '</td>'
+                . '<td style="text-align:right;">' . $action . '</td></tr>';
+        }
+        $h .= '</tbody></table>';
+
+        if ($running === 'pin') {
+            $h .= '<div class="alert alert-info" style="margin:6px 0 0;"><i class="bi bi-hourglass-split me-1"></i>'
+                . 'Aplicando actualización de paquete… <small>(la página se refresca sola)</small></div>';
+        }
+        return $h;
     }
 
     static function getSystemStatusHTML()
