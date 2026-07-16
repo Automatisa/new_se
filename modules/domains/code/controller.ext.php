@@ -511,6 +511,8 @@ class module_controller extends ctrl_module
             . $toggleLabel . '</button> '
             . '<a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=PhpSettings&id=' . (int)$id . '"'
             . ' class="btn btn-info btn-sm">PHP</a> '
+            . '<a href="./?module=' . htmlspecialchars($mod, ENT_QUOTES) . '&show=IpSettings&id=' . (int)$id . '"'
+            . ' class="btn btn-secondary btn-sm"><i class="bi bi-hdd-network me-1"></i>IP</a> '
             . '<button class="delete btn btn-danger btn-sm" type="submit"'
             . ' name="inDelete_' . (int)$id . '" value="inDelete_' . (int)$id . '"><i class="bi bi-trash me-1"></i>'
             . ui_language::translate('Delete') . '</button>'
@@ -599,11 +601,45 @@ class module_controller extends ctrl_module
         return self::loadPhpSettings() !== false;
     }
 
-    /** Vista principal (lista + crear): solo cuando NO se está en ajustes PHP ni borrando un dominio.
-     *  Así la pantalla de ajustes PHP muestra solo ese dominio y no toda la lista. */
+    /** Vista principal (lista + crear): solo cuando NO se está en una vista de detalle
+     *  (ajustes PHP, asignación de IP, o borrado). Así el detalle muestra solo ese dominio. */
     static function getisDomainMain()
     {
-        return !self::getisPhpSettings() && !self::getisDeleteDomain();
+        return !self::getisPhpSettings() && !self::getisIpSettings() && !self::getisDeleteDomain();
+    }
+
+    // --- Vista de asignación de IP (show=IpSettings) -------------------------------------------
+    private static $ipSettingsCache = null;
+
+    private static function loadIpSettings()
+    {
+        if (self::$ipSettingsCache !== null) return self::$ipSettingsCache;
+        global $controller, $zdbh;
+        $urlvars = $controller->GetAllControllerRequests('URL');
+        if (!isset($urlvars['show']) || $urlvars['show'] !== 'IpSettings' || !isset($urlvars['id'])) {
+            self::$ipSettingsCache = false;
+            return false;
+        }
+        $vhostid     = (int)$urlvars['id'];
+        $currentuser = ctrl_users::GetUserDetail();
+        $chk = $zdbh->prepare("SELECT vh_name_vc FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $currentuser['userid']]);
+        $vhost = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$vhost) { self::$ipSettingsCache = false; return false; }
+        self::$ipSettingsCache = ['domain_name' => $vhost['vh_name_vc'], 'vhost_id' => $vhostid];
+        return self::$ipSettingsCache;
+    }
+
+    static function getisIpSettings()
+    {
+        return self::loadIpSettings() !== false;
+    }
+
+    static function getIpDomainName()
+    {
+        $s = self::loadIpSettings();
+        return $s ? htmlspecialchars($s['domain_name'], ENT_QUOTES) : '';
     }
 
     static function getPhpDomainName()
@@ -889,9 +925,9 @@ class module_controller extends ctrl_module
         self::ExecuteAssignDomainIP($vhostid, $currentuser['userid'], $ip);
     }
 
-    /** Selector de IP para la vista de ajustes del dominio (show=PhpSettings). */
+    /** Selector de IP para la vista de asignación de IP del dominio (show=IpSettings). */
     static function getDomainIpSelectorHTML() {
-        $s = self::loadPhpSettings();
+        $s = self::loadIpSettings();
         if (!$s) return '';
         global $zdbh;
         $vhostid = (int)$s['vhost_id'];
@@ -921,7 +957,7 @@ class module_controller extends ctrl_module
         }
 
         $qtxt = ($quota === -1) ? 'ilimitadas' : (string)$quota;
-        $h .= '<form action="./?module=domains&action=SaveDomainIP&show=PhpSettings&id=' . $vhostid . '" method="post">' . $csrf
+        $h .= '<form action="./?module=domains&action=SaveDomainIP&show=IpSettings&id=' . $vhostid . '" method="post">' . $csrf
             . '<input type="hidden" name="inVhostId" value="' . $vhostid . '">'
             . '<table class="zform table table-striped"><tr><th style="width:200px;">IP del sitio:</th><td>'
             . '<select name="inDomainIP" class="form-select form-select-sm" style="max-width:280px;display:inline-block;">'
