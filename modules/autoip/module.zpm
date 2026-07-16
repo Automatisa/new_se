@@ -9,6 +9,11 @@
     <@ Result @>
 
     <div class="zform_wrapper">
+        <h2><i class="bi bi-hdd-network me-1"></i><: Pool de IPs :></h2>
+        <@ IpPoolHTML @>
+    </div>
+
+    <div class="zform_wrapper">
         <h2><: Status :></h2>
         <% if AutoIPSettings %>
         <% loop AutoIPSettings %>
