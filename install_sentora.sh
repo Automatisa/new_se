@@ -1714,97 +1714,10 @@ ok "phpMyAdmin configurado"
 ###############################################################################
 info "Configurando doas..."
 
-cat > /usr/local/etc/doas.conf <<DOASCF
-# /usr/local/etc/doas.conf — Sentora privilege::run() rules
-# Permite al usuario www (PHP-FPM) ejecutar acciones privilegiadas específicas.
-# Cada regla corresponde a una acción en dryden/sys/privilege.class.php.
-
-# ---- Apache ----
-permit nopass www as root cmd /usr/local/sbin/apachectl
-permit nopass www as root cmd /usr/sbin/service args apache24 reload
-permit nopass www as root cmd /usr/sbin/service args apache24 graceful
-permit nopass www as root cmd /usr/sbin/service args apache24 restart
-
-# ---- BIND/named ----
-permit nopass www as root cmd /usr/sbin/service args named start
-permit nopass www as root cmd /usr/sbin/service args named stop
-permit nopass www as root cmd /usr/sbin/service args named reload
-permit nopass www as root cmd /usr/sbin/service args named restart
-permit nopass www as root cmd /usr/local/sbin/rndc
-
-# ---- BIND log permissions ----
-# Restringido a los argumentos EXACTOS (args ...): sin esto, www podría hacer
-# `doas chmod 4755 /bin/sh` o `doas chown` sobre cualquier fichero = root trivial.
-permit nopass www as root cmd /bin/chmod args 0664 /var/sentora/logs/bind/bind.log
-permit nopass www as root cmd /usr/sbin/chown args bind:www /var/sentora/logs/bind/bind.log
-
-# ---- Cron (reload tras escribir crontab del panel) ----
-permit nopass www as root cmd /usr/local/sentora/bin/cron_install.sh
-
-# ---- PHP-FPM ----
-permit nopass www as root cmd /usr/sbin/service args php_fpm reload
-permit nopass www as root cmd /usr/sbin/service args php_fpm restart
-permit nopass www as root cmd /usr/local/bin/php args -d display_errors=Off $PANEL_PATH/bin/fpm_regen.php
-
-# ---- OpenDKIM (milter-opendkim en FreeBSD) ----
-permit nopass www as root cmd /usr/sbin/service args milter-opendkim reload
-
-# ---- ProFTPD ----
-permit nopass www as root cmd /usr/sbin/service args proftpd reload
-permit nopass www as root cmd /usr/sbin/service args proftpd restart
-permit nopass www as root cmd $PANEL_PATH/bin/ftp_cert_generate.sh
-permit nopass www as root cmd $PANEL_PATH/bin/ftp_config_update.sh
-permit nopass www as root cmd $PANEL_PATH/bin/ftp_cert_paths_update.sh
-permit nopass www as root cmd $PANEL_PATH/bin/ftp_cert_upload.sh
-
-# ---- Cortafuegos: pf + SSHGuard (fw_admin) ----
-# Los scripts leen IPs desde ficheros en /var/sentora/run/ — nunca por argumento directo.
-permit nopass www as root cmd $PANEL_PATH/bin/fw_block_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/fw_whitelist_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/fw_sshguard_unban.sh
-permit nopass www as root cmd $PANEL_PATH/bin/fw_status_dump.sh
-permit nopass www as root cmd $PANEL_PATH/bin/fw_rules_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/fw_service_toggle.sh
-permit nopass www as root cmd /usr/sbin/service args pf reload
-permit nopass www as root cmd /usr/sbin/service args sshguard restart
-
-# ---- Hosting users (hosting_users module) ----
-# El nombre de usuario va en /var/sentora/run/hosting_useradd_req / hosting_userdel_req
-permit nopass www as root cmd $PANEL_PATH/bin/hosting_user_add.sh
-permit nopass www as root cmd $PANEL_PATH/bin/hosting_user_del.sh
-# Restaura los ficheros del home de una cuenta desde un .zip (backupmgr).
-# La orden "USERNAME|/ruta/backup.zip" va en /var/sentora/run/account_restore_req
-permit nopass www as root cmd $PANEL_PATH/bin/account_restore.sh
-# Aplica cuotas de disco UFS por cuenta (edquota). Orden en /var/sentora/run/disk_quota_req
-permit nopass www as root cmd $PANEL_PATH/bin/disk_quota_apply.sh
-
-# ---- rspamd (antispam_admin) ----
-permit nopass www as root cmd /usr/sbin/service args rspamd start
-permit nopass www as root cmd /usr/sbin/service args rspamd stop
-permit nopass www as root cmd /usr/sbin/service args rspamd reload
-permit nopass www as root cmd /usr/sbin/service args rspamd restart
-permit nopass www as root cmd $PANEL_PATH/bin/antispam_rbl_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/sysmail_alias_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/sys_update_check.sh
-permit nopass www as root cmd $PANEL_PATH/bin/pkg_upgrade.sh
-permit nopass www as root cmd $PANEL_PATH/bin/freebsd_update_apply.sh
-permit nopass www as root cmd $PANEL_PATH/bin/panel_update.sh
-
-# ---- ClamAV (clamav_admin) ----
-permit nopass www as root cmd /usr/sbin/service args clamav_clamd start
-permit nopass www as root cmd /usr/sbin/service args clamav_clamd stop
-permit nopass www as root cmd /usr/sbin/service args clamav_clamd restart
-permit nopass www as root cmd /usr/sbin/service args clamav_freshclam start
-permit nopass www as root cmd /usr/sbin/service args clamav_freshclam restart
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_freshclam_update.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_scan_mailboxes.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_scan_launch.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_freshclam_launch.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_clamd_stop.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_cron_update.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_user_scan.sh
-permit nopass www as root cmd $PANEL_PATH/bin/clamav_quarantine_restore.sh
-DOASCF
+# doas.conf se GENERA desde el mapa de privilege.class.php (fuente única de verdad). Evita
+# duplicar/desincronizar reglas y elimina permisos muertos. Añadir una accion = 1 edicion.
+php -r 'require "'"$PANEL_PATH"'/dryden/sys/privilege.class.php"; echo privilege::doasRules("www");' > /usr/local/etc/doas.conf
+chown root:wheel /usr/local/etc/doas.conf
 
 chmod 600 /usr/local/etc/doas.conf
 ok "doas configurado"

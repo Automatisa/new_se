@@ -17,6 +17,17 @@ printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
     echo "== git pull --ff-only ==" >> "$LOG"
     git -C "$REPO" pull --ff-only >> "$LOG" 2>&1; RC=$?
     if [ "$RC" -eq 0 ]; then
+        echo "== regenerar doas.conf desde privilege.class.php ==" >> "$LOG"
+        php -r 'require "'"$REPO"'/dryden/sys/privilege.class.php"; echo privilege::doasRules("www");' > "$OUT_DIR/doas.conf.new" 2>>"$LOG"
+        # Guarda de sanidad: solo reemplazar si la generación tiene un nº razonable de reglas.
+        if [ "$(grep -c '^permit nopass www' "$OUT_DIR/doas.conf.new" 2>/dev/null)" -ge 40 ]; then
+            install -o root -g wheel -m 600 "$OUT_DIR/doas.conf.new" /usr/local/etc/doas.conf
+            echo "doas.conf regenerado" >> "$LOG"
+        else
+            echo "AVISO: doas.conf generado sospechoso; se mantiene el anterior" >> "$LOG"
+        fi
+        rm -f "$OUT_DIR/doas.conf.new"
+
         echo "== migraciones BD/config ==" >> "$LOG"
         if [ -f "$REPO/bin/db_migrate.php" ]; then
             php "$REPO/bin/db_migrate.php" >> "$LOG" 2>&1 || RC=$?
