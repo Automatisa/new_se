@@ -194,10 +194,16 @@ class module_controller extends ctrl_module {
     }
 
     // -----------------------------------------------------------------------
-    // Pool de IPs (multi-IP, Fase 1) — inventario x_ips + alias de SO
+    // Pool de IPs (multi-IP, Fase 1b) — INVENTARIO del sistema (x_ips)
+    //
+    // El pool son las IPs que el sistema tiene disponibles. Aquí es SOLO inventario:
+    // el alias en la interfaz NO se configura al añadir, sino al ASIGNAR la IP a un
+    // dominio (Fase 1c) — aliasar un /24 entero por adelantado no tiene sentido.
+    // "Compartida/dedicada" es resultado del uso (nº de dominios), no algo que se marca.
+    // Solo el admin gestiona el pool; el reparto a resellers/usuarios va en fases 1c/2.
     // -----------------------------------------------------------------------
 
-    /** Nº de dominios (vhosts activos) que usan una IP como custom IP. */
+    /** Nº de dominios (vhosts activos) que usan una IP. */
     private static function ipDomainCount($ip) {
         global $zdbh;
         $q = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip_vc=:ip AND vh_deleted_ts IS NULL");
@@ -207,9 +213,29 @@ class module_controller extends ctrl_module {
 
     static function getIpPool() {
         global $zdbh;
-        $rows = $zdbh->query("SELECT * FROM x_ips ORDER BY ip_is_primary_in DESC, ip_address_vc ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $zdbh->query("SELECT * FROM x_ips ORDER BY ip_is_primary_in DESC, INET_ATON(ip_address_vc) ASC")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$r) { $r['domains'] = self::ipDomainCount($r['ip_address_vc']); }
         return $rows;
+    }
+
+    /** Expande una entrada de alta: IP suelta o CIDR IPv4 a.b.c.d/nn (prefijo /24..32; máx 256). */
+    private static function expandIPInput($in) {
+        $in = trim($in);
+        if (filter_var($in, FILTER_VALIDATE_IP)) return array($in);
+        if (preg_match('#^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/(\d{1,2})$#', $in, $m)) {
+            $base = $m[1]; $prefix = (int)$m[2];
+            if (!filter_var($base, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || $prefix < 24 || $prefix > 32) return null;
+            $count   = 1 << (32 - $prefix);
+            $network = ip2long($base) & (~($count - 1));
+            $ips = array();
+            for ($i = 0; $i < $count; $i++) {
+                // en bloques de 4+ direcciones (<= /30) excluir red y broadcast
+                if ($prefix <= 30 && ($i === 0 || $i === $count - 1)) continue;
+                $ips[] = long2ip($network + $i);
+            }
+            return $ips;
+        }
+        return null;
     }
 
     static function getIpPoolHTML() {
@@ -224,12 +250,12 @@ class module_controller extends ctrl_module {
             $h .= ui_sysmessage::shout(self::$ok_msg, 'zannounceok');
         }
 
-        $h .= '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Inventario de IPs del servidor. '
-            . 'Al añadir una IP se configura como <strong>alias</strong> en la interfaz (persistente) y queda disponible '
-            . 'para asignar a dominios. La IP primaria no se puede quitar.</p>';
+        $h .= '<p class="text-muted" style="font-size:12px;margin-bottom:8px;">Inventario de IPs disponibles en el sistema. '
+            . 'Añadir aquí es <strong>solo inventario</strong>: el alias de red se configura al <em>asignar</em> la IP a un dominio. '
+            . 'La IP primaria (compartida del sistema) no se puede quitar.</p>';
 
-        $h .= '<table class="table table-sm align-middle" style="max-width:760px;">'
-            . '<thead><tr><th>IP</th><th>Tipo</th><th>Modo</th><th>Dominios</th><th>Estado</th>'
+        $h .= '<table class="table table-sm align-middle" style="max-width:820px;">'
+            . '<thead><tr><th>IP</th><th>Tipo</th><th>Asignación</th><th>Estado</th>'
             . '<th style="text-align:right;">Acciones</th></tr></thead><tbody>';
         foreach ($pool as $p) {
             $ip   = htmlspecialchars((string)$p['ip_address_vc'], ENT_QUOTES);
@@ -237,42 +263,46 @@ class module_controller extends ctrl_module {
             $pub  = filter_var($p['ip_address_vc'], FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
             $tipo = $prim ? '<span class="badge bg-primary">Primaria</span>'
                           : ($pub ? '<span class="badge bg-success">Pública</span>' : '<span class="badge bg-warning">Privada</span>');
-            $modo = !empty($p['ip_shared_in']) ? 'Compartida' : 'Dedicada';
             $dom  = (int)$p['domains'];
             $ena  = !empty($p['ip_enabled_in']);
             $estado = $ena ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>';
 
-            $acc = '';
+            // Asignación: compartida del sistema / a un reseller / a dominios / libre
+            if ($prim) {
+                $asig = '<span class="text-muted">Compartida (sistema)</span>';
+            } elseif (!empty($p['ip_reseller_fk'])) {
+                $asig = 'Reseller #' . (int)$p['ip_reseller_fk'];
+            } elseif ($dom > 0) {
+                $asig = $dom . ' dominio' . ($dom > 1 ? 's' : '') . ' (' . ($dom === 1 ? 'dedicada' : 'compartida') . ')';
+            } else {
+                $asig = '<span class="text-muted">Libre</span>';
+            }
+
+            $acc = '<span class="text-muted">—</span>';
             if (!$prim) {
-                // activar/desactivar
-                $acc .= '<form method="post" action="./?module=autoip&action=ToggleIP" style="display:inline;">' . $csrf
+                $acc  = '<form method="post" action="./?module=autoip&action=ToggleIP" style="display:inline;">' . $csrf
                       . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
                       . '<button type="submit" class="btn btn-sm btn-outline-secondary">' . ($ena ? 'Desactivar' : 'Activar') . '</button></form> ';
-                // eliminar (bloqueado si hay dominios usándola)
-                if ($dom === 0) {
+                if ($dom === 0 && empty($p['ip_reseller_fk'])) {
                     $acc .= '<form method="post" action="./?module=autoip&action=RemoveIP" style="display:inline;">' . $csrf
                           . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
-                          . '<button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'Quitar ' . $ip . ' del pool y de la interfaz?\')">Eliminar</button></form>';
+                          . '<button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'Quitar ' . $ip . ' del pool?\')">Eliminar</button></form>';
                 } else {
                     $acc .= '<span class="text-muted" style="font-size:12px;">en uso</span>';
                 }
-            } else {
-                $acc = '<span class="text-muted">—</span>';
             }
 
-            $h .= '<tr><td><strong>' . $ip . '</strong></td><td>' . $tipo . '</td><td>' . $modo . '</td>'
-                . '<td>' . $dom . '</td><td>' . $estado . '</td>'
-                . '<td style="text-align:right;">' . $acc . '</td></tr>';
+            $h .= '<tr><td><strong>' . $ip . '</strong></td><td>' . $tipo . '</td><td>' . $asig . '</td>'
+                . '<td>' . $estado . '</td><td style="text-align:right;">' . $acc . '</td></tr>';
         }
         $h .= '</tbody></table>';
 
-        // formulario de alta
+        // formulario de alta (IP suelta o rango CIDR)
         $h .= '<form method="post" action="./?module=autoip&action=AddIP" style="margin-top:10px;">' . $csrf
             . '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-            . '<input type="text" name="inNewIP" placeholder="Nueva IP (IPv4)" maxlength="45" style="width:200px;" class="form-control form-control-sm" required>'
-            . '<label style="font-size:13px;"><input type="checkbox" name="inShared" value="1" checked> Compartida</label>'
-            . '<button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Añadir IP</button>'
-            . '</div><small class="text-muted">Compartida = varios dominios; sin marcar = dedicada (un dominio). Se añade como alias a la interfaz.</small></form>';
+            . '<input type="text" name="inNewIP" placeholder="IP (192.168.1.50) o rango (192.168.1.48/29)" maxlength="45" style="width:320px;" class="form-control form-control-sm" required>'
+            . '<button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Añadir al pool</button>'
+            . '</div><small class="text-muted">Acepta una IP suelta o un rango CIDR IPv4 (/24 a /32; en bloques se excluyen red y broadcast). Solo inventario — sin tocar la red aún.</small></form>';
 
         return $h;
     }
@@ -281,30 +311,25 @@ class module_controller extends ctrl_module {
         self::requireAdmin();
         runtime_csfr::Protect();
         global $zdbh, $controller;
-        $f = $controller->GetAllControllerRequests('FORM');
-        $ip     = trim((string)($f['inNewIP'] ?? ''));
-        $shared = isset($f['inShared']) ? 1 : 0;
+        $f     = $controller->GetAllControllerRequests('FORM');
+        $input = trim((string)($f['inNewIP'] ?? ''));
 
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) { self::$err_msg = 'IP inválida.'; return; }
-        $ex = $zdbh->prepare("SELECT COUNT(*) FROM x_ips WHERE ip_address_vc=:ip");
-        $ex->execute([':ip' => $ip]);
-        if ($ex->fetchColumn() > 0) { self::$err_msg = 'Esa IP ya está en el pool.'; return; }
+        $ips = self::expandIPInput($input);
+        if ($ips === null || empty($ips)) { self::$err_msg = 'IP o rango CIDR inválido (rango /24 a /32).'; return; }
 
-        $isPrimary = ($ip === (string)ctrl_options::GetOption('server_ip')) ? 1 : 0;
-        $zdbh->prepare("INSERT INTO x_ips (ip_address_vc, ip_shared_in, ip_enabled_in, ip_is_primary_in, ip_created_ts)
-                        VALUES (:ip,:sh,1,:pr,:ts)")
-             ->execute([':ip' => $ip, ':sh' => $shared, ':pr' => $isPrimary, ':ts' => time()]);
-
-        // alias en el SO: solo IPv4 y si no es la primaria (la primaria ya está en la interfaz)
-        $msg = 'IP ' . htmlspecialchars($ip, ENT_QUOTES) . ' añadida al pool.';
-        if (!$isPrimary && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            try {
-                $r = privilege::run('ip_alias_add', array($ip));
-                if (is_array($r) && (int)$r[0] !== 0) { $msg .= ' (aviso: el alias de red devolvió código ' . (int)$r[0] . ').'; }
-                else { $msg .= ' Alias configurado en la interfaz.'; }
-            } catch (Exception $e) { $msg .= ' (no se pudo configurar el alias: ' . $e->getMessage() . ').'; }
+        $server_ip = (string)ctrl_options::GetOption('server_ip');
+        $added = 0; $skipped = 0;
+        $ins = $zdbh->prepare("INSERT INTO x_ips (ip_address_vc, ip_enabled_in, ip_is_primary_in, ip_created_ts) VALUES (:ip,1,:pr,:ts)");
+        $chk = $zdbh->prepare("SELECT COUNT(*) FROM x_ips WHERE ip_address_vc=:ip");
+        foreach ($ips as $ip) {
+            $chk->execute([':ip' => $ip]);
+            if ($chk->fetchColumn() > 0) { $skipped++; continue; }
+            $ins->execute([':ip' => $ip, ':pr' => ($ip === $server_ip ? 1 : 0), ':ts' => time()]);
+            $added++;
         }
-        self::$ok_msg = $msg;
+        self::$ok_msg = 'Pool actualizado: ' . $added . ' IP(s) añadidas'
+                      . ($skipped ? ', ' . $skipped . ' ya existían' : '')
+                      . '. El alias de red se configura al asignar la IP a un dominio.';
     }
 
     static function doRemoveIP() {
@@ -320,14 +345,11 @@ class module_controller extends ctrl_module {
         $ipr = $row->fetch(PDO::FETCH_ASSOC);
         if (!$ipr) { self::$err_msg = 'IP no encontrada.'; return; }
         if (!empty($ipr['ip_is_primary_in'])) { self::$err_msg = 'No se puede quitar la IP primaria.'; return; }
+        if (!empty($ipr['ip_reseller_fk']))    { self::$err_msg = 'Esa IP está asignada a un reseller; retírasela primero.'; return; }
         if (self::ipDomainCount($ipr['ip_address_vc']) > 0) { self::$err_msg = 'Esa IP está en uso por dominios; reasígnalos primero.'; return; }
 
-        // quitar alias del SO (IPv4) y borrar del pool
-        if (filter_var($ipr['ip_address_vc'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            try { privilege::run('ip_alias_del', array($ipr['ip_address_vc'])); } catch (Exception $e) {}
-        }
         $zdbh->prepare("DELETE FROM x_ips WHERE ip_id_pk=:id")->execute([':id' => $id]);
-        self::$ok_msg = 'IP ' . htmlspecialchars((string)$ipr['ip_address_vc'], ENT_QUOTES) . ' eliminada del pool y de la interfaz.';
+        self::$ok_msg = 'IP ' . htmlspecialchars((string)$ipr['ip_address_vc'], ENT_QUOTES) . ' eliminada del pool.';
     }
 
     static function doToggleIP() {
