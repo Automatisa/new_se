@@ -68,7 +68,10 @@ class module_controller extends ctrl_module
             if ($newpass == $conpass) {
                 // Check for password length...
                 if (strlen($newpass) < ctrl_options::GetSystemOption('password_minlength')) {
-                    self::$badpassword = true;
+                    // Usar self::$error (no $badpassword) para que el mensaje sobreviva al PRG
+                    // (Post-Redirect-Get): tras el POST se redirige y solo se conservan en el flash
+                    // de sesión las propiedades 'error'/'ok'; $badpassword se perdía -> sin mensaje.
+                    self::$error = "short";
                     return false;
                 }
                 // Check that the new password matches the confirmation box.
@@ -95,6 +98,9 @@ class module_controller extends ctrl_module
             }
             if (self::$error == "error") {
                 return ui_sysmessage::shout(ui_language::translate("An error occured and your Sentora account password could not be updated. Please ensure you entered all passwords correctly and try again."), "zannounceerror");
+            }
+            if (self::$error == "short") {
+                return ui_sysmessage::shout(ui_language::translate("Your password did not meet the minimun length requirements. Characters needed for password length") . ": " . ctrl_options::GetSystemOption('password_minlength'), "zannounceerror");
             }
         } else {
             if (!fs_director::CheckForEmptyValue(self::$badpassword)) {

@@ -209,17 +209,10 @@ class module_controller extends ctrl_module
         runtime_hook::Execute('OnBeforeCreateFTPAccount');
         if (fs_director::CheckForEmptyValue(self::CheckForErrors($username, $password))) {
 					
-            // Check to see if its a new home directory or use a current one...
-            if ($home == 1) {
-				
-                $homedirectory_to_use = '/' . str_replace('.', '_', $username);
-                $full_path = ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . $homedirectory_to_use . '/';
-                // Create the new home directory... (If it doesnt already exist.)
-                if (!file_exists($full_path)) {
-                    @mkdir($full_path, 0755);
-                    @chmod($full_path, 0755);
-                }
-            } else if ($home == 3) {
+            // Home directory del FTP: Root/Master (raíz o dir elegido) o Dominio/Subdominio.
+            // Se eliminó la opción "Crear nuevo Home directory" (value=1): creaba un directorio
+            // huérfano <home>/<user>_<ftp>/ desconectado de cualquier web (sin función).
+            if ($home == 3) {
                 // Dominio/subdominio: ahora viven bajo <home>/web/<dominio>
                 $homedirectory_to_use = '/' . ctrl_options::DOMAINS_SUBDIR . '/' . $domainDestination;
             } else {
