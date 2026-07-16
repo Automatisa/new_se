@@ -518,6 +518,11 @@ chown root:www "$PANEL_PATH/cnf/security.php"
 chmod 640 "$PANEL_PATH/cnf/security.php"
 ok "Contraseña de zadmin fijada (setzadmin)"
 
+# Baseline de migraciones: sentora_core.sql ya trae el esquema al día, así que marcamos todas las
+# migraciones existentes como aplicadas (sin ejecutarlas). Las futuras (git pull) se aplicarán solas.
+php "$PANEL_PATH/bin/db_migrate.php" --baseline > /dev/null 2>&1 || true
+ok "Migraciones marcadas (baseline)"
+
 ###############################################################################
 # 9. POSTFIX
 ###############################################################################

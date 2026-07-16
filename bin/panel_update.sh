@@ -17,6 +17,10 @@ printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
     echo "== git pull --ff-only ==" >> "$LOG"
     git -C "$REPO" pull --ff-only >> "$LOG" 2>&1; RC=$?
     if [ "$RC" -eq 0 ]; then
+        echo "== migraciones BD/config ==" >> "$LOG"
+        if [ -f "$REPO/bin/db_migrate.php" ]; then
+            php "$REPO/bin/db_migrate.php" >> "$LOG" 2>&1 || RC=$?
+        fi
         echo "== fix permisos + reload php-fpm ==" >> "$LOG"
         [ -f "$REPO/bin/fix_permissions.php" ] && php "$REPO/bin/fix_permissions.php" >> "$LOG" 2>&1
         service php_fpm reload >> "$LOG" 2>&1

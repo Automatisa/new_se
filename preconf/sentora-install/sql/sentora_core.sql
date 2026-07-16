@@ -543,6 +543,19 @@ CREATE TABLE `x_packages` (
   PRIMARY KEY (`pk_id_pk`)
 ) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Control de migraciones incrementales (esquema BD + configuraciones). Cada migración de
+-- preconf/migrations/ (NNNN_*.sql o NNNN_*.sh) se aplica UNA vez y se registra aquí. En una
+-- instalación nueva se marcan todas como aplicadas (baseline), porque sentora_core.sql ya trae el
+-- esquema al día; en una actualización (git pull) se aplican solo las nuevas.
+DROP TABLE IF EXISTS `x_migrations`;
+CREATE TABLE `x_migrations` (
+  `mg_id_pk` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `mg_name_vc` varchar(191) NOT NULL,
+  `mg_applied_ts` int(11) NOT NULL,
+  PRIMARY KEY (`mg_id_pk`),
+  UNIQUE KEY `uq_mg_name` (`mg_name_vc`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 DROP TABLE IF EXISTS `x_permissions`;
 CREATE TABLE `x_permissions` (
   `pe_id_pk` int(6) unsigned NOT NULL AUTO_INCREMENT,
