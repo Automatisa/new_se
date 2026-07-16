@@ -413,10 +413,12 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/clamav_freshclam_launch.sh',
             'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_freshclam_launch.sh',
         ),
+        // Parar clamd EN 2º PLANO (daemon -f): 'service clamav_clamd stop' puede tardar/colgar, así
+        // que se detacha para no bloquear la petición. argv fijo -> sin script wrapper (FIX-182).
         'clamd_stop_bg' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_clamd_stop.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_clamd_stop.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_clamd_stop.sh',
+            'argv'      => array('/usr/sbin/daemon', '-f', '/usr/sbin/service', 'clamav_clamd', 'stop'),
+            'sudo_rule' => '/usr/sbin/daemon -f /usr/sbin/service clamav_clamd stop',
+            'doas_rule' => 'cmd /usr/sbin/daemon args -f /usr/sbin/service clamav_clamd stop',
         ),
         'clamav_cron_update' => array(
             'argv'      => array('/usr/local/sentora/bin/clamav_cron_update.sh'),

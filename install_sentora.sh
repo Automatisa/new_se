@@ -1254,7 +1254,6 @@ chmod 500 /usr/local/sentora/bin/clamav_freshclam_update.sh \
           /usr/local/sentora/bin/clamav_scan_mailboxes.sh \
           /usr/local/sentora/bin/clamav_scan_launch.sh \
           /usr/local/sentora/bin/clamav_freshclam_launch.sh \
-          /usr/local/sentora/bin/clamav_clamd_stop.sh \
           /usr/local/sentora/bin/clamav_cron_update.sh
 
 # Redis — estado inicial
