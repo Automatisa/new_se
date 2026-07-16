@@ -10,6 +10,8 @@ class module_controller extends ctrl_module
 {
     const STATUS_FILE = '/var/sentora/updates/status.json';
     const RUN_FILE    = '/var/sentora/updates/running';
+    const RESULT_FILE = '/var/sentora/updates/last_result';
+    const LOG_FILE    = '/var/sentora/updates/last_action.log';
 
     static $ok_msg;
     static $err_msg;
@@ -65,6 +67,51 @@ class module_controller extends ctrl_module
         catch (Exception $e) { self::$err_msg = 'No se pudo iniciar: ' . $e->getMessage(); }
     }
 
+    static function doUpdatePanel()
+    {
+        runtime_csfr::Protect();
+        if (!self::isAdmin()) { self::$err_msg = 'Solo el administrador puede actualizar el panel.'; return; }
+        try { self::runPriv('panel_update'); self::$ok_msg = 'Actualización del panel iniciada en segundo plano.'; }
+        catch (Exception $e) { self::$err_msg = 'No se pudo iniciar: ' . $e->getMessage(); }
+    }
+
+    static function getPanelStatusHTML()
+    {
+        $admin   = self::isAdmin();
+        $running = self::running();
+        $st      = self::status();
+        $csrf    = self::getCSFR_Tag();
+        $ver     = htmlspecialchars((string)ctrl_options::GetSystemOption('dbversion'), ENT_QUOTES, 'UTF-8');
+
+        $behind = $st ? (int)($st['panel_behind'] ?? 0) : 0;
+        $local  = $st ? htmlspecialchars(trim((string)($st['panel_local'] ?? '')), ENT_QUOTES) : '';
+        $log    = $st ? trim((string)($st['panel_log'] ?? '')) : '';
+
+        $h  = '<p style="margin-bottom:6px;">Versión del panel: <strong>' . $ver . '</strong>'
+            . ($local ? ' <small class="text-muted">(' . $local . ')</small>' : '') . '</p>';
+        if ($st === null) {
+            $h .= '<p class="text-muted">Sin datos aún. Pulsa "Comprobar ahora".</p>';
+        } elseif ($behind > 0) {
+            $h .= '<p><span class="badge bg-warning">' . $behind . '</span> actualización(es) del panel disponibles.</p>';
+            if ($log !== '') {
+                $h .= '<details style="margin-bottom:8px;"><summary style="cursor:pointer;">Ver cambios</summary>'
+                    . '<pre style="font-size:12px;max-height:200px;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;padding:8px;white-space:pre-wrap;">'
+                    . htmlspecialchars($log, ENT_QUOTES) . '</pre></details>';
+            }
+        } else {
+            $h .= '<p><span class="badge bg-success">Al día</span></p>';
+        }
+
+        if ($admin && $running === '' && $behind > 0) {
+            $h .= '<form method="post" action="./?module=updates&action=UpdatePanel" style="display:inline;">' . $csrf
+                . '<button type="submit" class="btn btn-primary" onclick="return confirm(\'Actualizar el panel ahora (git pull)? Las migraciones de BD no son automáticas.\')">'
+                . '<i class="bi bi-cloud-arrow-down me-1"></i>Actualizar panel</button></form>';
+        } elseif ($running === 'panel') {
+            $h .= '<div class="alert alert-info" style="margin:0;"><i class="bi bi-hourglass-split me-1"></i>Actualizando el panel… <small>(la página se refresca sola)</small></div>';
+        }
+        return $h;
+    }
+
     // ---- getters de vista ----------------------------------------------------------------------
     static function getResult()
     {
@@ -83,6 +130,39 @@ class module_controller extends ctrl_module
     static function getAutoRefresh()
     {
         return self::running() !== '' ? '<meta http-equiv="refresh" content="8">' : '';
+    }
+
+    /** Mensaje de resultado de la ÚLTIMA acción aplicada (éxito/fallo) + detalle del log.
+     *  Solo cuando NO hay tarea en curso (para no mostrar un resultado viejo a medias). */
+    static function getActionResult()
+    {
+        if (self::running() !== '') return '';
+        if (!is_readable(self::RESULT_FILE)) return '';
+        $p      = explode('|', trim((string)@file_get_contents(self::RESULT_FILE)));
+        $action = $p[0] ?? '';
+        $rc     = (int)($p[1] ?? 1);
+        $ts     = (int)($p[2] ?? 0);
+        $n      = $p[3] ?? '';
+        $label  = ($action === 'pkg') ? 'Actualización de paquetes'
+                : (($action === 'base') ? 'Parches del sistema base' : 'Acción');
+        $when   = $ts ? ' (' . date('d/m/Y H:i', $ts) . ')' : '';
+
+        if ($rc === 0) {
+            $extra = ($action === 'pkg' && $n !== '' && (int)$n > 0) ? ' — ' . (int)$n . ' paquete(s) afectados' : '';
+            $msg = ui_sysmessage::shout($label . ' completada correctamente' . $extra . '.' . $when, 'zannounceok');
+        } else {
+            $msg = ui_sysmessage::shout($label . ' terminó con ERRORES (código ' . $rc . ').' . $when, 'zannounceerror');
+        }
+        // Detalle (log de la última acción), plegable.
+        if (is_readable(self::LOG_FILE)) {
+            $log = htmlspecialchars((string)@file_get_contents(self::LOG_FILE), ENT_QUOTES, 'UTF-8');
+            if ($log !== '') {
+                $msg .= '<details style="margin:6px 0 10px;"><summary style="cursor:pointer;">Ver detalle</summary>'
+                      . '<pre style="font-size:12px;max-height:260px;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;padding:8px;white-space:pre-wrap;">'
+                      . $log . '</pre></details>';
+            }
+        }
+        return $msg;
     }
 
     static function getSystemStatusHTML()

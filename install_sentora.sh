@@ -1783,6 +1783,7 @@ permit nopass www as root cmd $PANEL_PATH/bin/sysmail_alias_apply.sh
 permit nopass www as root cmd $PANEL_PATH/bin/sys_update_check.sh
 permit nopass www as root cmd $PANEL_PATH/bin/pkg_upgrade.sh
 permit nopass www as root cmd $PANEL_PATH/bin/freebsd_update_apply.sh
+permit nopass www as root cmd $PANEL_PATH/bin/panel_update.sh
 
 # ---- ClamAV (clamav_admin) ----
 permit nopass www as root cmd /usr/sbin/service args clamav_clamd start

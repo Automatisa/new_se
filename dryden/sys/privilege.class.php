@@ -360,6 +360,11 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/freebsd_update_apply.sh',
             'doas_rule' => 'cmd /usr/local/sentora/bin/freebsd_update_apply.sh',
         ),
+        'panel_update' => array(
+            'argv'      => array('/usr/local/sentora/bin/panel_update.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/panel_update.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/panel_update.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(
