@@ -117,6 +117,27 @@ class module_controller extends ctrl_module
 
     // ------------------------------------------------------ init / dispatch
 
+    // Wrappers do*: el framework los despacha en runtime_controller::Init() ANTES de renderizar la
+    // página, cuando aún NO se han enviado cabeceras. Así el PRG redirect de getInit() SÍ se ejecuta.
+    // Sin esto, getInit corría solo durante el render (vía <@ Init @>), con cabeceras ya enviadas ->
+    // el header('Location') se omitía -> la página quedaba como resultado del POST -> el navegador
+    // pedía "reenviar formulario" y al aceptar se RE-EJECUTABA la acción (p.ej. reiniciar de nuevo).
+    // Todos delegan en getInit(), que lee la acción de la URL y hace el dispatch + redirect.
+    static function doBlockIP(): void            { self::getInit(); }
+    static function doUnblockIP(): void          { self::getInit(); }
+    static function doAddWhitelist(): void       { self::getInit(); }
+    static function doRemoveWhitelist(): void    { self::getInit(); }
+    static function doUnbanSshguard(): void      { self::getInit(); }
+    static function doSaveConfig(): void         { self::getInit(); }
+    static function doRestartService(): void     { self::getInit(); }
+    static function doRefreshStatus(): void      { self::getInit(); }
+    static function doAddRule(): void            { self::getInit(); }
+    static function doUpdateRule(): void         { self::getInit(); }
+    static function doDeleteRule(): void         { self::getInit(); }
+    static function doToggleRule(): void         { self::getInit(); }
+    static function doReloadRules(): void        { self::getInit(); }
+    static function doClearLoginAttempts(): void { self::getInit(); }
+
     static function getInit(): void
     {
         self::requireAdmin();
