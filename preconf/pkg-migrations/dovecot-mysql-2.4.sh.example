@@ -1,0 +1,55 @@
+#!/bin/sh
+# dovecot-mysql-2.4.sh — PLANTILLA de migración de config para el salto dovecot 2.3 -> 2.4.
+#
+# ESTO ES UN EJEMPLO (.example): el dispatcher (preconf_migrate.sh) SOLO ejecuta ficheros
+# "<pkg>-<mayor>.sh", así que este .example NO se ejecuta. Cuando dovecot 2.4 esté disponible
+# y se pueda PROBAR de verdad, revisar/completar y renombrar a "dovecot-mysql-2.4.sh".
+#
+# Contexto: dovecot 2.4 reescribió el parser de config y renombró/eliminó ajustes (ssl_protocols,
+# ssl_dh_parameters_length, sintaxis de passdb/userdb, etc.). Una config 2.3 puede NO arrancar en 2.4.
+#
+# PATRÓN SEGURO (imprescindible en toda migración de config):
+#   1. Copia de seguridad ANTES de tocar nada.
+#   2. Cambios idempotentes y acotados (solo renames conocidos y seguros).
+#   3. VALIDAR con la herramienta del propio servicio (doveconf -n). Si NO valida -> salir !=0
+#      SIN dejar el servicio roto (el panel mostrará el fallo y el admin lo arregla a mano).
+#   4. Registrar en stdout lo que se hace (se captura en el log de la acción del panel).
+
+set -u
+CONF_DIR="/usr/local/etc/dovecot"
+MAIN="$CONF_DIR/dovecot.conf"
+TS=$(date +%Y%m%d%H%M%S)
+
+echo "  [dovecot-2.4] iniciando migración de config 2.3 -> 2.4"
+
+[ -d "$CONF_DIR" ] || { echo "  [dovecot-2.4] no existe $CONF_DIR (nada que migrar)"; exit 0; }
+
+# 1) Copia de seguridad completa del directorio de config.
+BK="/root/dovecot-conf.bak-$TS"
+cp -a "$CONF_DIR" "$BK" && echo "  [dovecot-2.4] backup en $BK"
+
+# 2) Renames seguros y conocidos (idempotentes). Ejemplo:
+#    ssl_protocols = !SSLv3 !TLSv1   ->   ssl_min_protocol = TLSv1.2
+if grep -rlq '^[[:space:]]*ssl_protocols' "$CONF_DIR" 2>/dev/null; then
+    echo "  [dovecot-2.4] convirtiendo ssl_protocols -> ssl_min_protocol"
+    for f in $(grep -rl '^[[:space:]]*ssl_protocols' "$CONF_DIR" 2>/dev/null); do
+        sed -i '' -E 's/^([[:space:]]*)ssl_protocols[[:space:]]*=.*/\1ssl_min_protocol = TLSv1.2/' "$f"
+    done
+fi
+# ... añadir aquí el resto de transformaciones 2.3->2.4 conforme se validen contra un 2.4 real ...
+
+# 3) Validar la config resultante con doveconf. Si no parsea, restaurar el backup y fallar.
+if command -v doveconf >/dev/null 2>&1; then
+    if doveconf -n >/dev/null 2>/tmp/doveconf.err; then
+        echo "  [dovecot-2.4] doveconf -n OK"
+    else
+        echo "  [dovecot-2.4] doveconf -n FALLÓ — restaurando backup y abortando:"
+        sed 's/^/      /' /tmp/doveconf.err
+        rm -rf "$CONF_DIR"; cp -a "$BK" "$CONF_DIR"
+        echo "  [dovecot-2.4] config 2.3 restaurada; migrar a mano y volver a intentar."
+        exit 1
+    fi
+fi
+
+echo "  [dovecot-2.4] migración completada"
+exit 0
