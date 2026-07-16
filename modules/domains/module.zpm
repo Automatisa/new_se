@@ -57,6 +57,9 @@
             </div>
             <@ CSFR_Tag @>
         </form>
+
+        <h2 style="margin-top:18px;"><i class="bi bi-hdd-network me-1"></i>Dirección IP</h2>
+        <@ DomainIpSelectorHTML @>
     </div>
     <% endif %>
 

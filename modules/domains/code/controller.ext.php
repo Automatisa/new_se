@@ -765,6 +765,179 @@ class module_controller extends ctrl_module
 
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // Multi-IP (Fase 1c) — asignar una IP del pool a un dominio
+    // -----------------------------------------------------------------------
+
+    /** Cuota de IPs dedicadas del paquete del usuario (-1 = ilimitado, 0 = ninguna). */
+    private static function userIpQuota($uid) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT COALESCE(qt.qt_dedicatedips_in, 0) FROM x_accounts a
+            LEFT JOIN x_packages pk ON pk.pk_id_pk = a.ac_package_fk AND pk.pk_deleted_ts IS NULL
+            LEFT JOIN x_quotas  qt ON qt.qt_package_fk = pk.pk_id_pk
+            WHERE a.ac_id_pk = :uid AND a.ac_deleted_ts IS NULL");
+        $q->execute([':uid' => $uid]);
+        $v = $q->fetchColumn();
+        return $v === false ? 0 : (int)$v;
+    }
+
+    /** IPs dedicadas distintas que YA usa el usuario. */
+    private static function userDedicatedIPs($uid) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT DISTINCT vh_custom_ip_vc FROM x_vhosts
+            WHERE vh_acc_fk=:uid AND vh_deleted_ts IS NULL AND vh_custom_ip_vc IS NOT NULL AND vh_custom_ip_vc<>''");
+        $q->execute([':uid' => $uid]);
+        return $q->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /** IPs del pool que el usuario puede elegir como dedicada: activas, no primarias, del pool
+     *  admin (ip_reseller_fk NULL) [Fase 2: o de su reseller] y NO usadas por dominios de OTRO usuario. */
+    private static function assignableIPsForUser($uid) {
+        global $zdbh;
+        $rows = $zdbh->query("SELECT ip_address_vc FROM x_ips
+            WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk IS NULL
+            ORDER BY INET_ATON(ip_address_vc)")->fetchAll(PDO::FETCH_COLUMN);
+        $out = [];
+        $c = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip_vc=:ip AND vh_acc_fk<>:uid AND vh_deleted_ts IS NULL");
+        foreach ($rows as $ip) {
+            $c->execute([':ip' => $ip, ':uid' => $uid]);
+            if ((int)$c->fetchColumn() === 0) { $out[] = $ip; }
+        }
+        return $out;
+    }
+
+    /** Actualiza los registros A web (@ y www) del dominio a la IP efectiva y marca rebuild de zona. */
+    private static function syncDomainDnsIP($vhostid, $ip) {
+        global $zdbh;
+        $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:ip
+            WHERE dn_vhost_fk=:vid AND dn_type_vc='A' AND dn_host_vc IN ('@','www') AND dn_deleted_ts IS NULL")
+            ->execute([':ip' => $ip, ':vid' => $vhostid]);
+        $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+        $ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+        if (!in_array((string)$vhostid, $ids, true)) { $ids[] = (string)$vhostid; }
+        $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")
+            ->execute([':v' => implode(',', $ids)]);
+    }
+
+    static function ExecuteAssignDomainIP($vhostid, $uid, $ipchoice) {
+        global $zdbh;
+        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+
+        $chk = $zdbh->prepare("SELECT vh_name_vc, vh_custom_ip_vc FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $uid]);
+        $vh = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$vh) { $_SESSION['domains_ip_flash'] = ['err', 'Dominio no válido.']; return false; }
+
+        $domain  = $vh['vh_name_vc'];
+        $current = trim((string)$vh['vh_custom_ip_vc']);
+        $choice  = trim((string)$ipchoice);
+
+        if ($choice === '' || $choice === '__shared__') {
+            $newip = '';
+        } else {
+            if (!filter_var($choice, FILTER_VALIDATE_IP)) { $_SESSION['domains_ip_flash'] = ['err', 'IP no válida.']; return false; }
+            if ($choice !== $current && !in_array($choice, self::assignableIPsForUser($uid), true)) {
+                $_SESSION['domains_ip_flash'] = ['err', 'Esa IP no está disponible para tu cuenta.']; return false;
+            }
+            // cuota: solo si es una IP NUEVA para el usuario
+            $quota   = self::userIpQuota($uid);
+            $userIPs = self::userDedicatedIPs($uid);
+            if (!in_array($choice, $userIPs, true) && $quota !== -1 && (count($userIPs) + 1) > $quota) {
+                $_SESSION['domains_ip_flash'] = ['err', 'Has alcanzado el límite de IPs dedicadas de tu paquete (' . $quota . ').'];
+                return false;
+            }
+            $newip = $choice;
+        }
+
+        // BD: fijar (o limpiar) la IP del vhost
+        $zdbh->prepare("UPDATE x_vhosts SET vh_custom_ip_vc=:ip WHERE vh_id_pk=:id")
+             ->execute([':ip' => ($newip === '' ? null : $newip), ':id' => $vhostid]);
+
+        // SO: asegurar alias de la nueva IP dedicada (IPv4)
+        if ($newip !== '' && filter_var($newip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            try { privilege::run('ip_alias_add', array($newip)); } catch (Exception $e) {}
+        }
+        // SO: si la IP anterior ya no la usa NADIE (y no es primaria), quitar su alias
+        if ($current !== '' && $current !== $newip && filter_var($current, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $u = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip_vc=:ip AND vh_deleted_ts IS NULL");
+            $u->execute([':ip' => $current]);
+            $pr = $zdbh->prepare("SELECT COUNT(*) FROM x_ips WHERE ip_address_vc=:ip AND ip_is_primary_in=1");
+            $pr->execute([':ip' => $current]);
+            if ((int)$u->fetchColumn() === 0 && (int)$pr->fetchColumn() === 0) {
+                try { privilege::run('ip_alias_del', array($current)); } catch (Exception $e) {}
+            }
+        }
+
+        // DNS: registros A del sitio siguen la IP efectiva; Apache: marcar rebuild de vhosts
+        $effective = ($newip === '') ? (string)ctrl_options::GetOption('server_ip') : $newip;
+        self::syncDomainDnsIP($vhostid, $effective);
+        ctrl_options::SetSystemOption('apache_changed', time());
+
+        $_SESSION['domains_ip_flash'] = ['ok', 'IP del dominio ' . $domain . ' actualizada a '
+            . ($newip === '' ? 'compartida (sistema)' : $newip) . '. Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
+        return true;
+    }
+
+    static function doSaveDomainIP() {
+        global $controller;
+        runtime_csfr::Protect();
+        $currentuser = ctrl_users::GetUserDetail();
+        $f = $controller->GetAllControllerRequests('FORM');
+        $vhostid = (int)($f['inVhostId'] ?? 0);
+        $ip      = (string)($f['inDomainIP'] ?? '');
+        self::ExecuteAssignDomainIP($vhostid, $currentuser['userid'], $ip);
+    }
+
+    /** Selector de IP para la vista de ajustes del dominio (show=PhpSettings). */
+    static function getDomainIpSelectorHTML() {
+        $s = self::loadPhpSettings();
+        if (!$s) return '';
+        global $zdbh;
+        $vhostid = (int)$s['vhost_id'];
+        $currentuser = ctrl_users::GetUserDetail();
+        $uid = $currentuser['userid'];
+
+        // IP actual del vhost
+        $q = $zdbh->prepare("SELECT vh_custom_ip_vc FROM x_vhosts WHERE vh_id_pk=:id");
+        $q->execute([':id' => $vhostid]);
+        $current = trim((string)$q->fetchColumn());
+
+        $quota   = self::userIpQuota($uid);
+        $userIPs = self::userDedicatedIPs($uid);
+        $assign  = self::assignableIPsForUser($uid);
+        // opciones: las IPs que ya usa el usuario + las asignables libres (si la cuota lo permite)
+        $canAddNew = ($quota === -1) || (count($userIPs) < $quota);
+        $options = $userIPs;
+        if ($canAddNew) { foreach ($assign as $ip) { if (!in_array($ip, $options, true)) $options[] = $ip; } }
+        if ($current !== '' && !in_array($current, $options, true)) { $options[] = $current; }
+        sort($options);
+
+        $csrf = self::getCSFR_Tag();
+        $h = '';
+        if (!empty($_SESSION['domains_ip_flash'])) {
+            [$t, $msg] = $_SESSION['domains_ip_flash']; unset($_SESSION['domains_ip_flash']);
+            $h .= ui_sysmessage::shout(htmlspecialchars($msg, ENT_QUOTES), $t === 'ok' ? 'zannounceok' : 'zannounceerror');
+        }
+
+        $qtxt = ($quota === -1) ? 'ilimitadas' : (string)$quota;
+        $h .= '<form action="./?module=domains&action=SaveDomainIP&show=PhpSettings&id=' . $vhostid . '" method="post">' . $csrf
+            . '<input type="hidden" name="inVhostId" value="' . $vhostid . '">'
+            . '<table class="zform table table-striped"><tr><th style="width:200px;">IP del sitio:</th><td>'
+            . '<select name="inDomainIP" class="form-select form-select-sm" style="max-width:280px;display:inline-block;">'
+            . '<option value="__shared__"' . ($current === '' ? ' selected' : '') . '>Compartida (IP del sistema)</option>';
+        foreach ($options as $ip) {
+            $sel = ($ip === $current) ? ' selected' : '';
+            $h .= '<option value="' . htmlspecialchars($ip, ENT_QUOTES) . '"' . $sel . '>' . htmlspecialchars($ip, ENT_QUOTES) . ' (dedicada)</option>';
+        }
+        $h .= '</select> <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-hdd-network me-1"></i>Guardar IP</button>'
+            . '<br><small class="text-muted">IPs dedicadas de tu paquete: <strong>' . $qtxt . '</strong>'
+            . ' · en uso: ' . count($userIPs) . '. "Compartida" usa la IP del sistema (no consume cuota). '
+            . 'Los registros A (@ y www) del dominio se ajustan a la IP elegida.</small>'
+            . '</td></tr></table></form>';
+        return $h;
+    }
+
     static function getResult()
     {
         if (!fs_director::CheckForEmptyValue(self::$blank)) {

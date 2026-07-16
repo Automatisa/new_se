@@ -631,6 +631,7 @@ CREATE TABLE `x_quotas` (
   `qt_filespeed_fk` int(30) DEFAULT NULL,
   `qt_filetype_vc` varchar(30) NOT NULL DEFAULT '*',
   `qt_modified_in` int(1) DEFAULT 0,
+  `qt_dedicatedips_in` int(11) NOT NULL DEFAULT 0 COMMENT 'Multi-IP: nº máx de IPs dedicadas por paquete (-1=ilimitado)',
   PRIMARY KEY (`qt_id_pk`)
 ) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
@@ -1014,6 +1015,8 @@ TRUNCATE TABLE `x_quotas`;
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('1', '1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '0', '2G', '1G', '1G', '300', '600', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '1');
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('2', '2', '0', '0', '0', '0', '0', '0', '0', '0', '0', '128M', '50M', '50M', '30', '60', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '1');
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('3', '3', '0', '0', '0', '0', '0', '0', '0', '0', '0', '128M', '50M', '50M', '30', '60', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '0');
+-- Multi-IP: paquete de administración (1) sin límite de IPs dedicadas; el resto 0 (default).
+UPDATE `x_quotas` SET `qt_dedicatedips_in` = -1 WHERE `qt_package_fk` = 1;
 
 TRUNCATE TABLE `x_packages`;
 INSERT INTO `x_packages` (`pk_id_pk`, `pk_name_vc`, `pk_reseller_fk`, `pk_enablephp_in`, `pk_created_ts`, `pk_deleted_ts`) VALUES ('1', 'Administration', '1', '1', '1781805540', NULL);
