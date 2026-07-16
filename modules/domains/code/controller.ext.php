@@ -908,7 +908,9 @@ class module_controller extends ctrl_module
         // DNS: registros A del sitio siguen la IP efectiva; Apache: marcar rebuild de vhosts
         $effective = ($newip === '') ? (string)ctrl_options::GetOption('server_ip') : $newip;
         self::syncDomainDnsIP($vhostid, $effective);
-        ctrl_options::SetSystemOption('apache_changed', time());
+        // El hook de Apache reconstruye los vhosts SOLO si apache_changed == "true" (cadena),
+        // no un timestamp — así el <VirtualHost IP:puerto> pasa a atar la IP dedicada.
+        ctrl_options::SetSystemOption('apache_changed', 'true');
 
         $_SESSION['domains_ip_flash'] = ['ok', 'IP del dominio ' . $domain . ' actualizada a '
             . ($newip === '' ? 'compartida (sistema)' : $newip) . '. Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
