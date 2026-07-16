@@ -376,6 +376,18 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/pkg_pin.sh verify-major',
             'doas_rule' => 'cmd /usr/local/sentora/bin/pkg_pin.sh',
         ),
+        // Multi-IP: añadir/quitar un alias de IP en la interfaz principal. La IP es dinámica
+        // (__IP_ADDR__, validada en PHP como IPv4/IPv6); el script re-valida y nunca toca la primaria.
+        'ip_alias_add' => array(
+            'argv_template' => array('/usr/local/sentora/bin/ip_alias.sh', 'add', '__IP_ADDR__'),
+            'sudo_rule' => '/usr/local/sentora/bin/ip_alias.sh add',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ip_alias.sh',
+        ),
+        'ip_alias_del' => array(
+            'argv_template' => array('/usr/local/sentora/bin/ip_alias.sh', 'del', '__IP_ADDR__'),
+            'sudo_rule' => '/usr/local/sentora/bin/ip_alias.sh del',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/ip_alias.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(
@@ -715,6 +727,14 @@ class privilege
                             throw new RuntimeException("privilege::run: invalid bind_log path '$value'");
                         }
                         $out[] = $real;
+                        break;
+                    case '__IP_ADDR__':
+                        // IPv4 o IPv6 válida (filter_var). El script ip_alias.sh re-valida y sólo
+                        // toca alias (nunca la primaria). Sin metacaracteres posibles tras esto.
+                        if (filter_var($value, FILTER_VALIDATE_IP) === false) {
+                            throw new RuntimeException("privilege::run: invalid IP '$value'");
+                        }
+                        $out[] = $value;
                         break;
                     case '__PKG_NAME__':
                         // Nombre de paquete pkg(8): letras/dígitos/._- ; sin metacaracteres ni

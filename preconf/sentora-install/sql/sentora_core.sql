@@ -242,6 +242,23 @@ CREATE TABLE `x_dns_remote_zones` (
   UNIQUE KEY `uq_node_domain` (`rz_node_fk`, `rz_domain_vc`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- Multi-IP (Fase 1): inventario de IPs del servidor/cluster. Ver preconf/migrations/0002_x_ips.sql.
+DROP TABLE IF EXISTS `x_ips`;
+CREATE TABLE `x_ips` (
+  `ip_id_pk` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `ip_address_vc` varchar(45) NOT NULL COMMENT 'IPv4 o IPv6',
+  `ip_node_fk` int(11) DEFAULT NULL COMMENT 'FK a x_dns_nodes (nodo del cluster); NULL = este servidor',
+  `ip_reseller_fk` int(10) DEFAULT NULL COMMENT 'FK a x_accounts del reseller al que se asigna; NULL = pool admin',
+  `ip_shared_in` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = compartible por varios dominios; 0 = dedicada',
+  `ip_enabled_in` tinyint(1) NOT NULL DEFAULT 1,
+  `ip_is_primary_in` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'IP principal del servidor (no es alias)',
+  `ip_ptr_vc` varchar(255) DEFAULT NULL COMMENT 'rDNS/PTR informativo',
+  `ip_notes_vc` varchar(255) DEFAULT NULL,
+  `ip_created_ts` int(11) DEFAULT NULL,
+  PRIMARY KEY (`ip_id_pk`),
+  UNIQUE KEY `ip_address_uq` (`ip_address_vc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 DROP TABLE IF EXISTS `x_domain_php`;
 CREATE TABLE `x_domain_php` (
   `dp_id_pk` int(11) NOT NULL AUTO_INCREMENT,
