@@ -30,9 +30,13 @@ elif [ "$ACT" = "off" ]; then
     service "$SVC" onestop     >/dev/null 2>&1
     sysrc "${SVC}_enable=NO"   >/dev/null 2>&1
 else
-    # restart: reinicia sin tocar el enable. pf se recarga con onerestart (recarga la
-    # ruleset); si estaba parado, onerestart lo deja corriendo con las reglas actuales.
-    service "$SVC" onerestart  >/dev/null 2>&1
+    # restart: reinicia sin tocar el enable (recarga la ruleset). PROBLEMA: 'service pf onerestart'
+    # recarga pf y TIRA la conexión HTTP del propio panel (flush de estados) -> la petición se
+    # colgaba (spinner infinito) y, al no llegar nunca al PRG redirect, recargar re-ejecutaba la
+    # acción. SOLUCIÓN: lanzarlo EN 2º PLANO con un retardo, para que la respuesta y el redirect
+    # lleguen al navegador ANTES de que pf corte; pf se reinicia ~3 s después. $SVC ya está validado
+    # a pf|sshguard (sin inyección).
+    /usr/sbin/daemon -f /bin/sh -c "sleep 3; service $SVC onerestart >/dev/null 2>&1"
 fi
 
 exit 0
