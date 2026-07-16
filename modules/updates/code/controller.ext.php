@@ -16,7 +16,7 @@ class module_controller extends ctrl_module
 
     // Paquetes gestionados con pin de mayor (espejo de la whitelist de pkg_pin.sh, para validar
     // la acción de verificación). La fuente única real es MANAGED en pkg_pin.sh.
-    const MANAGED = array('dovecot-mysql', 'redis');
+    const MANAGED = array('dovecot-mysql', 'proftpd', 'redis', 'postfix-mysql', 'rspamd', 'opendkim');
 
     static $ok_msg;
     static $err_msg;
@@ -287,7 +287,8 @@ class module_controller extends ctrl_module
             $body .= '<tr><td><i class="bi bi-hdd-stack me-1"></i>Parches del sistema base</td>'
                    . '<td style="text-align:right;">' . $badge($base, 'Al día') . '</td></tr>';
             $body .= '</table>';
-            $body .= '<p class="text-muted" style="font-size:12px;">Último chequeo: ' . htmlspecialchars($when, ENT_QUOTES) . '</p>';
+            $body .= '<p class="text-muted" style="font-size:12px;">Último chequeo: ' . htmlspecialchars($when, ENT_QUOTES)
+                   . '. <em>Los paquetes críticos con pin (dovecot, postfix, redis…) no se cuentan aquí; se gestionan en la tarjeta inferior.</em></p>';
 
             if ($audit > 0 && !empty($st['audit_list'])) {
                 $body .= '<div class="alert alert-danger" style="font-size:12px;white-space:pre-wrap;max-height:140px;overflow:auto;">'

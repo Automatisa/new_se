@@ -33,9 +33,15 @@ MIGRATE="/usr/local/sentora/bin/preconf_migrate.sh"
 mkdir -p "$OUT_DIR"; chown root:www "$OUT_DIR" 2>/dev/null || true; chmod 755 "$OUT_DIR"
 
 # Paquetes gestionados: "nombre:profundidad_de_mayor" (nº de componentes dotted que definen la
-# mayor). dovecot-mysql rompe config entre 2.3 y 2.4 → depth 2 (2.3). redis entre 7 y 8 → depth 1.
-# Nombre EXACTO del paquete pkg(8) (la variante de Sentora es dovecot-mysql, no dovecot).
-MANAGED="dovecot-mysql:2 redis:1"
+# mayor que NO debe saltar sola). Nombre EXACTO de pkg(8) (variantes -mysql en Sentora).
+# Elección de la profundidad por paquete (ajustable):
+#   dovecot-mysql:2  -> 2.3 : el salto 2.3->2.4 rompe la config (dovecot es estricto).
+#   proftpd:2        -> 1.3 : la serie 1.3.x es estable; 1.3->1.4 sería el salto de mayor.
+#   redis:1          -> 8   : cambios de formato/datos entre mayores (7->8).
+#   postfix-mysql:1  -> 3   : la serie 3.x es estable; 3->4 sería el salto.
+#   rspamd:1         -> 4   : subversiones 4.x automáticas (parches); 4->5 se retiene.
+#   opendkim:1       -> 2   : muy estable; sólo se retiene 2->3.
+MANAGED="dovecot-mysql:2 proftpd:2 redis:1 postfix-mysql:1 rspamd:1 opendkim:1"
 
 managed_depth() {   # $1 pkg -> imprime depth y 0 si gestionado; 1 si no
     for e in $MANAGED; do
