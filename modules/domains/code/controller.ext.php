@@ -157,6 +157,22 @@ class module_controller extends ctrl_module
 	
 	
 	
+    /** Crea el esqueleto de directorios del vhost (web/<dir>/public_html,tmp,logs,_errorpages,
+     *  _cgi-bin) por doas como root con ownership h_USERNAME:www. Necesario porque web/ es 2750 y
+     *  el panel (www) no puede crear ahí. Idempotente. $vhdir = nombre de carpeta (dominio con '.'
+     *  convertido a '_'). Devuelve true si el doas se ejecutó (no garantiza éxito del script). */
+    private static function provisionVhostDirs($username, $vhdir) {
+        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+        $req = '/var/sentora/run/vhost_diradd_req';
+        if (@file_put_contents($req, $username . '|' . $vhdir) === false) {
+            error_log("domains: no se pudo escribir $req");
+            return false;
+        }
+        @chmod($req, 0660);
+        try { privilege::run('vhost_dir_add'); return true; }
+        catch (\Throwable $e) { error_log("domains vhost_dir_add '$username|$vhdir': " . $e->getMessage()); return false; }
+    }
+
     static function ExecuteAddDomain($uid, $domain, $destination, $autohome)
     {
         global $zdbh;
@@ -166,41 +182,9 @@ class module_controller extends ctrl_module
         $domain = strtolower(str_replace(' ', '', $domain));
         if (!fs_director::CheckForEmptyValue(self::CheckCreateForErrors($domain))) {
             $destination = str_replace(".", "_", $domain);
-            $paths = ctrl_options::GetVhostPaths($currentuser['username'], $destination);
-
-            fs_director::CreateDirectory($paths['domain_root']);
-            fs_director::CreateDirectory($paths['public_html']);
-            fs_director::CreateDirectory($paths['tmp']);
-            fs_director::CreateDirectory($paths['logs']);
-            foreach (array('-access.log', '-error.log', '-bandwidth.log') as $_logsuffix) {
-                $_logfile = $paths['logs'] . '/' . $domain . $_logsuffix;
-                if (!file_exists($_logfile)) { @touch($_logfile); }
-            }
-            fs_director::CreateDirectory($paths['errorpages']);
-            fs_director::CreateDirectory($paths['cgibin']);
-            fs_director::SetFileSystemPermissions($paths['domain_root'], 0755);
-            $vhost_path = $paths['public_html'] . '/';
-            // Error documents:- Error pages are added automatically if they are found in the _errorpages directory
-            // and if they are a valid error code, and saved in the proper format, i.e. <error_number>.html
-            fs_director::CreateDirectory($vhost_path . "/_errorpages/");
-            $errorpages = ctrl_options::GetSystemOption('static_dir') . "/errorpages/";
-            if (is_dir($errorpages)) {
-                if ($handle = @opendir($errorpages)) {
-                    while (($file = @readdir($handle)) !== false) {
-                        if ($file != "." && $file != "..") {
-                            $page = explode(".", $file);
-                            if (!fs_director::CheckForEmptyValue(self::CheckErrorDocument($page[0]))) {
-                                fs_filehandler::CopyFile($errorpages . $file, $vhost_path . '/_errorpages/' . $file);
-                            }
-                        }
-                    }
-                    closedir($handle);
-                }
-            }
-            // Lets copy the default welcome page across...
-            if ((!file_exists($vhost_path . "/index.html")) && (!file_exists($vhost_path . "/index.php")) && (!file_exists($vhost_path . "/index.htm"))) {
-                fs_filehandler::CopyFileSafe(ctrl_options::GetSystemOption('static_dir') . "pages/welcome.html", $vhost_path . "/index.html");
-            }
+            // El esqueleto de directorios (web/<dir>/public_html,tmp,logs,...) se crea por doas como
+            // ROOT con ownership h_USERNAME:www: web/ es 2750 y el panel (www) no puede crear ahí.
+            self::provisionVhostDirs($currentuser['username'], $destination);
             // If all has gone well we need to now create the domain in the database...
             $sql = $zdbh->prepare("INSERT INTO x_vhosts (vh_acc_fk,
 														 vh_name_vc,

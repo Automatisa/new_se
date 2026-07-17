@@ -287,6 +287,17 @@ class privilege
             'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_add.sh',
         ),
 
+        // Crea el esqueleto de directorios de un dominio/subdominio (web/<dir>/{public_html,tmp,
+        // logs,_errorpages,_cgi-bin}) con ownership h_USERNAME:www y permisos de aislamiento. La
+        // orden "USERNAME|VH_DIRECTORY" se pasa por /var/sentora/run/vhost_diradd_req; el script
+        // valida ambos campos (anti path-traversal). Necesario porque web/ es 2750 y www no puede
+        // crear ahí -> sin esto los dominios quedaban sin public_html (Apache 403).
+        'vhost_dir_add' => array(
+            'argv'      => array('/usr/local/sentora/bin/vhost_dir_add.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/vhost_dir_add.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/vhost_dir_add.sh',
+        ),
+
         // Elimina el usuario de sistema h_USERNAME y su grupo.
         'hosting_user_del' => array(
             'argv'      => array('/usr/local/sentora/bin/hosting_user_del.sh'),
