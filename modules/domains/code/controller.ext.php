@@ -849,22 +849,24 @@ class module_controller extends ctrl_module
     /** IPs que el usuario puede elegir como dedicada: activas, no primarias, del pool que le
      *  corresponde (el del admin si no cuelga de un reseller, o el de SU reseller), y no usadas
      *  por dominios de OTRO usuario. */
-    private static function assignableIPsForUser($uid) {
+    private static function assignableIPsForUser($uid, $family = '4') {
         global $zdbh;
-        $owner = self::ipOwnerForUser($uid);
+        $owner   = self::ipOwnerForUser($uid);
+        $famcond = ($family === '6') ? "ip_address_vc LIKE '%:%'" : "ip_address_vc NOT LIKE '%:%'";
+        $col     = ($family === '6') ? 'vh_custom_ip6_vc' : 'vh_custom_ip_vc';
         if ($owner === null) {
             $rows = $zdbh->query("SELECT ip_address_vc FROM x_ips
-                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk IS NULL
-                ORDER BY INET_ATON(ip_address_vc)")->fetchAll(PDO::FETCH_COLUMN);
+                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk IS NULL AND $famcond
+                ORDER BY INET6_ATON(ip_address_vc)")->fetchAll(PDO::FETCH_COLUMN);
         } else {
             $st = $zdbh->prepare("SELECT ip_address_vc FROM x_ips
-                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk=:r
-                ORDER BY INET_ATON(ip_address_vc)");
+                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk=:r AND $famcond
+                ORDER BY INET6_ATON(ip_address_vc)");
             $st->execute([':r' => $owner]);
             $rows = $st->fetchAll(PDO::FETCH_COLUMN);
         }
         $out = [];
-        $c = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip_vc=:ip AND vh_acc_fk<>:uid AND vh_deleted_ts IS NULL");
+        $c = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE $col=:ip AND vh_acc_fk<>:uid AND vh_deleted_ts IS NULL");
         foreach ($rows as $ip) {
             $c->execute([':ip' => $ip, ':uid' => $uid]);
             if ((int)$c->fetchColumn() === 0) { $out[] = $ip; }
@@ -943,35 +945,126 @@ class module_controller extends ctrl_module
         ctrl_options::SetSystemOption('apache_changed', 'true');
 
         // CORREO (Fase 3b): envío saliente desde la IP dedicada + SPF que la autoriza.
-        self::syncMailTransport($domain, $newip);
+        self::syncMailTransport($domain, $vhostid);
         if ($newip !== '')                          { self::syncDomainSpf($vhostid, $newip, true); }
         if ($current !== '' && $current !== $newip) { self::syncDomainSpf($vhostid, $current, false); }
         // Regenerar los transportes de Postfix (master.cf) con 'postfix check' antes de recargar.
         try { privilege::run('mail_ip_sync'); } catch (Exception $e) {}
 
-        $_SESSION['domains_ip_flash'] = ['ok', 'IP del dominio ' . $domain . ' actualizada a '
+        $_SESSION['domains_ip_flash'] = ['ok', 'IPv4 del dominio ' . $domain . ' actualizada a '
             . ($newip === '' ? 'compartida (sistema)' : $newip) . '. Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
         return true;
     }
 
-    /** Sincroniza el transporte de ENVÍO del dominio en sentora_postfix (Fase 3b). '' = sin IP dedicada. */
-    private static function syncMailTransport($domain, $ip) {
+    /** Asigna (o quita, '__shared__') la IPv6 dedicada de un dominio. IPv6 es abundante -> sin cuota. */
+    static function ExecuteAssignDomainIP6($vhostid, $uid, $ipchoice) {
+        global $zdbh;
+        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+
+        $chk = $zdbh->prepare("SELECT vh_name_vc, vh_custom_ip6_vc FROM x_vhosts
+                                WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
+        $chk->execute([':id' => $vhostid, ':uid' => $uid]);
+        $vh = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$vh) { $_SESSION['domains_ip_flash'] = ['err', 'Dominio no válido.']; return false; }
+
+        $domain  = $vh['vh_name_vc'];
+        $current = trim((string)$vh['vh_custom_ip6_vc']);
+        $choice  = trim((string)$ipchoice);
+
+        if ($choice === '' || $choice === '__shared__') {
+            $new6 = '';
+        } else {
+            if (!filter_var($choice, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) { $_SESSION['domains_ip_flash'] = ['err', 'IPv6 no válida.']; return false; }
+            if ($choice !== $current && !in_array($choice, self::assignableIPsForUser($uid, '6'), true)) {
+                $_SESSION['domains_ip_flash'] = ['err', 'Esa IPv6 no está disponible para tu cuenta.']; return false;
+            }
+            $new6 = $choice;
+        }
+
+        // BD
+        $zdbh->prepare("UPDATE x_vhosts SET vh_custom_ip6_vc=:ip WHERE vh_id_pk=:id")
+             ->execute([':ip' => ($new6 === '' ? null : $new6), ':id' => $vhostid]);
+
+        // SO: alias inet6 de la nueva; quitar el de la anterior si nadie lo usa
+        if ($new6 !== '') { try { privilege::run('ip_alias_add', array($new6)); } catch (Exception $e) {} }
+        if ($current !== '' && $current !== $new6) {
+            $u = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip6_vc=:ip AND vh_deleted_ts IS NULL");
+            $u->execute([':ip' => $current]);
+            $pr = $zdbh->prepare("SELECT COUNT(*) FROM x_ips WHERE ip_address_vc=:ip AND ip_is_primary_in=1");
+            $pr->execute([':ip' => $current]);
+            if ((int)$u->fetchColumn() === 0 && (int)$pr->fetchColumn() === 0) {
+                try { privilege::run('ip_alias_del', array($current)); } catch (Exception $e) {}
+            }
+        }
+
+        // DNS: registros AAAA (@ y www) + Apache rebuild
+        self::setDomainAAAA($vhostid, $new6);
+        ctrl_options::SetSystemOption('apache_changed', 'true');
+
+        // Correo: transporte por dominio (ata v4+v6) + SPF ip6
+        self::syncMailTransport($domain, $vhostid);
+        if ($new6 !== '')                           { self::syncDomainSpf($vhostid, $new6, true); }
+        if ($current !== '' && $current !== $new6)  { self::syncDomainSpf($vhostid, $current, false); }
+        try { privilege::run('mail_ip_sync'); } catch (Exception $e) {}
+
+        $_SESSION['domains_ip_flash'] = ['ok', 'IPv6 del dominio ' . $domain . ' actualizada a '
+            . ($new6 === '' ? 'ninguna (solo IPv4)' : $new6) . '. Los cambios se aplican en el próximo ciclo del daemon.'];
+        return true;
+    }
+
+    /** Crea/actualiza (o elimina si $ip6 vacío) los registros AAAA @ y www del dominio + rebuild de zona. */
+    private static function setDomainAAAA($vhostid, $ip6) {
+        global $zdbh;
+        $acc = (int)$zdbh->query("SELECT dn_acc_fk FROM x_dns WHERE dn_vhost_fk=" . (int)$vhostid . " LIMIT 1")->fetchColumn();
+        $name = (string)$zdbh->query("SELECT vh_name_vc FROM x_vhosts WHERE vh_id_pk=" . (int)$vhostid)->fetchColumn();
+        if ($ip6 === '') {
+            $zdbh->prepare("UPDATE x_dns SET dn_deleted_ts=UNIX_TIMESTAMP()
+                WHERE dn_vhost_fk=:v AND dn_type_vc='AAAA' AND dn_host_vc IN ('@','www') AND dn_deleted_ts IS NULL")
+                ->execute([':v' => $vhostid]);
+        } else {
+            foreach (['@', 'www'] as $host) {
+                $ex = $zdbh->prepare("SELECT dn_id_pk FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='AAAA' AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
+                $ex->execute([':v' => $vhostid, ':h' => $host]);
+                $id = $ex->fetchColumn();
+                if ($id) {
+                    $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:ip WHERE dn_id_pk=:id")->execute([':ip' => $ip6, ':id' => $id]);
+                } else {
+                    $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_priority_in,dn_created_ts)
+                                    VALUES (:a,:n,:v,'AAAA',:h,3600,:ip,0,UNIX_TIMESTAMP())")
+                         ->execute([':a' => $acc, ':n' => $name, ':v' => $vhostid, ':h' => $host, ':ip' => $ip6]);
+                }
+            }
+        }
+        // marcar rebuild de la zona
+        $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+        $ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+        if (!in_array((string)$vhostid, $ids, true)) { $ids[] = (string)$vhostid; }
+        $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")->execute([':v' => implode(',', $ids)]);
+    }
+
+    /** Sincroniza el transporte de ENVÍO del dominio (por dominio: ata su v4 y/o v6). Si el dominio
+     *  no tiene ninguna IP dedicada, se elimina el mapeo (usa el transporte por defecto). */
+    private static function syncMailTransport($domain, $vhostid) {
         global $zdbh;
         try {
-            if ($ip === '') {
+            $q = $zdbh->prepare("SELECT vh_custom_ip_vc, vh_custom_ip6_vc FROM x_vhosts WHERE vh_id_pk=:id");
+            $q->execute([':id' => $vhostid]);
+            $r = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+            $has = !fs_director::CheckForEmptyValue($r['vh_custom_ip_vc'] ?? '') || !fs_director::CheckForEmptyValue($r['vh_custom_ip6_vc'] ?? '');
+            if (!$has) {
                 $zdbh->prepare("DELETE FROM sentora_postfix.sender_transport WHERE domain=:d")->execute([':d' => $domain]);
             } else {
-                $transport = 'smtpip-' . str_replace('.', '-', $ip);
                 $zdbh->prepare("REPLACE INTO sentora_postfix.sender_transport (domain, transport) VALUES (:d,:t)")
-                     ->execute([':d' => $domain, ':t' => $transport]);
+                     ->execute([':d' => $domain, ':t' => 'smtpout-' . (int)$vhostid]);
             }
         } catch (Exception $e) { /* la tabla se crea por migración; no bloquear la asignación */ }
     }
 
-    /** Añade/quita ip4:<ip> en el registro SPF (TXT @) del dominio para autorizar la IP de envío. */
+    /** Añade/quita ip4:<ip> o ip6:<ip> en el SPF (TXT @) del dominio para autorizar la IP de envío. */
     private static function syncDomainSpf($vhostid, $ip, $add) {
         global $zdbh;
-        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return;
+        $isV6 = (strpos($ip, ':') !== false);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, $isV6 ? FILTER_FLAG_IPV6 : FILTER_FLAG_IPV4)) return;
         $q = $zdbh->prepare("SELECT dn_id_pk, dn_target_vc FROM x_dns
             WHERE dn_vhost_fk=:v AND dn_type_vc='TXT' AND dn_host_vc='@' AND dn_target_vc LIKE 'v=spf1%'
               AND dn_deleted_ts IS NULL LIMIT 1");
@@ -979,7 +1072,7 @@ class module_controller extends ctrl_module
         $row = $q->fetch(PDO::FETCH_ASSOC);
         if (!$row) return;                                   // sin SPF -> nada que tocar
         $spf   = (string)$row['dn_target_vc'];
-        $token = 'ip4:' . $ip;
+        $token = ($isV6 ? 'ip6:' : 'ip4:') . $ip;
         $has   = (bool)preg_match('/(^|\s)' . preg_quote($token, '/') . '(\s|$)/', $spf);
         if ($add && !$has) {
             // insertar antes del mecanismo 'all' final (~all / -all / ?all / all)
@@ -997,11 +1090,13 @@ class module_controller extends ctrl_module
     static function doSaveDomainIP() {
         global $controller;
         runtime_csfr::Protect();
-        $currentuser = ctrl_users::GetUserDetail();
+        $uid = ctrl_users::GetUserDetail()['userid'];
         $f = $controller->GetAllControllerRequests('FORM');
         $vhostid = (int)($f['inVhostId'] ?? 0);
-        $ip      = (string)($f['inDomainIP'] ?? '');
-        self::ExecuteAssignDomainIP($vhostid, $currentuser['userid'], $ip);
+        // IPv4 primero; si falla, su flash de error ya está puesto.
+        if (!self::ExecuteAssignDomainIP($vhostid, $uid, (string)($f['inDomainIP'] ?? ''))) return;
+        // IPv6 (si el formulario lo trae).
+        if (isset($f['inDomainIP6'])) { self::ExecuteAssignDomainIP6($vhostid, $uid, (string)$f['inDomainIP6']); }
     }
 
     /** Selector de IP para la vista de asignación de IP del dominio (show=IpSettings). */
@@ -1013,20 +1108,26 @@ class module_controller extends ctrl_module
         $currentuser = ctrl_users::GetUserDetail();
         $uid = $currentuser['userid'];
 
-        // IP actual del vhost
-        $q = $zdbh->prepare("SELECT vh_custom_ip_vc FROM x_vhosts WHERE vh_id_pk=:id");
+        // IPs actuales del vhost (v4 y v6)
+        $q = $zdbh->prepare("SELECT vh_custom_ip_vc, vh_custom_ip6_vc FROM x_vhosts WHERE vh_id_pk=:id");
         $q->execute([':id' => $vhostid]);
-        $current = trim((string)$q->fetchColumn());
+        $vr = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+        $current  = trim((string)($vr['vh_custom_ip_vc'] ?? ''));
+        $current6 = trim((string)($vr['vh_custom_ip6_vc'] ?? ''));
 
+        // Opciones IPv4 (con cuota)
         $quota   = self::userIpQuota($uid);
         $userIPs = self::userDedicatedIPs($uid);
-        $assign  = self::assignableIPsForUser($uid);
-        // opciones: las IPs que ya usa el usuario + las asignables libres (si la cuota lo permite)
         $canAddNew = ($quota === -1) || (count($userIPs) < $quota);
         $options = $userIPs;
-        if ($canAddNew) { foreach ($assign as $ip) { if (!in_array($ip, $options, true)) $options[] = $ip; } }
+        if ($canAddNew) { foreach (self::assignableIPsForUser($uid, '4') as $ip) { if (!in_array($ip, $options, true)) $options[] = $ip; } }
         if ($current !== '' && !in_array($current, $options, true)) { $options[] = $current; }
         sort($options);
+
+        // Opciones IPv6 (abundante -> sin cuota)
+        $options6 = self::assignableIPsForUser($uid, '6');
+        if ($current6 !== '' && !in_array($current6, $options6, true)) { $options6[] = $current6; }
+        sort($options6);
 
         $csrf = self::getCSFR_Tag();
         $h = '';
@@ -1035,21 +1136,29 @@ class module_controller extends ctrl_module
             $h .= ui_sysmessage::shout(htmlspecialchars($msg, ENT_QUOTES), $t === 'ok' ? 'zannounceok' : 'zannounceerror');
         }
 
+        $mkSelect = function($name, $cur, $opts, $sharedLabel) {
+            $o = '<select name="' . $name . '" class="form-select form-select-sm" style="max-width:320px;display:inline-block;">'
+               . '<option value="__shared__"' . ($cur === '' ? ' selected' : '') . '>' . $sharedLabel . '</option>';
+            foreach ($opts as $ip) {
+                $sel = ($ip === $cur) ? ' selected' : '';
+                $o .= '<option value="' . htmlspecialchars($ip, ENT_QUOTES) . '"' . $sel . '>' . htmlspecialchars($ip, ENT_QUOTES) . ' (dedicada)</option>';
+            }
+            return $o . '</select>';
+        };
+
         $qtxt = ($quota === -1) ? 'ilimitadas' : (string)$quota;
         $h .= '<form action="./?module=domains&action=SaveDomainIP&show=IpSettings&id=' . $vhostid . '" method="post">' . $csrf
             . '<input type="hidden" name="inVhostId" value="' . $vhostid . '">'
-            . '<table class="zform table table-striped"><tr><th style="width:200px;">IP del sitio:</th><td>'
-            . '<select name="inDomainIP" class="form-select form-select-sm" style="max-width:280px;display:inline-block;">'
-            . '<option value="__shared__"' . ($current === '' ? ' selected' : '') . '>Compartida (IP del sistema)</option>';
-        foreach ($options as $ip) {
-            $sel = ($ip === $current) ? ' selected' : '';
-            $h .= '<option value="' . htmlspecialchars($ip, ENT_QUOTES) . '"' . $sel . '>' . htmlspecialchars($ip, ENT_QUOTES) . ' (dedicada)</option>';
-        }
-        $h .= '</select> <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-hdd-network me-1"></i>Guardar IP</button>'
-            . '<br><small class="text-muted">IPs dedicadas de tu paquete: <strong>' . $qtxt . '</strong>'
-            . ' · en uso: ' . count($userIPs) . '. "Compartida" usa la IP del sistema (no consume cuota). '
-            . 'Los registros A (@ y www) del dominio se ajustan a la IP elegida.</small>'
-            . '</td></tr></table></form>';
+            . '<table class="zform table table-striped">'
+            . '<tr><th style="width:160px;">IPv4 del sitio:</th><td>'
+            . $mkSelect('inDomainIP', $current, $options, 'Compartida (IP del sistema)') . '</td></tr>'
+            . '<tr><th>IPv6 del sitio:</th><td>'
+            . $mkSelect('inDomainIP6', $current6, $options6, 'Ninguna (solo IPv4)') . '</td></tr>'
+            . '<tr><th></th><td><button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-hdd-network me-1"></i>Guardar IPs</button></td></tr>'
+            . '</table>'
+            . '<small class="text-muted">IPv4 dedicadas de tu paquete: <strong>' . $qtxt . '</strong> · en uso: ' . count($userIPs)
+            . '. La IPv6 es abundante y no consume cuota. "Compartida/Ninguna" no gastan cuota. '
+            . 'Se ajustan los registros <strong>A</strong> (IPv4) y <strong>AAAA</strong> (IPv6) del dominio.</small></form>';
         return $h;
     }
 

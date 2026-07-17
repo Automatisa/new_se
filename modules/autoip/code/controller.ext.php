@@ -233,7 +233,7 @@ class module_controller extends ctrl_module {
 
     static function getIpPool() {
         global $zdbh;
-        $rows = $zdbh->query("SELECT * FROM x_ips ORDER BY ip_is_primary_in DESC, INET_ATON(ip_address_vc) ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $zdbh->query("SELECT * FROM x_ips ORDER BY ip_is_primary_in DESC, INET6_ATON(ip_address_vc) ASC")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$r) {
             $r['domain_list'] = self::ipDomains($r['ip_address_vc']);
             $r['domains']     = count($r['domain_list']);
@@ -361,9 +361,9 @@ class module_controller extends ctrl_module {
         // formulario de alta (IP suelta o rango CIDR)
         $h .= '<form method="post" action="./?module=autoip&action=AddIP" style="margin-top:10px;">' . $csrf
             . '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-            . '<input type="text" name="inNewIP" placeholder="IP (192.168.1.50) o rango (192.168.1.48/29)" maxlength="45" style="width:320px;" class="form-control form-control-sm" required>'
+            . '<input type="text" name="inNewIP" placeholder="IPv4/IPv6 (192.168.1.50 · fd00::10) o rango IPv4 (192.168.1.48/29)" maxlength="45" style="width:380px;" class="form-control form-control-sm" required>'
             . '<button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Añadir al pool</button>'
-            . '</div><small class="text-muted">Acepta una IP suelta o un rango CIDR IPv4 (/24 a /32; en bloques se excluyen red y broadcast). Solo inventario — sin tocar la red aún.</small></form>';
+            . '</div><small class="text-muted">Acepta una IP suelta (IPv4 o IPv6) o un rango CIDR IPv4 (/24 a /32; en bloques se excluyen red y broadcast). Solo inventario — sin tocar la red aún.</small></form>';
 
         return $h;
     }
