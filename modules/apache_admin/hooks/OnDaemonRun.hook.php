@@ -103,9 +103,18 @@ function BuildVhostReWriteSSL($vhostName, $userEmail) {
 // Vhost HTTP (:80) que SIRVE el sitio real (mismo docroot/FPM que el bloque activo). Se usa
 // cuando el dominio tiene SSL pero el cliente NO fuerza HTTPS (vh_forcessl_in=0): entonces el
 // sitio se sirve por HTTP y por HTTPS. Cuando fuerza (default), el :80 es un redirect (arriba).
+// Multi-IP doble pila: construye la lista de direcciones del <VirtualHost> para un puerto.
+// v4 (o '*') siempre; si el vhost tiene IPv6 dedicada, añade [ipv6]:puerto. Ej:
+//   "192.168.1.243:80 [fd00::150]:80"   o   "*:80".
+function sentora_vhost_addrs($v4spec, $ip6, $port) {
+    $s = $v4spec . ':' . $port;
+    if ($ip6 !== null && $ip6 !== '') { $s .= ' [' . $ip6 . ']:' . $port; }
+    return $s;
+}
+
 function BuildRegularHttpVhost($rowvhost, $vhostIp, $vhostPort, $serveralias, $useremail, $RootDir, $_vhpaths, $_bwlogdir) {
     $line  = "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-    $line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+    $line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $vhostPort) . ">" . fs_filehandler::NewLine();
     $line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
     if (!empty($serveralias))
         $line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -476,7 +485,7 @@ function WriteVhostConfigFile() {
 				# Load template file into vhost cofig to save
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS BEEN DISABLED FOR DISK QUOTA OVERAGE" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $vhostPort) . ">" . fs_filehandler::NewLine();
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
 					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -507,7 +516,7 @@ function WriteVhostConfigFile() {
 				# Build Vhost SSL section
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS BEEN DISABLED FOR DISK QUOTA OVERAGE & HAS SSL ENABLED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $rowvhost['vh_ssl_port_in'] . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $rowvhost['vh_ssl_port_in']) . ">" . fs_filehandler::NewLine();
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
 					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -546,7 +555,7 @@ function WriteVhostConfigFile() {
 				# Load template file into vhost cofig to save
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS BEEN DISABLED FOR BANDWIDTH OVERAGE" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $vhostPort) . ">" . fs_filehandler::NewLine();
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
 					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -578,7 +587,7 @@ function WriteVhostConfigFile() {
 				# Build Vhost SSL section
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS BEEN DISABLED FOR BANDWIDTH OVERAGE & HAS SSL ENABLED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $rowvhost['vh_ssl_port_in'] . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $rowvhost['vh_ssl_port_in']) . ">" . fs_filehandler::NewLine();
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
 					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -618,7 +627,7 @@ function WriteVhostConfigFile() {
 				# Load template file into vhost config to save
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				$line .= "# THIS DOMAIN HAS BEEN PARKED" . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $vhostPort) . ">" . fs_filehandler::NewLine();
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
 					$line .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();
@@ -686,7 +695,7 @@ function WriteVhostConfigFile() {
 				###
 				#START HERE
 				$line .= "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
-				$line .= "<virtualhost " . $vhostIp . ":" . $vhostPort . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $vhostPort) . ">" . fs_filehandler::NewLine();
 				// Server name, alias, email settings
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
 				if (!empty($serveralias))
@@ -768,7 +777,7 @@ function WriteVhostConfigFile() {
 				$line .= "# THIS DOMAIN HAS SSL ENABLED" . fs_filehandler::NewLine();
 				
 				#START HERE
-				$line .= "<virtualhost " . $vhostIp . ":" . $rowvhost['vh_ssl_port_in'] . ">" . fs_filehandler::NewLine();
+				$line .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $rowvhost['vh_ssl_port_in']) . ">" . fs_filehandler::NewLine();
 		
 				// Server name, alias, email settings
 				$line .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
@@ -991,7 +1000,7 @@ function BuildStaticVhostBlock(
 ): string {
     $b  = "# DOMAIN: " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
     $b .= "# THIS DOMAIN " . $label . fs_filehandler::NewLine();
-    $b .= "<virtualhost " . $vhostIp . ":" . $port . ">" . fs_filehandler::NewLine();
+    $b .= "<virtualhost " . sentora_vhost_addrs($vhostIp, ($rowvhost['vh_custom_ip6_vc'] ?? ''), $port) . ">" . fs_filehandler::NewLine();
     $b .= "ServerName " . $rowvhost['vh_name_vc'] . fs_filehandler::NewLine();
     if (!empty($serveralias))
         $b .= "ServerAlias " . $serveralias . fs_filehandler::NewLine();

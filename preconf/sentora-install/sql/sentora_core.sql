@@ -758,6 +758,7 @@ CREATE TABLE `x_vhosts` (
   `vh_custom_tx` text DEFAULT NULL,
   `vh_custom_port_in` int(6) DEFAULT NULL,
   `vh_custom_ip_vc` varchar(45) DEFAULT NULL,
+  `vh_custom_ip6_vc` varchar(45) DEFAULT NULL COMMENT 'Multi-IP: IPv6 dedicada del dominio (doble pila)',
   `vh_portforward_in` int(1) DEFAULT NULL,
   `vh_soaserial_vc` char(10) DEFAULT 'AAAAMMDDSS',
   `vh_enabled_in` int(1) DEFAULT 1,
