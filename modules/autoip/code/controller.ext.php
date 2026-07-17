@@ -211,10 +211,23 @@ class module_controller extends ctrl_module {
         return (int)$q->fetchColumn();
     }
 
+    /** Dominios (con su propietario) que usan una IP — para que el admin vea a quién está asignada. */
+    private static function ipDomains($ip) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT v.vh_name_vc AS domain, a.ac_user_vc AS owner
+            FROM x_vhosts v LEFT JOIN x_accounts a ON a.ac_id_pk = v.vh_acc_fk
+            WHERE v.vh_custom_ip_vc=:ip AND v.vh_deleted_ts IS NULL ORDER BY v.vh_name_vc");
+        $q->execute([':ip' => $ip]);
+        return $q->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     static function getIpPool() {
         global $zdbh;
         $rows = $zdbh->query("SELECT * FROM x_ips ORDER BY ip_is_primary_in DESC, INET_ATON(ip_address_vc) ASC")->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rows as &$r) { $r['domains'] = self::ipDomainCount($r['ip_address_vc']); }
+        foreach ($rows as &$r) {
+            $r['domain_list'] = self::ipDomains($r['ip_address_vc']);
+            $r['domains']     = count($r['domain_list']);
+        }
         return $rows;
     }
 
@@ -271,16 +284,25 @@ class module_controller extends ctrl_module {
             $estado = $ena ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>';
 
             $rid = (int)($p['ip_reseller_fk'] ?? 0);
-            // Asignación: compartida del sistema / a un reseller / a dominios / libre
+            // Asignación (visible para el admin): reseller al que se cedió + dominios/propietarios que la usan.
             if ($prim) {
                 $asig = '<span class="text-muted">Compartida (sistema)</span>';
-            } elseif ($rid > 0) {
-                $rn = isset($rmap[$rid]) ? htmlspecialchars($rmap[$rid], ENT_QUOTES) : ('#' . $rid);
-                $asig = '<span class="badge bg-info">Reseller: ' . $rn . '</span>';
-            } elseif ($dom > 0) {
-                $asig = $dom . ' dominio' . ($dom > 1 ? 's' : '') . ' (' . ($dom === 1 ? 'dedicada' : 'compartida') . ')';
             } else {
-                $asig = '<span class="text-muted">Libre</span>';
+                $parts = [];
+                if ($rid > 0) {
+                    $rn = isset($rmap[$rid]) ? htmlspecialchars($rmap[$rid], ENT_QUOTES) : ('#' . $rid);
+                    $parts[] = '<span class="badge bg-info">Reseller: ' . $rn . '</span>';
+                }
+                if (!empty($p['domain_list'])) {
+                    $dl = [];
+                    foreach ($p['domain_list'] as $d) {
+                        $dl[] = htmlspecialchars((string)$d['domain'], ENT_QUOTES)
+                              . ' <span class="text-muted">(' . htmlspecialchars((string)($d['owner'] ?? '?'), ENT_QUOTES) . ')</span>';
+                    }
+                    $tag = ($dom === 1) ? 'dedicada' : 'compartida';
+                    $parts[] = '<span style="font-size:12px;">' . implode(', ', $dl) . ' · <em>' . $tag . '</em></span>';
+                }
+                $asig = $parts ? implode('<br>', $parts) : '<span class="text-muted">Libre</span>';
             }
 
             $acc = '<span class="text-muted">—</span>';
