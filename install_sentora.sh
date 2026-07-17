@@ -1341,6 +1341,11 @@ set skip on lo0
 block in  all
 pass  out all keep state
 
+# ---- IPv6: ICMPv6 SIEMPRE permitido (imprescindible) ----
+# Neighbor Discovery, Router Advertisement, PMTU, etc. van por ICMPv6; sin esto IPv6
+# no funciona (ni resolución de vecinos ni conectividad). No es opcional en v6.
+pass quick inet6 proto icmp6 all keep state
+
 # ---- ANTI-SPAM: bloqueo de correo SALIENTE DIRECTO de los inquilinos  (NO BORRAR) ----
 # Regla "sentora_smtp_egress". QUÉ HACE: impide que los usuarios de HOSTING (uid >= 2001, es
 # decir los h_<cliente>) hagan entrega SMTP DIRECTA al puerto 25 de los MX de destino.
