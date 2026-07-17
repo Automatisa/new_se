@@ -98,10 +98,17 @@ function renewCertificates() {
 			// Do we need to create or upgrade our cert? Assume no to start with.
 			$needsgen = false;
 
-			$user_ip = ctrl_options::GetSystemOption('server_ip');
+			// Doble pila / IP dedicada: el dominio es válido si resuelve a server_ip, a su IPv4
+			// dedicada (vh_custom_ip_vc) o a su IPv6 dedicada (vh_custom_ip6_vc).
+			$acceptIPs = array(
+				ctrl_options::GetSystemOption('server_ip'),
+				ctrl_options::GetSystemOption('server_ip6'),
+				$sslVhost['vh_custom_ip_vc'] ?? '',
+				$sslVhost['vh_custom_ip6_vc'] ?? '',
+			);
 
 			# Check if Domain is LIVE and Pointing to this server using local DNS
-			if (!checkDNSIsLive($domain, $user_ip)) {
+			if (!checkDNSIsLive($domain, $acceptIPs)) {
 				echo "   DNS is not LIVE or POINTING to server. SKIPPING." . fs_filehandler::NewLine();
 
 			} else {
@@ -198,10 +205,14 @@ function renewPanelCertificates() {
 			// Do we need to create or upgrade our cert? Assume no to start with.
 			$needsgen = false;
 
-			$user_ip = ctrl_options::GetSystemOption('server_ip');
+			// El panel vive en la IP primaria (server_ip) y, en doble pila, en server_ip6.
+			$acceptIPs = array(
+				ctrl_options::GetSystemOption('server_ip'),
+				ctrl_options::GetSystemOption('server_ip6'),
+			);
 
 			# Check if Domain is LIVE and Pointing to this server using local DNS
-			if (!checkDNSIsLive($domain, $user_ip)) {
+			if (!checkDNSIsLive($domain, $acceptIPs)) {
 				echo "   DNS is not LIVE or POINTING to server. SKIPPING." . fs_filehandler::NewLine();
 
 			} else {
@@ -280,18 +291,33 @@ function RestartHttpdServicesForSSL() {
 
 }
 
-// Verificar que el dominio resuelve a la IP del servidor usando DNS local (sin servicios externos)
-function checkDNSIsLive($domain, $server_ip) {
-	if (!checkdnsrr($domain, "A")) {
-		return false;
+// Verificar que el dominio resuelve a UNA de las IP que este servidor sirve para él, usando DNS
+// local (sin servicios externos). Doble pila: acepta si el registro A apunta a una IPv4 nuestra
+// (server_ip o la IPv4 dedicada del dominio) O si el registro AAAA apunta a nuestra IPv6 dedicada.
+// $acceptIPs: array de IP (v4 y/o v6) válidas para este dominio. Comparación por inet_pton para
+// tolerar diferencias de formato (p.ej. IPv6 comprimida vs expandida).
+function checkDNSIsLive($domain, $acceptIPs) {
+	if (!is_array($acceptIPs)) { $acceptIPs = array($acceptIPs); }
+	$accept = array();
+	foreach ($acceptIPs as $ip) {
+		$ip = trim((string)$ip);
+		if ($ip === '') continue;
+		$p = @inet_pton($ip);
+		if ($p !== false) { $accept[] = $p; }
 	}
-	$records = dns_get_record($domain, DNS_A);
-	if (empty($records)) {
-		return false;
+	if (empty($accept)) { return false; }
+	// A (IPv4)
+	$a = @dns_get_record($domain, DNS_A);
+	if (!empty($a)) {
+		foreach ($a as $r) {
+			if (isset($r['ip']) && ($pp = @inet_pton($r['ip'])) !== false && in_array($pp, $accept, true)) { return true; }
+		}
 	}
-	foreach ($records as $record) {
-		if (isset($record['ip']) && $record['ip'] === $server_ip) {
-			return true;
+	// AAAA (IPv6)
+	$aaaa = @dns_get_record($domain, DNS_AAAA);
+	if (!empty($aaaa)) {
+		foreach ($aaaa as $r) {
+			if (isset($r['ipv6']) && ($pp = @inet_pton($r['ipv6'])) !== false && in_array($pp, $accept, true)) { return true; }
 		}
 	}
 	return false;

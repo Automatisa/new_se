@@ -887,6 +887,71 @@ class module_controller extends ctrl_module
             ->execute([':v' => implode(',', $ids)]);
     }
 
+    /** Sincroniza los SUBDOMINIOS (vh_type_in=2) de un dominio con las IP dedicadas ACTUALES del
+     *  padre (family-agnostic): cada subdominio hereda vh_custom_ip_vc y vh_custom_ip6_vc del padre
+     *  (vhost doble pila en Apache) y sus registros A/AAAA se escriben como ETIQUETA dentro de la
+     *  ZONA DEL PADRE (dn_vhost_fk=padre, dn_host_vc=<label>). El A siempre existe apuntando a la
+     *  IPv4 efectiva del padre (su dedicada o server_ip) para que el subdominio resuelva; la AAAA
+     *  existe solo si el padre tiene IPv6 dedicada, y se borra si la pierde. El alias de red ya lo
+     *  gestiona el padre (misma IP compartida), así que aquí no se toca la red. */
+    private static function propagateIPToSubdomains($parentVhostId, $parentName) {
+        global $zdbh;
+        $pr = $zdbh->prepare("SELECT vh_custom_ip_vc, vh_custom_ip6_vc FROM x_vhosts WHERE vh_id_pk=:id");
+        $pr->execute([':id' => $parentVhostId]);
+        $p = $pr->fetch(PDO::FETCH_ASSOC) ?: [];
+        $pv4  = trim((string)($p['vh_custom_ip_vc'] ?? ''));
+        $pv6  = trim((string)($p['vh_custom_ip6_vc'] ?? ''));
+        $eff4 = ($pv4 === '') ? (string)ctrl_options::GetOption('server_ip') : $pv4;
+
+        $q = $zdbh->prepare("SELECT vh_id_pk, vh_name_vc FROM x_vhosts
+                             WHERE vh_type_in=2 AND vh_deleted_ts IS NULL AND vh_name_vc LIKE :pat");
+        $q->execute([':pat' => '%.' . $parentName]);
+        $subs = $q->fetchAll(PDO::FETCH_ASSOC);
+        if (!$subs) return;
+        $acc = (int)$zdbh->query("SELECT dn_acc_fk FROM x_dns WHERE dn_vhost_fk=" . (int)$parentVhostId . " LIMIT 1")->fetchColumn();
+
+        foreach ($subs as $s) {
+            $subid = (int)$s['vh_id_pk'];
+            $full  = (string)$s['vh_name_vc'];
+            if (substr($full, -(strlen($parentName) + 1)) !== '.' . $parentName) continue;
+            $label = substr($full, 0, strlen($full) - strlen($parentName) - 1);
+            if ($label === '' || $label === false) continue;
+            // el vhost del subdominio hereda ambas familias del padre (doble pila en Apache)
+            $zdbh->prepare("UPDATE x_vhosts SET vh_custom_ip_vc=:v4, vh_custom_ip6_vc=:v6 WHERE vh_id_pk=:id")
+                 ->execute([':v4' => ($pv4 === '' ? null : $pv4), ':v6' => ($pv6 === '' ? null : $pv6), ':id' => $subid]);
+            // A de la etiqueta -> IPv4 efectiva (siempre resuelve)
+            self::upsertZoneLabel($parentVhostId, $parentName, $acc, $label, 'A', $eff4);
+            // AAAA de la etiqueta -> IPv6 dedicada del padre, o borrar si no tiene
+            if ($pv6 !== '') {
+                self::upsertZoneLabel($parentVhostId, $parentName, $acc, $label, 'AAAA', $pv6);
+            } else {
+                $zdbh->prepare("UPDATE x_dns SET dn_deleted_ts=UNIX_TIMESTAMP()
+                    WHERE dn_vhost_fk=:v AND dn_type_vc='AAAA' AND dn_host_vc=:h AND dn_deleted_ts IS NULL")
+                    ->execute([':v' => $parentVhostId, ':h' => $label]);
+            }
+        }
+        // marcar rebuild de la zona del padre
+        $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+        $ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+        if (!in_array((string)$parentVhostId, $ids, true)) { $ids[] = (string)$parentVhostId; }
+        $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")->execute([':v' => implode(',', $ids)]);
+    }
+
+    /** Upsert de un registro A/AAAA de etiqueta ($host) dentro de la zona del vhost padre. */
+    private static function upsertZoneLabel($parentVhostId, $parentName, $acc, $host, $type, $target) {
+        global $zdbh;
+        $ex = $zdbh->prepare("SELECT dn_id_pk FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc=:t AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
+        $ex->execute([':v' => $parentVhostId, ':t' => $type, ':h' => $host]);
+        $id = $ex->fetchColumn();
+        if ($id) {
+            $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:ip WHERE dn_id_pk=:id")->execute([':ip' => $target, ':id' => $id]);
+        } else {
+            $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_priority_in,dn_created_ts)
+                            VALUES (:a,:n,:v,:t,:h,3600,:ip,0,UNIX_TIMESTAMP())")
+                 ->execute([':a' => $acc, ':n' => $parentName, ':v' => $parentVhostId, ':t' => $type, ':h' => $host, ':ip' => $target]);
+        }
+    }
+
     static function ExecuteAssignDomainIP($vhostid, $uid, $ipchoice) {
         global $zdbh;
         if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
@@ -940,6 +1005,8 @@ class module_controller extends ctrl_module
         // DNS: registros A del sitio siguen la IP efectiva; Apache: marcar rebuild de vhosts
         $effective = ($newip === '') ? (string)ctrl_options::GetOption('server_ip') : $newip;
         self::syncDomainDnsIP($vhostid, $effective);
+        // Herencia: los subdominios de este dominio siguen las IP del padre (A/AAAA en la zona del padre)
+        self::propagateIPToSubdomains($vhostid, $domain);
         // El hook de Apache reconstruye los vhosts SOLO si apache_changed == "true" (cadena),
         // no un timestamp — así el <VirtualHost IP:puerto> pasa a atar la IP dedicada.
         ctrl_options::SetSystemOption('apache_changed', 'true');
@@ -952,7 +1019,7 @@ class module_controller extends ctrl_module
         try { privilege::run('mail_ip_sync'); } catch (Exception $e) {}
 
         $_SESSION['domains_ip_flash'] = ['ok', 'IPv4 del dominio ' . $domain . ' actualizada a '
-            . ($newip === '' ? 'compartida (sistema)' : $newip) . '. Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
+            . ($newip === '' ? 'compartida (sistema)' : $newip) . ' (sus subdominios la heredan). Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
         return true;
     }
 
@@ -999,6 +1066,8 @@ class module_controller extends ctrl_module
 
         // DNS: registros AAAA (@ y www) + Apache rebuild
         self::setDomainAAAA($vhostid, $new6);
+        // Herencia: los subdominios de este dominio siguen las IP del padre (A/AAAA en la zona del padre)
+        self::propagateIPToSubdomains($vhostid, $domain);
         ctrl_options::SetSystemOption('apache_changed', 'true');
 
         // Correo: transporte por dominio (ata v4+v6) + SPF ip6
@@ -1008,7 +1077,7 @@ class module_controller extends ctrl_module
         try { privilege::run('mail_ip_sync'); } catch (Exception $e) {}
 
         $_SESSION['domains_ip_flash'] = ['ok', 'IPv6 del dominio ' . $domain . ' actualizada a '
-            . ($new6 === '' ? 'ninguna (solo IPv4)' : $new6) . '. Los cambios se aplican en el próximo ciclo del daemon.'];
+            . ($new6 === '' ? 'ninguna (solo IPv4)' : $new6) . ' (sus subdominios la heredan). Los cambios se aplican en el próximo ciclo del daemon.'];
         return true;
     }
 

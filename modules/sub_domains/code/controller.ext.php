@@ -201,10 +201,63 @@ class module_controller extends ctrl_module
             $time = time();
             $sql->bindParam(':time', $time);
             $sql->execute();
+            self::InheritParentIP((int)$zdbh->lastInsertId(), $domain);
             self::SetWriteApacheConfigTrue();
             $retval = TRUE;
             runtime_hook::Execute('OnAfterAddSubDomain');
             return $retval;
+        }
+    }
+
+    /** Al crear un subdominio, hereda las IP dedicadas de su dominio padre (doble pila en el vhost)
+     *  y crea su registro A (siempre, para que resuelva) y AAAA (si el padre tiene IPv6) como ETIQUETA
+     *  dentro de la ZONA DEL PADRE (dn_vhost_fk=padre, dn_host_vc=<label>). El alias de red ya lo tiene
+     *  el padre (misma IP compartida), así que aquí no se toca la red. */
+    private static function InheritParentIP($subVhostId, $subFullName)
+    {
+        global $zdbh;
+        if ($subVhostId <= 0 || strpos($subFullName, '.') === false) return;
+        $label      = substr($subFullName, 0, strpos($subFullName, '.'));       // casa.dominio.tld -> casa
+        $parentName = substr($subFullName, strpos($subFullName, '.') + 1);      // -> dominio.tld
+        $p = $zdbh->prepare("SELECT vh_id_pk, vh_custom_ip_vc, vh_custom_ip6_vc FROM x_vhosts
+                             WHERE vh_name_vc=:n AND vh_type_in=1 AND vh_deleted_ts IS NULL LIMIT 1");
+        $p->execute([':n' => $parentName]);
+        $parent = $p->fetch(PDO::FETCH_ASSOC);
+        if (!$parent) return;
+        $pv4 = trim((string)$parent['vh_custom_ip_vc']);
+        $pv6 = trim((string)$parent['vh_custom_ip6_vc']);
+        // Heredar la IP dedicada del padre en el vhost del subdominio (si la tiene)
+        if ($pv4 !== '' || $pv6 !== '') {
+            $zdbh->prepare("UPDATE x_vhosts SET vh_custom_ip_vc=:v4, vh_custom_ip6_vc=:v6 WHERE vh_id_pk=:id")
+                 ->execute([':v4' => ($pv4 === '' ? null : $pv4), ':v6' => ($pv6 === '' ? null : $pv6), ':id' => $subVhostId]);
+        }
+        // Registros de la etiqueta en la zona del padre (solo si el padre ya tiene zona DNS)
+        $acc = (int)$zdbh->query("SELECT dn_acc_fk FROM x_dns WHERE dn_vhost_fk=" . (int)$parent['vh_id_pk'] . " LIMIT 1")->fetchColumn();
+        if (!$acc) return;
+        $pid = (int)$parent['vh_id_pk'];
+        $a4  = ($pv4 !== '') ? $pv4 : (string)ctrl_options::GetOption('server_ip');
+        self::UpsertSubLabel($pid, $parentName, $acc, $label, 'A', $a4);
+        if ($pv6 !== '') self::UpsertSubLabel($pid, $parentName, $acc, $label, 'AAAA', $pv6);
+        // Marcar rebuild de la zona del padre
+        $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+        $ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+        if (!in_array((string)$pid, $ids, true)) { $ids[] = (string)$pid; }
+        $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")->execute([':v' => implode(',', $ids)]);
+    }
+
+    /** Upsert de un registro A/AAAA de etiqueta ($host) dentro de la zona del vhost padre. */
+    private static function UpsertSubLabel($parentVhostId, $parentName, $acc, $host, $type, $target)
+    {
+        global $zdbh;
+        $ex = $zdbh->prepare("SELECT dn_id_pk FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc=:t AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
+        $ex->execute([':v' => $parentVhostId, ':t' => $type, ':h' => $host]);
+        $id = $ex->fetchColumn();
+        if ($id) {
+            $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:ip WHERE dn_id_pk=:id")->execute([':ip' => $target, ':id' => $id]);
+        } else {
+            $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_priority_in,dn_created_ts)
+                            VALUES (:a,:n,:v,:t,:h,3600,:ip,0,UNIX_TIMESTAMP())")
+                 ->execute([':a' => $acc, ':n' => $parentName, ':v' => $parentVhostId, ':t' => $type, ':h' => $host, ':ip' => $target]);
         }
     }
 
