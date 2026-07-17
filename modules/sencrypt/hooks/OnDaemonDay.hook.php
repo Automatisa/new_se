@@ -132,6 +132,17 @@ function renewCertificates() {
 						}
 					}
 				}
+				// Reemisión forzada desde el panel (botón "Reemitir"): si hay marca vh_le_reissue_ts
+				// y el cert es anterior a esa marca (o falta), forzar emisión saltándose los 30 días.
+				// El cooldown de 48h que respeta el límite de LE lo aplica el panel (doForceReissue).
+				$reissueReq = (int)($sslVhost['vh_le_reissue_ts'] ?? 0);
+				if ($reissueReq > 0) {
+					$certfile = "$certlocation/cert.pem";
+					if (!file_exists($certfile) || filemtime($certfile) < $reissueReq) {
+						echo "   Forced reissue requested via panel — forcing renewal." . fs_filehandler::NewLine();
+						$needsgen = true;
+					}
+				}
 			}
 
 			// Do we need to generate a certificate?

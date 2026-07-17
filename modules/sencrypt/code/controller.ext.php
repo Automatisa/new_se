@@ -335,6 +335,79 @@ class module_controller extends ctrl_module {
 		if (!headers_sent()) { header('location: ./?module=sencrypt&ShowPanel=letsencrypt'); exit; }
 	}
 	
+	# Mensaje flash (PRG) de la reemisión: lo fija doForceReissue en $_SESSION y se muestra una vez.
+	static function getReissueMessage() {
+		if (empty($_SESSION['sencrypt_flash'])) return '';
+		list($type, $msg) = $_SESSION['sencrypt_flash'];
+		unset($_SESSION['sencrypt_flash']);
+		return ui_sysmessage::shout($msg, $type === 'ok' ? 'zannounceok' : 'zannounce');
+	}
+
+	# Botón "Reemitir" (forzar reemisión del cert Let's Encrypt) por dominio/subdominio.
+	static function ReissueButton($rowdomains) {
+		return '<form action="./?module=sencrypt&action=ForceReissue" method="post" style="display:inline">'
+			. runtime_csfr::Token()
+			. '<input type="hidden" name="inDomain" value="' . htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8') . '">'
+			. '<button class="button-loader btn btn-secondary" type="submit" name="inReissue" value="1">'
+			. '<i class="bi bi-arrow-repeat me-1"></i>' . ui_language::translate('Reissue') . '</button>'
+			. '</form>';
+	}
+
+	# ¿El dominio resuelve (por DNS) a UNA de las IP que este servidor sirve para él? Comprueba A
+	# (IPv4) y AAAA (IPv6) contra server_ip, server_ip6 y las IP dedicadas del vhost, por inet_pton.
+	# Evita "quemar" el límite de LE de 5 fallos de validación por identificador y hora.
+	private static function domainResolvesToUs($domain, $v4dedic, $v6dedic) {
+		$accept = array();
+		foreach (array(ctrl_options::GetSystemOption('server_ip'), ctrl_options::GetSystemOption('server_ip6'), $v4dedic, $v6dedic) as $ip) {
+			$ip = trim((string)$ip);
+			if ($ip === '') continue;
+			$p = @inet_pton($ip);
+			if ($p !== false) { $accept[] = $p; }
+		}
+		if (empty($accept)) return false;
+		$a = @dns_get_record($domain, DNS_A);
+		if (!empty($a)) foreach ($a as $r) if (isset($r['ip']) && ($pp = @inet_pton($r['ip'])) !== false && in_array($pp, $accept, true)) return true;
+		$aaaa = @dns_get_record($domain, DNS_AAAA);
+		if (!empty($aaaa)) foreach ($aaaa as $r) if (isset($r['ipv6']) && ($pp = @inet_pton($r['ipv6'])) !== false && in_array($pp, $accept, true)) return true;
+		return false;
+	}
+
+	# Fuerza la reemisión del certificado LE de un dominio/subdominio del PROPIO usuario (anti-IDOR),
+	# con guardas para respetar los límites de Let's Encrypt:
+	#   - cooldown de 48h entre reemisiones (el límite es 5 certs idénticos / 7 días -> ~3/semana);
+	#   - el dominio debe resolver a una IP nuestra (evita 5 fallos de validación / identificador / hora).
+	# No emite aquí: marca vh_le_reissue_ts y el hook OnDaemonDay (root) reemite en el próximo ciclo.
+	static function doForceReissue() {
+		global $zdbh, $controller;
+		runtime_csfr::Protect();
+		$cu     = ctrl_users::GetUserDetail();
+		$domain = (string)$controller->GetControllerRequest('FORM', 'inDomain');
+
+		$q = $zdbh->prepare("SELECT vh_id_pk, vh_name_vc, vh_custom_ip_vc, vh_custom_ip6_vc, vh_le_reissue_ts
+		                     FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
+		$q->execute(array(':d' => $domain, ':u' => (int)$cu['userid']));
+		$vh = $q->fetch(PDO::FETCH_ASSOC);
+		if (!$vh) {
+			$_SESSION['sencrypt_flash'] = array('err', ui_language::translate('Domain not valid.'));
+		} else {
+			$last = (int)($vh['vh_le_reissue_ts'] ?? 0);
+			if ($last > 0 && (time() - $last) < 48 * 3600) {
+				$h = ceil((48 * 3600 - (time() - $last)) / 3600);
+				$_SESSION['sencrypt_flash'] = array('err',
+					'Ya solicitaste una reemisión hace poco. Espera ~' . $h . ' h (Let\'s Encrypt limita a 5 certificados idénticos por 7 días).');
+			} elseif (!self::domainResolvesToUs($domain, $vh['vh_custom_ip_vc'] ?? '', $vh['vh_custom_ip6_vc'] ?? '')) {
+				$_SESSION['sencrypt_flash'] = array('err',
+					'El dominio ' . htmlspecialchars($domain) . ' no resuelve por DNS a una IP de este servidor; corrige el DNS antes de reemitir (evita agotar el límite de fallos de validación de Let\'s Encrypt).');
+			} else {
+				$zdbh->prepare("UPDATE x_vhosts SET vh_le_reissue_ts=:t WHERE vh_id_pk=:id")
+				     ->execute(array(':t' => time(), ':id' => (int)$vh['vh_id_pk']));
+				$_SESSION['sencrypt_flash'] = array('ok',
+					'Reemisión programada para ' . htmlspecialchars($domain) . '. Se emitirá en el próximo ciclo del daemon.');
+			}
+		}
+		if (!headers_sent()) { header('location: ./?module=sencrypt&ShowPanel=letsencrypt'); exit; }
+	}
+
 	static function Show_list_of_active_domain_ssl() {
 		global $zdbh, $controller;
 	    $currentuser = ctrl_users::GetUserDetail();
@@ -386,7 +459,7 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ".";
 					}
 							
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL, 'Force_AC' => self::ForceToggle($rowdomains) );
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL, 'Force_AC' => self::ForceToggle($rowdomains) , 'Reissue_AC' => NULL );
 					
 				# If Letsencrypt cert	
 				} elseif ( is_file(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $rowdomains['vh_name_vc'] . "/cert.pem" ) ) {
@@ -419,18 +492,18 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ' - ' . ui_language::translate("Auto-renewal in") . ' ' . $reNewDay . ' ' . ui_language::translate("days") . '.';
 					}
 					
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton, 'Force_AC' => self::ForceToggle($rowdomains));
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton, 'Force_AC' => self::ForceToggle($rowdomains), 'Reissue_AC' => self::ReissueButton($rowdomains));
 					
 				}
 			}
 			if (!$res)
 			{
-				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL);
+				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL);
 			}
 
 		} else {		
 								
-			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL);
+			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL);
 			
 		}
 		

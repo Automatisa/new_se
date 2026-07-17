@@ -63,6 +63,7 @@
 		</div>	
 	<% endif %>	
 
+	<@ ReissueMessage @>
 	<div class="zgrid_wrapper" >
 		<table class="table">
 			<h3><: Your Domain Certificates :></h3>
@@ -95,7 +96,8 @@
 						<td>
 							{! Download_AC !}
 							{! Revoke_AC !}
-						</td
+							{! Reissue_AC !}
+						</td>
 					</tr>
 				<% endloop %>
 				
