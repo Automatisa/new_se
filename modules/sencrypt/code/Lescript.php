@@ -46,6 +46,15 @@ class Lescript
         $this->accountKeyPath = $accountDir . '_account/private.pem';
     }
 
+    # Conmuta la CA ACME (p.ej. a STAGING para pruebas sin gastar límites de producción ni arriesgar
+    # bloqueo de IP). Debe llamarse ANTES de initAccount()/initCommunication(). Staging usa una cuenta
+    # y certificados de una raíz de PRUEBAS (no confiada por navegadores) — solo para validar el flujo.
+    public function setCaUrl($url)
+    {
+        $this->ca = $url;
+        $this->client = new Client($this->ca, $this->clientUserAgent);
+    }
+
     public function initAccount()
     {
         $this->initCommunication();

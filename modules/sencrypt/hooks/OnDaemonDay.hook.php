@@ -69,8 +69,27 @@ echo "END Sencrypt Manager SSL Renewal Hook." . fs_filehandler::NewLine();
 # usuario bajo su home -> al dar de alta muchos usuarios desde la única IP del servidor se agotaba el
 # límite y fallaba la emisión. La clave de cuenta vive fuera de los homes (solo la usa el daemon root);
 # los CERTIFICADOS siguen siendo por dominio (certlocation), solo se comparte la cuenta.
-function sencrypt_shared_account_dir() {
-    return '/var/sentora/ssl/sencrypt/letsencrypt/';
+function sencrypt_shared_account_dir($staging = false) {
+    # Cuenta separada para STAGING: es otra CA con otra cuenta; no debe mezclarse con producción.
+    return $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+}
+
+# CA ACME de STAGING (pruebas). Producción es el valor por defecto de Lescript ($ca).
+function sencrypt_staging_ca() {
+    return 'https://acme-staging-v02.api.letsencrypt.org';
+}
+
+# ¿Modo staging activo? (ajuste le_staging). Para probar emisión/renovación/reemisión sin gastar
+# los límites de producción de Let's Encrypt ni arriesgar un bloqueo de IP.
+function sencrypt_is_staging() {
+    return ctrl_options::GetSystemOption('le_staging') === 'true';
+}
+
+# Subcarpeta de certificados según entorno: en STAGING se emite a 'letsencrypt-staging' para NO
+# sobrescribir los certs de producción (los de staging son de una raíz NO confiada) ni afectar al
+# servicio en vivo. Los vhosts/panel siguen apuntando a la ruta de producción.
+function sencrypt_le_subdir() {
+    return sencrypt_is_staging() ? 'letsencrypt-staging' : 'letsencrypt';
 }
 
 function renewCertificates() {
@@ -96,10 +115,10 @@ function renewCertificates() {
 			$domain = $sslVhost['vh_name_vc'];
 			$webroot = $domainPath;
 
-			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir().
-			$accountDir = sencrypt_shared_account_dir();
+			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir(sencrypt_is_staging()).
+			$accountDir = sencrypt_shared_account_dir(sencrypt_is_staging());
 			# Changed to help with backup and compability
-			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/letsencrypt/" . $sslVhost['vh_name_vc'] . "/";
+			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/" . sencrypt_le_subdir() . "/" . $sslVhost['vh_name_vc'] . "/";
 
 			# Require Lescript for renewal of SSL certs
 			require_once 'modules/sencrypt/code/Lescript.php';
@@ -164,6 +183,7 @@ function renewCertificates() {
 					if (is_file($certfile)) {
 						try {
 							$ariLe = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, NULL);
+							if (sencrypt_is_staging()) { $ariLe->setCaUrl(sencrypt_staging_ca()); }
 							$ariLe->initCommunication();
 							$ari = $ariLe->getRenewalInfo($ariLe->getAriCertID($certfile));
 							if (is_array($ari) && $ari['start'] <= time()) {
@@ -180,6 +200,7 @@ function renewCertificates() {
 				try {
 					# or without logger:
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
+						if (sencrypt_is_staging()) { $le->setCaUrl(sencrypt_staging_ca()); }
 					$le->initAccount();
 
 					# ARI: si esta habilitado, calcular el certID del cert vigente para enviarlo como
@@ -240,10 +261,10 @@ function renewPanelCertificates() {
 			$domain = ctrl_options::GetSystemOption('sentora_domain');
 			$webroot = $domainPath;
 
-			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir().
-			$accountDir = sencrypt_shared_account_dir();
+			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir(sencrypt_is_staging()).
+			$accountDir = sencrypt_shared_account_dir(sencrypt_is_staging());
 			# Changed to help with backup and compability
-			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/letsencrypt/" . $domain . "/";
+			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/" . sencrypt_le_subdir() . "/" . $domain . "/";
 
 			# Require Lescript for renewal of SSL certs
 			require_once 'modules/sencrypt/code/Lescript.php';
@@ -292,6 +313,7 @@ function renewPanelCertificates() {
 				try {
 					# or without logger:
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
+						if (sencrypt_is_staging()) { $le->setCaUrl(sencrypt_staging_ca()); }
 					$le->initAccount();
 
 					// ARI: `replaces` para exencion de rate-limit en la renovacion del panel (gated).
@@ -305,7 +327,7 @@ function renewPanelCertificates() {
 					// After successful renewal, update panel_ssl_tx in DB to point to new cert
 					$newCert = $certlocation . "cert.pem";
 					$newKey  = $certlocation . "private.pem";
-					if (file_exists($newCert) && file_exists($newKey)) {
+					if (!sencrypt_is_staging() && file_exists($newCert) && file_exists($newKey)) {
 						$ssl_tx  = "SSLEngine On\n";
 						$ssl_tx .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n";
 						$ssl_tx .= "SSLCipherSuite ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384\n";
