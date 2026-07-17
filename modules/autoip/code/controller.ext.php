@@ -211,6 +211,16 @@ class module_controller extends ctrl_module {
         return (int)$q->fetchColumn();
     }
 
+    /** rDNS/PTR de una IP para correo: [ptr => hostname|null, fcrdns => bool].
+     *  fcrdns = true si el PTR resuelve de vuelta a la misma IP (Forward-Confirmed rDNS),
+     *  que es lo que exigen los grandes proveedores para aceptar el correo saliente. */
+    private static function ipRdns($ip) {
+        $ptr = @gethostbyaddr($ip);
+        if ($ptr === false || $ptr === '' || $ptr === $ip) return ['ptr' => null, 'fcrdns' => false];
+        $fwd = @gethostbynamel($ptr);
+        return ['ptr' => $ptr, 'fcrdns' => (is_array($fwd) && in_array($ip, $fwd, true))];
+    }
+
     /** Dominios (con su propietario) que usan una IP — para que el admin vea a quién está asignada. */
     private static function ipDomains($ip) {
         global $zdbh;
@@ -301,6 +311,15 @@ class module_controller extends ctrl_module {
                     }
                     $tag = ($dom === 1) ? 'dedicada' : 'compartida';
                     $parts[] = '<span style="font-size:12px;">' . implode(', ', $dl) . ' · <em>' . $tag . '</em></span>';
+                    // rDNS para correo (solo IPs en uso -> conjunto pequeño; evita bloqueos con rangos grandes)
+                    $r = self::ipRdns($p['ip_address_vc']);
+                    if ($r['ptr'] === null) {
+                        $parts[] = '<span class="badge bg-secondary" title="El correo saliente desde esta IP puede rechazarse sin PTR">rDNS: sin PTR</span>';
+                    } elseif ($r['fcrdns']) {
+                        $parts[] = '<span class="badge bg-success" title="Forward-Confirmed rDNS OK">rDNS: ' . htmlspecialchars($r['ptr'], ENT_QUOTES) . ' ✓</span>';
+                    } else {
+                        $parts[] = '<span class="badge bg-warning" title="El PTR no resuelve de vuelta a esta IP (FCrDNS falla)">rDNS: ' . htmlspecialchars($r['ptr'], ENT_QUOTES) . ' ⚠</span>';
+                    }
                 }
                 $asig = $parts ? implode('<br>', $parts) : '<span class="text-muted">Libre</span>';
             }
