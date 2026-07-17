@@ -292,9 +292,17 @@ function WriteVhostConfigFile() {
 		# cliente nunca muestre el login del panel. Si server_ip no es válida, se mantiene _default_.
 		$srvIp       = (string)ctrl_options::GetSystemOption('server_ip');
 		$panelIpBind = (filter_var($srvIp, FILTER_VALIDATE_IP) !== false) ? $srvIp : '_default_';
+		# Doble pila: si hay IPv6 primaria (server_ip6), el panel escucha también en [v6]:port.
+		# Sin server_ip6 configurada, $panelAddrs es idéntico al binding v4 de siempre.
+		$srvIp6     = (string)ctrl_options::GetSystemOption('server_ip6');
+		$panelAddrs = $panelIpBind . ":" . $panelSslPort;
+		if ($panelIpBind !== '_default_'
+			&& filter_var($srvIp6, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
+			$panelAddrs .= " [" . $srvIp6 . "]:" . $panelSslPort;
+		}
 		if ($panelCert && $panelKey) {
 			$line .= "# FALLBACK SSL (IP primaria): acceso por IP usa el cert del panel (aviso de navegador esperado)" . fs_filehandler::NewLine();
-			$line .= "<VirtualHost " . $panelIpBind . ":" . $panelSslPort . ">" . fs_filehandler::NewLine();
+			$line .= "<VirtualHost " . $panelAddrs . ">" . fs_filehandler::NewLine();
 			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
 			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
@@ -349,7 +357,7 @@ function WriteVhostConfigFile() {
 			$line .= fs_filehandler::NewLine() . "##-------" . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 		}
 		$line .= "# PANEL HAS SSL ENABLED" . fs_filehandler::NewLine();
-		$line .= "<VirtualHost " . $panelIpBind . ":" . $panelSslPort . ">" . fs_filehandler::NewLine();
+		$line .= "<VirtualHost " . $panelAddrs . ">" . fs_filehandler::NewLine();
 		$line .= "ServerAdmin " . $serveremail . fs_filehandler::NewLine();
 		$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 		$line .= "ServerName " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
