@@ -143,6 +143,24 @@ function renewCertificates() {
 						$needsgen = true;
 					}
 				}
+
+				// ARI (ACME Renewal Info): si está habilitado (le_ari_enabled) y aún no toca renovar por
+				// la regla de 30 días, preguntar a Let's Encrypt la ventana de renovación sugerida y
+				// renovar si ya empezó. Best-effort: cualquier fallo cae al comportamiento de 30 días.
+				if (!$needsgen && ctrl_options::GetSystemOption('le_ari_enabled') === 'true') {
+					$certfile = "$certlocation/cert.pem";
+					if (is_file($certfile)) {
+						try {
+							$ariLe = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, NULL);
+							$ariLe->initCommunication();
+							$ari = $ariLe->getRenewalInfo($ariLe->getAriCertID($certfile));
+							if (is_array($ari) && $ari['start'] <= time()) {
+								echo "   ARI: dentro de la ventana de renovación sugerida — renovando." . fs_filehandler::NewLine();
+								$needsgen = true;
+							}
+						} catch (\Exception $e) { /* ARI best-effort; se mantiene la regla de 30 días */ }
+					}
+				}
 			}
 
 			// Do we need to generate a certificate?
@@ -151,6 +169,13 @@ function renewCertificates() {
 					# or without logger:
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
 					$le->initAccount();
+
+					# ARI: si esta habilitado, calcular el certID del cert vigente para enviarlo como
+					# `replaces` en la orden -> Let's Encrypt trata la emision como RENOVACION (exenta de rate-limits).
+					$replaces = '';
+					if (ctrl_options::GetSystemOption("le_ari_enabled") === "true") {
+						try { $replaces = $le->getAriCertID("$certlocation/cert.pem"); } catch (\Exception $e) { $replaces = ''; }
+					}
 
 					# Check if domain is a subdomain
 					$sql = "SELECT vh_type_in FROM x_vhosts WHERE vh_acc_fk=:userid AND vh_name_vc=:domain AND vh_enabled_in = '1' AND vh_deleted_ts IS NULL";
@@ -164,10 +189,10 @@ function renewCertificates() {
 
 					if ($domainType == 2 ) {
 						// Create domain without www. becuase its a subdomain
-						$le->signDomains(array($domain));
+						$le->signDomains(array($domain), false, $replaces);
 					} else {
 						// Create a SSL with www. because its a root domain
-						$le->signDomains(array($domain, 'www.'.$domain));
+						$le->signDomains(array($domain, 'www.'.$domain), false, $replaces);
 					}
 
 				}
@@ -256,8 +281,13 @@ function renewPanelCertificates() {
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
 					$le->initAccount();
 
+					// ARI: `replaces` para exencion de rate-limit en la renovacion del panel (gated).
+					$replaces = '';
+					if (ctrl_options::GetSystemOption("le_ari_enabled") === "true") {
+						try { $replaces = $le->getAriCertID("$certlocation/cert.pem"); } catch (\Exception $e) { $replaces = ''; }
+					}
 					// Create panel domain cert (only the panel domain, no www)
-					$le->signDomains(array($domain));
+					$le->signDomains(array($domain), false, $replaces);
 
 					// After successful renewal, update panel_ssl_tx in DB to point to new cert
 					$newCert = $certlocation . "cert.pem";

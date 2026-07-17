@@ -29,6 +29,7 @@ class Lescript
     protected $urlNewAccount = '';
     protected $urlNewNonce = '';
     protected $urlNewOrder = '';
+    protected $urlRenewalInfo = ''; // ARI (draft-ietf-acme-ari): endpoint renewalInfo del directorio
 	
 	# NEW CODE - tg - Added counntry code and state
     # PHP 8.x fix: optional parameters must follow mandatory ones, so we
@@ -84,12 +85,56 @@ class Lescript
         $this->urlNewAccount = $directory['newAccount'];
         $this->urlNewOrder = $directory['newOrder'];
 		$this->urlRevokeCert = $directory['revokeCert'];
+		# ARI: endpoint opcional; si el directorio no lo publica, queda vacío y ARI se desactiva solo.
+		$this->urlRenewalInfo = isset($directory['renewalInfo']) ? $directory['renewalInfo'] : '';
 
         $this->log('Requesting new nonce for client communication');
         $this->client->get($this->urlNewNonce);
     }
 
-    public function signDomains(array $domains, $reuseCsr = false)
+    # ARI (draft-ietf-acme-ari): calcula el "certID" de un certificado ya emitido, que es
+    # base64url(AKI keyIdentifier) . "." . base64url(número de serie). Se usa tanto para consultar
+    # renewalInfo como para el campo `replaces` de la orden. Devuelve '' si no se puede calcular
+    # (así el llamador degrada a la lógica de 30 días sin romper nada).
+    public function getAriCertID($certPath)
+    {
+        if (!is_file($certPath)) return '';
+        $pem = @file_get_contents($certPath);
+        if ($pem === false) return '';
+        $c = @openssl_x509_parse($pem);
+        if (!is_array($c)) return '';
+        # AKI: extraer la secuencia hex "AB:CD:.." del authorityKeyIdentifier
+        $akiRaw = isset($c['extensions']['authorityKeyIdentifier']) ? $c['extensions']['authorityKeyIdentifier'] : '';
+        if (!preg_match('/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2})+)/', $akiRaw, $m)) return '';
+        $akiHex = str_replace(':', '', $m[1]);
+        # Serie: hex de openssl (contenido del INTEGER); asegurar longitud par
+        $serialHex = isset($c['serialNumberHex']) ? preg_replace('/[^0-9A-Fa-f]/', '', $c['serialNumberHex']) : '';
+        if ($serialHex === '') return '';
+        if (strlen($serialHex) % 2 !== 0) { $serialHex = '0' . $serialHex; }
+        $akiBin = @hex2bin($akiHex);
+        $serBin = @hex2bin($serialHex);
+        if ($akiBin === false || $serBin === false) return '';
+        return Base64UrlSafeEncoder::encode($akiBin) . '.' . Base64UrlSafeEncoder::encode($serBin);
+    }
+
+    # ARI: consulta la ventana de renovación sugerida para un certID. Devuelve
+    # ['start'=>ts, 'end'=>ts, 'explanationURL'=>str] o NULL si no hay ARI/da error (fallback 30 días).
+    public function getRenewalInfo($certID)
+    {
+        if ($this->urlRenewalInfo === '' || !is_string($certID) || $certID === '') return null;
+        try {
+            $resp = $this->client->get($this->urlRenewalInfo . '/' . $certID);
+        } catch (\Exception $e) {
+            return null;
+        }
+        if (!is_array($resp) || empty($resp['suggestedWindow']['start']) || empty($resp['suggestedWindow']['end'])) return null;
+        $start = strtotime($resp['suggestedWindow']['start']);
+        $end   = strtotime($resp['suggestedWindow']['end']);
+        if ($start === false || $end === false) return null;
+        return array('start' => $start, 'end' => $end, 'explanationURL' => isset($resp['explanationURL']) ? $resp['explanationURL'] : '');
+    }
+
+    public function signDomains(array $domains, $reuseCsr = false, $replaces = '')
     {
         $this->log('Starting certificate generation process for domains');
 
@@ -99,15 +144,18 @@ class Lescript
         # start domains authentication
         # ----------------------------
         $this->log("Requesting challenge for ".join(', ', $domains));
-        $response = $this->signedRequest(
-            $this->urlNewOrder,
-            array("identifiers" => array_map(
-                function ($domain) { 
-					return array("type" => "dns", "value" => $domain);
-				}, 
-                $domains
-                ))
-        );
+        $orderPayload = array("identifiers" => array_map(
+            function ($domain) {
+                return array("type" => "dns", "value" => $domain);
+            },
+            $domains
+            ));
+        # ARI (draft-ietf-acme-ari): si nos pasan el certID del cert que se reemplaza, se incluye en
+        # la orden para que Let's Encrypt trate esta emisión como RENOVACIÓN (exenta de rate-limits).
+        if (is_string($replaces) && $replaces !== '') {
+            $orderPayload['replaces'] = $replaces;
+        }
+        $response = $this->signedRequest($this->urlNewOrder, $orderPayload);
 
         $finalizeUrl = $response['finalize'];
 

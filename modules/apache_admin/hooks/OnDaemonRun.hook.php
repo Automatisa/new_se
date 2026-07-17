@@ -68,6 +68,9 @@ function BuildVhostPortForward($vhostName, $customPort, $userEmail) {
     $line .= "ServerAdmin " . $userEmail . fs_filehandler::NewLine();
     $line .= "RewriteEngine on" . fs_filehandler::NewLine();
     $line .= "ReWriteCond %{SERVER_PORT} !^" . $customPort_in . "$" . fs_filehandler::NewLine();
+    # Excluir el challenge ACME (Let's Encrypt): se sirve por HTTP en el puerto 80 y NO debe
+    # redirigirse, o se rompe la emision/renovacion de certificados (LE sigue redirects en :80).
+    $line .= "RewriteCond %{REQUEST_URI} !^/\\.well-known/acme-challenge/" . fs_filehandler::NewLine();
     $line .= ( $customPort_in === "443" ) ? "RewriteRule ^/(.*) https://%{HTTP_HOST}/$1 [NC,R,L] " . fs_filehandler::NewLine() : "RewriteRule ^/(.*) http://%{HTTP_HOST}:" . $customPort . "/$1 [NC,R,L] " . fs_filehandler::NewLine();
     $line .= "</virtualhost>" . fs_filehandler::NewLine();
 	$line .= "##-------" . fs_filehandler::NewLine();
