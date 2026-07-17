@@ -278,12 +278,14 @@ function WriteVhostConfigFile() {
 		if (preg_match('/^SSLCertificateFile\s+(\S+)/m',    $panelSslTx, $m)) $panelCert = $m[1];
 		if (preg_match('/^SSLCertificateKeyFile\s+(\S+)/m', $panelSslTx, $m)) $panelKey  = $m[1];
 
-		# Fallback vhost: captura acceso por IP usando el mismo cert del panel.
-		# El navegador avisa una vez (el cert es del dominio, no la IP) pero la conexión queda cifrada.
-		# Debe ir ANTES del vhost del dominio para ser el default cuando no hay SNI.
+		# Panel SSL atado a la IP PRIMARIA (server_ip): el fallback por IP (sin SNI) solo sirve el
+		# panel en esa IP; en cualquier OTRA IP por HTTPS se deniega (403), para que una IP de
+		# cliente nunca muestre el login del panel. Si server_ip no es válida, se mantiene _default_.
+		$srvIp       = (string)ctrl_options::GetSystemOption('server_ip');
+		$panelIpBind = (filter_var($srvIp, FILTER_VALIDATE_IP) !== false) ? $srvIp : '_default_';
 		if ($panelCert && $panelKey) {
-			$line .= "# FALLBACK SSL: acceso por IP usa el cert del panel (aviso de navegador esperado)" . fs_filehandler::NewLine();
-			$line .= "<VirtualHost _default_:" . $panelSslPort . ">" . fs_filehandler::NewLine();
+			$line .= "# FALLBACK SSL (IP primaria): acceso por IP usa el cert del panel (aviso de navegador esperado)" . fs_filehandler::NewLine();
+			$line .= "<VirtualHost " . $panelIpBind . ":" . $panelSslPort . ">" . fs_filehandler::NewLine();
 			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
 			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
@@ -298,6 +300,21 @@ function WriteVhostConfigFile() {
 			$line .= "SSLCertificateKeyFile " . $panelKey . fs_filehandler::NewLine();
 			$line .= "</VirtualHost>" . fs_filehandler::NewLine();
 			$line .= fs_filehandler::NewLine();
+
+			# Denegar el panel en cualquier otra IP por HTTPS (solo si está atado a una IP concreta).
+			if ($panelIpBind !== '_default_') {
+				$line .= "# Otras IPs por HTTPS (sin vhost propio) -> 403, nunca el panel" . fs_filehandler::NewLine();
+				$line .= "<VirtualHost _default_:" . $panelSslPort . ">" . fs_filehandler::NewLine();
+				$line .= "SSLEngine On" . fs_filehandler::NewLine();
+				$line .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1" . fs_filehandler::NewLine();
+				$line .= "SSLCertificateFile " . $panelCert . fs_filehandler::NewLine();
+				$line .= "SSLCertificateKeyFile " . $panelKey . fs_filehandler::NewLine();
+				$line .= '<Location "/">' . fs_filehandler::NewLine();
+				$line .= "    Require all denied" . fs_filehandler::NewLine();
+				$line .= "</Location>" . fs_filehandler::NewLine();
+				$line .= "</VirtualHost>" . fs_filehandler::NewLine();
+				$line .= fs_filehandler::NewLine();
+			}
 		}
 
 		# Panel en :80 segun la opcion panel_force_https:
@@ -323,7 +340,7 @@ function WriteVhostConfigFile() {
 			$line .= fs_filehandler::NewLine() . "##-------" . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 		}
 		$line .= "# PANEL HAS SSL ENABLED" . fs_filehandler::NewLine();
-		$line .= "<VirtualHost *:" . $panelSslPort . ">" . fs_filehandler::NewLine();
+		$line .= "<VirtualHost " . $panelIpBind . ":" . $panelSslPort . ">" . fs_filehandler::NewLine();
 		$line .= "ServerAdmin " . $serveremail . fs_filehandler::NewLine();
 		$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 		$line .= "ServerName " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
