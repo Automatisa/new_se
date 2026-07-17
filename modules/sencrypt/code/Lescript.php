@@ -116,13 +116,17 @@ class Lescript
         $akiRaw = isset($c['extensions']['authorityKeyIdentifier']) ? $c['extensions']['authorityKeyIdentifier'] : '';
         if (!preg_match('/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2})+)/', $akiRaw, $m)) return '';
         $akiHex = str_replace(':', '', $m[1]);
-        # Serie: hex de openssl (contenido del INTEGER); asegurar longitud par
+        # Serie: hex de openssl (magnitud del INTEGER); asegurar longitud par
         $serialHex = isset($c['serialNumberHex']) ? preg_replace('/[^0-9A-Fa-f]/', '', $c['serialNumberHex']) : '';
         if ($serialHex === '') return '';
         if (strlen($serialHex) % 2 !== 0) { $serialHex = '0' . $serialHex; }
         $akiBin = @hex2bin($akiHex);
         $serBin = @hex2bin($serialHex);
         if ($akiBin === false || $serBin === false) return '';
+        # ARI/RFC 9773: la serie son los octetos de VALOR del INTEGER DER. Para un entero positivo con
+        # el bit alto del primer octeto activo, DER antepone un 0x00 de signo. (Si openssl ya lo trae,
+        # el primer octeto sería 0x00 -> bit alto a 0 -> no se duplica.)
+        if (strlen($serBin) > 0 && (ord($serBin[0]) & 0x80)) { $serBin = "\x00" . $serBin; }
         return Base64UrlSafeEncoder::encode($akiBin) . '.' . Base64UrlSafeEncoder::encode($serBin);
     }
 

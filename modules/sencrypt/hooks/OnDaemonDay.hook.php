@@ -185,11 +185,20 @@ function renewCertificates() {
 							$ariLe = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, NULL);
 							if (sencrypt_is_staging()) { $ariLe->setCaUrl(sencrypt_staging_ca()); }
 							$ariLe->initCommunication();
-							$ari = $ariLe->getRenewalInfo($ariLe->getAriCertID($certfile));
-							if (is_array($ari) && $ari['start'] <= time()) {
-								echo "   ARI: dentro de la ventana de renovación sugerida — renovando." . fs_filehandler::NewLine();
-								$needsgen = true;
-							}
+								$certID = $ariLe->getAriCertID($certfile);
+								$ari = $ariLe->getRenewalInfo($certID);
+								if (is_array($ari)) {
+									// RFC 9773: instante ALEATORIO uniforme dentro de la ventana (reparte carga),
+									// determinista por certificado (hash del certID) para no re-sortear cada ciclo.
+									$window  = max(0, (int)$ari["end"] - (int)$ari["start"]);
+									$offset  = $window > 0 ? (hexdec(substr(md5($certID), 0, 8)) % $window) : 0;
+									$renewAt = (int)$ari["start"] + $offset;
+									if ($renewAt <= time()) {
+										echo "   ARI: momento de renovacion alcanzado (ventana ".gmdate("Y-m-d H:i",(int)$ari["start"])." .. ".gmdate("Y-m-d H:i",(int)$ari["end"])." UTC) - renovando.".fs_filehandler::NewLine();
+										if (!empty($ari["explanationURL"])) { echo "   ARI explanation: ".$ari["explanationURL"].fs_filehandler::NewLine(); }
+										$needsgen = true;
+									}
+								}
 						} catch (\Exception $e) { /* ARI best-effort; se mantiene la regla de 30 días */ }
 					}
 				}
@@ -233,6 +242,21 @@ function renewCertificates() {
 					echo "ERROR: " . $e->getMessage() . fs_filehandler::NewLine();
 					# Log error but continue with remaining domains (do NOT exit)
 					error_log( date('Y-m-d H:i:s') . " - DOMAIN: " . $domain . " - " . $e->getMessage() . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
+				}
+			}
+
+			// Aviso de caducidad: Let's Encrypt dejó de enviar emails de aviso el 4-jun-2025, así que
+			// la vigilancia es responsabilidad del panel. Si tras el intento el cert sigue caducando
+			// pronto (<=10 días), registrar un WARNING claro en el log para monitorización del admin.
+			$certfile = "$certlocation/cert.pem";
+			if (is_file($certfile)) {
+				$cd = @openssl_x509_parse(@file_get_contents($certfile));
+				if (is_array($cd) && !empty($cd['validTo_time_t'])) {
+					$daysLeft = floor(($cd['validTo_time_t'] - time()) / 86400);
+					if ($daysLeft <= 10) {
+						echo "   WARNING: el certificado de " . $domain . " caduca en " . $daysLeft . " días y no se ha renovado." . fs_filehandler::NewLine();
+						error_log(date('Y-m-d H:i:s') . " - EXPIRY WARNING - " . $domain . " caduca en " . $daysLeft . " dias\n", 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
+					}
 				}
 			}
 
