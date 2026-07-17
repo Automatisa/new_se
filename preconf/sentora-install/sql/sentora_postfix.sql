@@ -63,6 +63,14 @@ CREATE TABLE `domain` (
   PRIMARY KEY (`domain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Postfix Admin - Virtual Domains';
 
+-- Multi-IP Fase 3b: transporte de ENVÍO por dominio (sender_dependent_default_transport_maps).
+-- domain -> nombre del transporte (smtpip-<ip>) definido en master.cf con smtp_bind_address.
+CREATE TABLE IF NOT EXISTS `sender_transport` (
+  `domain` varchar(255) NOT NULL,
+  `transport` varchar(64) NOT NULL,
+  PRIMARY KEY (`domain`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Multi-IP: IP de envio por dominio';
+
 DROP TABLE IF EXISTS `mailbox`;
 CREATE TABLE `mailbox` (
   `username` varchar(255) NOT NULL,

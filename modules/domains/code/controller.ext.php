@@ -942,9 +942,56 @@ class module_controller extends ctrl_module
         // no un timestamp — así el <VirtualHost IP:puerto> pasa a atar la IP dedicada.
         ctrl_options::SetSystemOption('apache_changed', 'true');
 
+        // CORREO (Fase 3b): envío saliente desde la IP dedicada + SPF que la autoriza.
+        self::syncMailTransport($domain, $newip);
+        if ($newip !== '')                          { self::syncDomainSpf($vhostid, $newip, true); }
+        if ($current !== '' && $current !== $newip) { self::syncDomainSpf($vhostid, $current, false); }
+        // Regenerar los transportes de Postfix (master.cf) con 'postfix check' antes de recargar.
+        try { privilege::run('mail_ip_sync'); } catch (Exception $e) {}
+
         $_SESSION['domains_ip_flash'] = ['ok', 'IP del dominio ' . $domain . ' actualizada a '
             . ($newip === '' ? 'compartida (sistema)' : $newip) . '. Los cambios de Apache/DNS se aplican en el próximo ciclo del daemon.'];
         return true;
+    }
+
+    /** Sincroniza el transporte de ENVÍO del dominio en sentora_postfix (Fase 3b). '' = sin IP dedicada. */
+    private static function syncMailTransport($domain, $ip) {
+        global $zdbh;
+        try {
+            if ($ip === '') {
+                $zdbh->prepare("DELETE FROM sentora_postfix.sender_transport WHERE domain=:d")->execute([':d' => $domain]);
+            } else {
+                $transport = 'smtpip-' . str_replace('.', '-', $ip);
+                $zdbh->prepare("REPLACE INTO sentora_postfix.sender_transport (domain, transport) VALUES (:d,:t)")
+                     ->execute([':d' => $domain, ':t' => $transport]);
+            }
+        } catch (Exception $e) { /* la tabla se crea por migración; no bloquear la asignación */ }
+    }
+
+    /** Añade/quita ip4:<ip> en el registro SPF (TXT @) del dominio para autorizar la IP de envío. */
+    private static function syncDomainSpf($vhostid, $ip, $add) {
+        global $zdbh;
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return;
+        $q = $zdbh->prepare("SELECT dn_id_pk, dn_target_vc FROM x_dns
+            WHERE dn_vhost_fk=:v AND dn_type_vc='TXT' AND dn_host_vc='@' AND dn_target_vc LIKE 'v=spf1%'
+              AND dn_deleted_ts IS NULL LIMIT 1");
+        $q->execute([':v' => $vhostid]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return;                                   // sin SPF -> nada que tocar
+        $spf   = (string)$row['dn_target_vc'];
+        $token = 'ip4:' . $ip;
+        $has   = (bool)preg_match('/(^|\s)' . preg_quote($token, '/') . '(\s|$)/', $spf);
+        if ($add && !$has) {
+            // insertar antes del mecanismo 'all' final (~all / -all / ?all / all)
+            $spf2 = preg_replace('/\s*([~\-\?\+]?all)\s*$/', ' ' . $token . ' $1', $spf, 1);
+            $spf  = ($spf2 === $spf) ? ($spf . ' ' . $token) : $spf2;
+        } elseif (!$add && $has) {
+            $spf = preg_replace('/\s*' . preg_quote($token, '/') . '(?=\s|$)/', '', $spf, 1);
+        } else {
+            return;                                          // sin cambios
+        }
+        $spf = trim(preg_replace('/\s+/', ' ', $spf));
+        $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:t WHERE dn_id_pk=:id")->execute([':t' => $spf, ':id' => $row['dn_id_pk']]);
     }
 
     static function doSaveDomainIP() {

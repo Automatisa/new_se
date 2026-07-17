@@ -46,6 +46,12 @@ virtual_gid_maps = static:!POS_GID!
 virtual_transport = dovecot
 dovecot_destination_recipient_limit = 1
 
+# Multi-IP Fase 3b: envío saliente desde la IP dedicada del dominio (por remitente).
+# Devuelve el transporte smtpip-<ip> (definido en master.cf con smtp_bind_address) para
+# los dominios con IP dedicada; el resto usa el transporte por defecto.
+# mysql: directo (NO proxy:): el mapa no está en proxy_read_maps y proxymap fallaría.
+sender_dependent_default_transport_maps = mysql:/usr/local/etc/sentora/postfix/mysql-sender_transport.cf
+
 # authentication
 smtpd_sasl_auth_enable = yes
 smtpd_sasl_security_options = noanonymous

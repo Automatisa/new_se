@@ -388,6 +388,13 @@ class privilege
             'sudo_rule' => '/usr/local/sentora/bin/ip_alias.sh del',
             'doas_rule' => 'cmd /usr/local/sentora/bin/ip_alias.sh',
         ),
+        // Multi-IP Fase 3b: regenera los transportes de Postfix por IP dedicada (envío saliente).
+        // Sin args; el script hace 'postfix check' antes de recargar (no rompe el correo).
+        'mail_ip_sync' => array(
+            'argv'      => array('/usr/local/sentora/bin/mail_ip_transports.sh'),
+            'sudo_rule' => '/usr/local/sentora/bin/mail_ip_transports.sh',
+            'doas_rule' => 'cmd /usr/local/sentora/bin/mail_ip_transports.sh',
+        ),
 
         // ClamAV — usados por clamav_admin
         'clamd_start' => array(
