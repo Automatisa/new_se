@@ -62,6 +62,17 @@ if (ui_module::CheckModuleEnabled('Sencrypt SSL')) {
 echo "END Sencrypt Manager SSL Renewal Hook." . fs_filehandler::NewLine();
 
 # Start functions here
+
+# Cuenta ACME COMPARTIDA del servidor: UNA sola cuenta Let's Encrypt para todo el panel, no una por
+# usuario. Motivo: LE limita a 10 CUENTAS nuevas por IP cada 3h (sin excepciones) y su guía de
+# integración recomienda una única cuenta para proveedores de hosting. Antes se creaba una cuenta por
+# usuario bajo su home -> al dar de alta muchos usuarios desde la única IP del servidor se agotaba el
+# límite y fallaba la emisión. La clave de cuenta vive fuera de los homes (solo la usa el daemon root);
+# los CERTIFICADOS siguen siendo por dominio (certlocation), solo se comparte la cuenta.
+function sencrypt_shared_account_dir() {
+    return '/var/sentora/ssl/sencrypt/letsencrypt/';
+}
+
 function renewCertificates() {
 	global $zdbh, $controller;
 	$logger = new Logger();
@@ -85,7 +96,8 @@ function renewCertificates() {
 			$domain = $sslVhost['vh_name_vc'];
 			$webroot = $domainPath;
 
-			$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/letsencrypt/";
+			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir().
+			$accountDir = sencrypt_shared_account_dir();
 			# Changed to help with backup and compability
 			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $vhostOwner['username'] . "/ssl/sencrypt/letsencrypt/" . $sslVhost['vh_name_vc'] . "/";
 
@@ -228,7 +240,8 @@ function renewPanelCertificates() {
 			$domain = ctrl_options::GetSystemOption('sentora_domain');
 			$webroot = $domainPath;
 
-			$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/letsencrypt/";
+			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir().
+			$accountDir = sencrypt_shared_account_dir();
 			# Changed to help with backup and compability
 			$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $panelOwner . "/ssl/sencrypt/letsencrypt/" . $domain . "/";
 
