@@ -160,6 +160,7 @@ class module_controller extends ctrl_module
                     'maxbackups' => $rowpackages['qt_backups_in'],
                     'maxbackupsremote' => $rowpackages['qt_backups_remote_in'],
                     'dbquota' => $rowpackages['qt_dbquota_in'],
+                    'dedicatedips' => $rowpackages['qt_dedicatedips_in'] ?? 0,
                     'packagename' => stripslashes($rowpackages['pk_name_vc'])));
             }
             return $res;
@@ -291,6 +292,7 @@ class module_controller extends ctrl_module
 										qt_backups_in,
 										qt_backups_remote_in,
 										qt_dbquota_in,
+										qt_dedicatedips_in,
 										qt_diskspace_bi,
 										qt_bandwidth_bi) VALUES (
 										:pk_id_pk,
@@ -314,6 +316,7 @@ class module_controller extends ctrl_module
 										:MaxBackups,
 										:MaxBackupsRemote,
 										:DbQuota,
+										:DedicatedIps,
 										:DiskQuotaFinal,
 										:BandQuotaFinal)");
         $DiskQuotaFinal = $DiskQuota * 1024000;
@@ -348,6 +351,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':MaxBackupsRemote', $MaxBackupsRemote);
         $DbQuota = max(0, (int)$DbQuota);
         $sql->bindParam(':DbQuota', $DbQuota);
+        $DedicatedIps = (isset($DedicatedIps) && (int)$DedicatedIps < 0) ? -1 : max(0, (int)($DedicatedIps ?? 0));
+        $sql->bindParam(':DedicatedIps', $DedicatedIps);
         $sql->bindParam(':pk_id_pk', $package['pk_id_pk']);
         $sql->execute();
         runtime_hook::Execute('OnAfterCreatePackage');
@@ -422,7 +427,8 @@ class module_controller extends ctrl_module
 								qt_pcpu_in          = :Pcpu,
 								qt_backups_in       = :MaxBackups,
 								qt_backups_remote_in = :MaxBackupsRemote,
-								qt_dbquota_in       = :DbQuota
+								qt_dbquota_in       = :DbQuota,
+									qt_dedicatedips_in  = :DedicatedIps
                                                                 WHERE qt_package_fk = :pid");
         $DiskQuotaFinal = $DiskQuota * 1024000;
         $BandQuotaFinal = $BandQuota * 1024000;
@@ -456,6 +462,8 @@ class module_controller extends ctrl_module
         $sql->bindParam(':MaxBackupsRemote', $MaxBackupsRemote);
         $DbQuota = max(0, (int)$DbQuota);
         $sql->bindParam(':DbQuota', $DbQuota);
+        $DedicatedIps = (isset($DedicatedIps) && (int)$DedicatedIps < 0) ? -1 : max(0, (int)($DedicatedIps ?? 0));
+        $sql->bindParam(':DedicatedIps', $DedicatedIps);
         $sql->bindParam(':pid', $pid);
         $sql->execute();
         runtime_hook::Execute('OnAfterUpdatePackage');
@@ -618,6 +626,7 @@ class module_controller extends ctrl_module
             'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
             'MaxBackupsRemote' => isset($formvars['inMaxBackupsRemote']) ? $formvars['inMaxBackupsRemote'] : '0',
             'DbQuota'       => isset($formvars['inDbQuota']) ? $formvars['inDbQuota'] : '0',
+            'DedicatedIps'  => isset($formvars['inNoDedicatedIps']) ? $formvars['inNoDedicatedIps'] : '0',
         ];
         if (self::ExecuteCreatePackage($currentuser['userid'], $pkg))
             return true;
@@ -660,6 +669,7 @@ class module_controller extends ctrl_module
             'MaxBackups'    => isset($formvars['inMaxBackups']) ? $formvars['inMaxBackups'] : '0',
             'MaxBackupsRemote' => isset($formvars['inMaxBackupsRemote']) ? $formvars['inMaxBackupsRemote'] : '0',
             'DbQuota'       => isset($formvars['inDbQuota']) ? $formvars['inDbQuota'] : '0',
+            'DedicatedIps'  => isset($formvars['inNoDedicatedIps']) ? $formvars['inNoDedicatedIps'] : '0',
         ];
         // AUTZ: solo se puede editar un paquete propio (IDOR fix).
         if (!self::canManagePackage($formvars['inPackageID'])) {
@@ -964,6 +974,16 @@ class module_controller extends ctrl_module
         if ($controller->GetControllerRequest('URL', 'other')) {
             $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
             return $current[0]['dbquota'];
+        }
+        return '0';
+    }
+
+    static function getEditCurrentDedicatedIps()
+    {
+        global $controller;
+        if ($controller->GetControllerRequest('URL', 'other')) {
+            $current = self::ListCurrentPackage($controller->GetControllerRequest('URL', 'other'));
+            return $current[0]['dedicatedips'];
         }
         return '0';
     }

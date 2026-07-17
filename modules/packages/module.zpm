@@ -102,6 +102,10 @@
                     <td><input name="inNoMySQL" type="text" id="inNoMySQL" size="5" maxlength="3" value="<@ EditCurrentMySQL @>" onkeypress="return isNumberKeyOrNeg(event)"/> (-1 = unlimited)</td>
                 </tr>
                 <tr>
+                    <th>Máx. IPs dedicadas:</th>
+                    <td><input name="inNoDedicatedIps" type="text" id="inNoDedicatedIps" size="5" maxlength="4" value="<@ EditCurrentDedicatedIps @>" onkeypress="return isNumberKeyOrNeg(event)"/> (-1 = ilimitadas ; 0 = ninguna). Las IPs concretas se ceden en el módulo IP.</td>
+                </tr>
+                <tr>
                     <th><: Disk space quota :>:</th>
                     <td><input name="inDiskQuota" type="text" id="inDiskQuota" size="10" maxlength="10" value="<@ EditCurrentDisk @>" onkeypress="return isNumberKey(event)"/> MB (1000MB = 1GB ; 0 = unlimited)</td>
                 </tr>
@@ -251,6 +255,10 @@
                 <tr>
                     <th><: No. MySQL databases :>:</th>
                     <td><input name="inNoMySQL" type="text" id="inNoMySQL" value="0" size="5" maxlength="3" onkeypress="return isNumberKeyOrNeg(event)" /> (-1 = unlimited)</td>
+                </tr>
+                <tr>
+                    <th>Máx. IPs dedicadas:</th>
+                    <td><input name="inNoDedicatedIps" type="text" id="inNoDedicatedIps" value="0" size="5" maxlength="4" onkeypress="return isNumberKeyOrNeg(event)" /> (-1 = ilimitadas ; 0 = ninguna). Las IPs concretas se ceden en el módulo IP.</td>
                 </tr>
                 <tr>
                     <th><: Disk space quota :>:</th>
