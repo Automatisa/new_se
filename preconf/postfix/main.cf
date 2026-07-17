@@ -19,7 +19,7 @@ readme_directory = no
 
 # network settings
 inet_interfaces = all
-inet_protocols = ipv4
+inet_protocols = all
 mydomain = !PANEL_FQDN!
 myhostname = !PANEL_FQDN!
 mynetworks = 127.0.0.0/8, !SERVER_IP!/32
