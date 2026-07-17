@@ -240,8 +240,11 @@ class module_controller extends ctrl_module {
 
     static function getIpPoolHTML() {
         self::requireAdmin();
-        $pool = self::getIpPool();
-        $csrf = self::getCSFR_Tag();
+        $pool      = self::getIpPool();
+        $csrf      = self::getCSFR_Tag();
+        $resellers = self::getResellers();
+        $rmap      = [];
+        foreach ($resellers as $r) { $rmap[(int)$r['ac_id_pk']] = $r['ac_user_vc']; }
 
         $h  = '';
         if (!fs_director::CheckForEmptyValue(self::$err_msg)) {
@@ -267,11 +270,13 @@ class module_controller extends ctrl_module {
             $ena  = !empty($p['ip_enabled_in']);
             $estado = $ena ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>';
 
+            $rid = (int)($p['ip_reseller_fk'] ?? 0);
             // Asignación: compartida del sistema / a un reseller / a dominios / libre
             if ($prim) {
                 $asig = '<span class="text-muted">Compartida (sistema)</span>';
-            } elseif (!empty($p['ip_reseller_fk'])) {
-                $asig = 'Reseller #' . (int)$p['ip_reseller_fk'];
+            } elseif ($rid > 0) {
+                $rn = isset($rmap[$rid]) ? htmlspecialchars($rmap[$rid], ENT_QUOTES) : ('#' . $rid);
+                $asig = '<span class="badge bg-info">Reseller: ' . $rn . '</span>';
             } elseif ($dom > 0) {
                 $asig = $dom . ' dominio' . ($dom > 1 ? 's' : '') . ' (' . ($dom === 1 ? 'dedicada' : 'compartida') . ')';
             } else {
@@ -283,12 +288,27 @@ class module_controller extends ctrl_module {
                 $acc  = '<form method="post" action="./?module=autoip&action=ToggleIP" style="display:inline;">' . $csrf
                       . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
                       . '<button type="submit" class="btn btn-sm btn-outline-secondary">' . ($ena ? 'Desactivar' : 'Activar') . '</button></form> ';
-                if ($dom === 0 && empty($p['ip_reseller_fk'])) {
+                if ($rid > 0) {
+                    // asignada a un reseller: permitir liberarla (si no está en uso)
+                    $acc .= '<form method="post" action="./?module=autoip&action=ReleaseReseller" style="display:inline;">' . $csrf
+                          . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
+                          . '<button type="submit" class="btn btn-sm btn-outline-warning"' . ($dom > 0 ? ' disabled title="en uso por dominios"' : '') . '>Liberar</button></form>';
+                } elseif ($dom === 0) {
+                    // libre: asignar a un reseller + eliminar del pool
+                    if (!empty($rmap)) {
+                        $acc .= '<form method="post" action="./?module=autoip&action=AssignReseller" style="display:inline;">' . $csrf
+                              . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
+                              . '<select name="inReseller" class="form-select form-select-sm" style="width:auto;display:inline-block;"><option value="">Reseller…</option>';
+                        foreach ($rmap as $id2 => $name2) {
+                            $acc .= '<option value="' . $id2 . '">' . htmlspecialchars($name2, ENT_QUOTES) . '</option>';
+                        }
+                        $acc .= '</select> <button type="submit" class="btn btn-sm btn-info">Asignar</button></form> ';
+                    }
                     $acc .= '<form method="post" action="./?module=autoip&action=RemoveIP" style="display:inline;">' . $csrf
                           . '<input type="hidden" name="inIpId" value="' . (int)$p['ip_id_pk'] . '">'
                           . '<button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'Quitar ' . $ip . ' del pool?\')">Eliminar</button></form>';
                 } else {
-                    $acc .= '<span class="text-muted" style="font-size:12px;">en uso</span>';
+                    $acc .= '<span class="text-muted" style="font-size:12px;">en uso por dominios</span>';
                 }
             }
 
@@ -362,6 +382,77 @@ class module_controller extends ctrl_module {
         $zdbh->prepare("UPDATE x_ips SET ip_enabled_in = 1 - ip_enabled_in WHERE ip_id_pk=:id AND ip_is_primary_in=0")
              ->execute([':id' => $id]);
         self::$ok_msg = 'Estado de la IP actualizado.';
+    }
+
+    // ---- Fase 2: reparto de IPs a resellers ----------------------------------------------------
+
+    /** Cuentas reseller (grupo 2). */
+    private static function getResellers() {
+        global $zdbh;
+        return $zdbh->query("SELECT ac_id_pk, ac_user_vc FROM x_accounts
+            WHERE ac_group_fk=2 AND ac_deleted_ts IS NULL ORDER BY ac_user_vc")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Nº de IPs ya asignadas a un reseller. */
+    private static function resellerIpCount($rid) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT COUNT(*) FROM x_ips WHERE ip_reseller_fk=:r");
+        $q->execute([':r' => $rid]);
+        return (int)$q->fetchColumn();
+    }
+
+    /** Cuota de IPs del paquete del reseller (-1 ilimitado, 0 ninguna). */
+    private static function resellerIpQuota($rid) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT COALESCE(qt.qt_dedicatedips_in,0) FROM x_accounts a
+            LEFT JOIN x_packages pk ON pk.pk_id_pk=a.ac_package_fk AND pk.pk_deleted_ts IS NULL
+            LEFT JOIN x_quotas  qt ON qt.qt_package_fk=pk.pk_id_pk
+            WHERE a.ac_id_pk=:r AND a.ac_deleted_ts IS NULL");
+        $q->execute([':r' => $rid]);
+        $v = $q->fetchColumn();
+        return $v === false ? 0 : (int)$v;
+    }
+
+    static function doAssignReseller() {
+        self::requireAdmin();
+        runtime_csfr::Protect();
+        global $zdbh, $controller;
+        $f   = $controller->GetAllControllerRequests('FORM');
+        $id  = (int)($f['inIpId'] ?? 0);
+        $rid = (int)($f['inReseller'] ?? 0);
+        if ($id <= 0 || $rid <= 0) { self::$err_msg = 'Datos inválidos.'; return; }
+
+        $rc = $zdbh->prepare("SELECT ac_user_vc FROM x_accounts WHERE ac_id_pk=:id AND ac_group_fk=2 AND ac_deleted_ts IS NULL");
+        $rc->execute([':id' => $rid]);
+        if (!$rc->fetch()) { self::$err_msg = 'Reseller no válido.'; return; }
+
+        $ip = $zdbh->prepare("SELECT * FROM x_ips WHERE ip_id_pk=:id"); $ip->execute([':id' => $id]);
+        $ipr = $ip->fetch(PDO::FETCH_ASSOC);
+        if (!$ipr || !empty($ipr['ip_is_primary_in'])) { self::$err_msg = 'IP no válida.'; return; }
+        if (!empty($ipr['ip_reseller_fk'])) { self::$err_msg = 'La IP ya está asignada a un reseller.'; return; }
+        if (self::ipDomainCount($ipr['ip_address_vc']) > 0) { self::$err_msg = 'La IP está en uso por dominios.'; return; }
+
+        $quota = self::resellerIpQuota($rid);
+        if ($quota !== -1 && (self::resellerIpCount($rid) + 1) > $quota) {
+            self::$err_msg = 'El reseller ha alcanzado su límite de IPs de su paquete (' . $quota . ').'; return;
+        }
+        $zdbh->prepare("UPDATE x_ips SET ip_reseller_fk=:r WHERE ip_id_pk=:id")->execute([':r' => $rid, ':id' => $id]);
+        self::$ok_msg = 'IP ' . htmlspecialchars((string)$ipr['ip_address_vc'], ENT_QUOTES) . ' asignada al reseller.';
+    }
+
+    static function doReleaseReseller() {
+        self::requireAdmin();
+        runtime_csfr::Protect();
+        global $zdbh, $controller;
+        $f  = $controller->GetAllControllerRequests('FORM');
+        $id = (int)($f['inIpId'] ?? 0);
+        if ($id <= 0) { self::$err_msg = 'IP no válida.'; return; }
+        $ip = $zdbh->prepare("SELECT * FROM x_ips WHERE ip_id_pk=:id"); $ip->execute([':id' => $id]);
+        $ipr = $ip->fetch(PDO::FETCH_ASSOC);
+        if (!$ipr) { self::$err_msg = 'IP no encontrada.'; return; }
+        if (self::ipDomainCount($ipr['ip_address_vc']) > 0) { self::$err_msg = 'La IP está en uso por dominios de ese reseller; libérala primero.'; return; }
+        $zdbh->prepare("UPDATE x_ips SET ip_reseller_fk=NULL WHERE ip_id_pk=:id")->execute([':id' => $id]);
+        self::$ok_msg = 'IP ' . htmlspecialchars((string)$ipr['ip_address_vc'], ENT_QUOTES) . ' devuelta al pool del admin.';
     }
 
     // -----------------------------------------------------------------------

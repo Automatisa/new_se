@@ -826,13 +826,43 @@ class module_controller extends ctrl_module
         return $q->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    /** IPs del pool que el usuario puede elegir como dedicada: activas, no primarias, del pool
-     *  admin (ip_reseller_fk NULL) [Fase 2: o de su reseller] y NO usadas por dominios de OTRO usuario. */
+    /** Quién POSEE las IPs que puede usar un usuario (Fase 2):
+     *   - un reseller (grupo 2) usa su propio pool  -> devuelve su propio id;
+     *   - un usuario normal usa el pool de su reseller (si su reseller es grupo 2) -> id del reseller;
+     *   - admin o usuario directo del admin -> null (pool del admin, ip_reseller_fk IS NULL). */
+    private static function ipOwnerForUser($uid) {
+        global $zdbh;
+        $q = $zdbh->prepare("SELECT ac_group_fk, ac_reseller_fk FROM x_accounts WHERE ac_id_pk=:id AND ac_deleted_ts IS NULL");
+        $q->execute([':id' => $uid]);
+        $a = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$a) return null;
+        if ((int)$a['ac_group_fk'] === 2) return (int)$uid;          // reseller: su propio pool
+        $rid = (int)($a['ac_reseller_fk'] ?? 0);
+        if ($rid > 0) {
+            $r = $zdbh->prepare("SELECT ac_group_fk FROM x_accounts WHERE ac_id_pk=:id AND ac_deleted_ts IS NULL");
+            $r->execute([':id' => $rid]);
+            if ((int)$r->fetchColumn() === 2) return $rid;           // su reseller (grupo 2)
+        }
+        return null;                                                  // pool del admin
+    }
+
+    /** IPs que el usuario puede elegir como dedicada: activas, no primarias, del pool que le
+     *  corresponde (el del admin si no cuelga de un reseller, o el de SU reseller), y no usadas
+     *  por dominios de OTRO usuario. */
     private static function assignableIPsForUser($uid) {
         global $zdbh;
-        $rows = $zdbh->query("SELECT ip_address_vc FROM x_ips
-            WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk IS NULL
-            ORDER BY INET_ATON(ip_address_vc)")->fetchAll(PDO::FETCH_COLUMN);
+        $owner = self::ipOwnerForUser($uid);
+        if ($owner === null) {
+            $rows = $zdbh->query("SELECT ip_address_vc FROM x_ips
+                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk IS NULL
+                ORDER BY INET_ATON(ip_address_vc)")->fetchAll(PDO::FETCH_COLUMN);
+        } else {
+            $st = $zdbh->prepare("SELECT ip_address_vc FROM x_ips
+                WHERE ip_enabled_in=1 AND ip_is_primary_in=0 AND ip_reseller_fk=:r
+                ORDER BY INET_ATON(ip_address_vc)");
+            $st->execute([':r' => $owner]);
+            $rows = $st->fetchAll(PDO::FETCH_COLUMN);
+        }
         $out = [];
         $c = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_custom_ip_vc=:ip AND vh_acc_fk<>:uid AND vh_deleted_ts IS NULL");
         foreach ($rows as $ip) {
