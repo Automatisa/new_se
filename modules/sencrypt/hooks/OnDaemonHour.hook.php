@@ -24,9 +24,12 @@
     if (!class_exists('privilege')) {
         require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
     }
-class Logger {
-	function __call($name, $arguments) {
-		echo date('Y-m-d H:i:s')." [$name] " . $arguments[0] . "\n";
+// Guard: este hook ahora corre en el ciclo HORARIO (junto a otros OnDaemonHour); evitar redeclarar.
+if (!class_exists('Logger')) {
+	class Logger {
+		function __call($name, $arguments) {
+			echo date('Y-m-d H:i:s')." [$name] " . $arguments[0] . "\n";
+		}
 	}
 }
 $logger = new Logger();
