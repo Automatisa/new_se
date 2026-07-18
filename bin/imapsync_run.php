@@ -61,6 +61,13 @@ $args = array(
 if ($j['ij_src_ssl_vc'] === 'ssl')      { $args[] = '--ssl1'; }
 elseif ($j['ij_src_ssl_vc'] === 'tls')  { $args[] = '--tls1'; }
 $args[] = '--sslargs1'; $args[] = 'SSL_verify_mode=0'; // origen: no fallar por cert autofirmado (migración)
+// --automap: mapea carpetas conocidas (Enviados/Borradores/Papelera/Spam) aunque se llamen distinto.
+$args[] = '--automap';
+// Elección de carpetas: por defecto se EXCLUYEN Spam y Papelera; el usuario puede incluirlas.
+$excl = array();
+if (!(int)($j['ij_inc_spam_in']  ?? 0)) { $excl[] = 'junk'; $excl[] = 'spam'; $excl[] = 'bulk'; $excl[] = 'correo no deseado'; }
+if (!(int)($j['ij_inc_trash_in'] ?? 0)) { $excl[] = 'trash'; $excl[] = 'deleted items'; $excl[] = 'deleted messages'; $excl[] = 'papelera'; }
+if ($excl) { $args[] = '--exclude'; $args[] = '(?i)(' . implode('|', $excl) . ')'; }
 if ($bps > 0) { $args[] = '--maxbytespersecond'; $args[] = (string)$bps; }
 if ($mps > 0) { $args[] = '--maxmessagespersecond'; $args[] = (string)$mps; }
 

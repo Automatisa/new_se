@@ -68,6 +68,10 @@ class module_controller extends ctrl_module
             . '<select name="inSrcSsl" class="form-select form-select-sm" style="width:150px;display:inline-block;"><option value="ssl">SSL (993)</option><option value="tls">STARTTLS (143)</option><option value="none">Sin cifrado</option></select></td></tr>';
         $h .= '<tr><td>Usuario origen</td><td><input type="text" name="inSrcUser" required placeholder="usuario@proveedor-viejo.com" class="form-control form-control-sm" style="max-width:360px;"></td></tr>';
         $h .= '<tr><td>Contraseña origen</td><td><input type="password" name="inSrcPass" required class="form-control form-control-sm" style="max-width:360px;"></td></tr>';
+        $h .= '<tr><td>Carpetas a migrar</td><td>'
+            . '<label style="margin-right:18px;"><input type="checkbox" name="inIncSpam" value="1"> Incluir <b>Spam/Junk</b></label>'
+            . '<label><input type="checkbox" name="inIncTrash" value="1"> Incluir <b>Papelera/Trash</b></label>'
+            . '<br><small class="text-muted">Por defecto se copian todas MENOS Spam y Papelera. Se preservan la fecha y el estado leído/no leído de cada correo, y se mapean Enviados/Borradores.</small></td></tr>';
         $h .= '<tr><td></td><td><button class="btn btn-primary button-loader" type="submit"><i class="bi bi-play-fill me-1"></i>Encolar migración</button> '
             . '<small class="text-muted">Se ejecuta en segundo plano, por tandas, respetando los límites.</small></td></tr></table></form>';
         return $h;
@@ -159,6 +163,8 @@ class module_controller extends ctrl_module
         $ssl  = (string)$controller->GetControllerRequest('FORM', 'inSrcSsl');
         $suser= trim((string)$controller->GetControllerRequest('FORM', 'inSrcUser'));
         $spw  = (string)$controller->GetControllerRequest('FORM', 'inSrcPass');
+        $incSpam  = $controller->GetControllerRequest('FORM', 'inIncSpam')  ? 1 : 0;
+        $incTrash = $controller->GetControllerRequest('FORM', 'inIncTrash') ? 1 : 0;
 
         // Validaciones (dirección BLOQUEADA: destino = buzón local existente). Anti-IDOR: el buzón
         // destino debe ser del PROPIO usuario (el admin puede migrar a cualquiera).
@@ -183,9 +189,9 @@ class module_controller extends ctrl_module
         if ((int)$cnt->fetchColumn() >= $max)                          { self::fail('Alcanzado el límite de ' . $max . ' migraciones por cuenta y día.'); }
 
         // Insertar el trabajo (encolado) y escribir el passfile protegido (origen y destino).
-        $zdbh->prepare("INSERT INTO x_imapsync_jobs (ij_acc_fk,ij_dest_user_vc,ij_src_host_vc,ij_src_port_in,ij_src_ssl_vc,ij_src_user_vc,ij_status_vc,ij_created_ts,ij_updated_ts)
-                        VALUES (:u,:d,:h,:p,:s,:su,'queued',UNIX_TIMESTAMP(),UNIX_TIMESTAMP())")
-             ->execute(array(':u' => (int)$cu['userid'], ':d' => $dest, ':h' => $host, ':p' => $port, ':s' => $ssl, ':su' => $suser));
+        $zdbh->prepare("INSERT INTO x_imapsync_jobs (ij_acc_fk,ij_dest_user_vc,ij_src_host_vc,ij_src_port_in,ij_src_ssl_vc,ij_src_user_vc,ij_inc_spam_in,ij_inc_trash_in,ij_status_vc,ij_created_ts,ij_updated_ts)
+                        VALUES (:u,:d,:h,:p,:s,:su,:isp,:itr,'queued',UNIX_TIMESTAMP(),UNIX_TIMESTAMP())")
+             ->execute(array(':u' => (int)$cu['userid'], ':d' => $dest, ':h' => $host, ':p' => $port, ':s' => $ssl, ':su' => $suser, ':isp' => $incSpam, ':itr' => $incTrash));
         $jid = (int)$zdbh->lastInsertId();
         @mkdir(self::RUNDIR, 0770, true);
         $pf = self::RUNDIR . $jid . '.pass';
