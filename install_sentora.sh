@@ -229,6 +229,9 @@ pkg install -y postfix-mysql
 # Dovecot + MySQL + Pigeonhole (sieve)
 pkg install -y dovecot-mysql dovecot-pigeonhole-mysql
 
+# imapsync — migración de cuentas de correo IMAP externas hacia el panel (módulo imapsync)
+pkg install -y imapsync
+
 # Apache + PHP-FPM + módulos necesarios
 pkg install -y apache24 \
     php84 php84-mysqli php84-gd php84-curl \
