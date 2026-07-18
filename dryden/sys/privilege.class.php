@@ -101,6 +101,15 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args named reload',
         ),
 
+        // Reconstrucción SÍNCRONA de zonas DNS + reload de BIND (reutiliza el hook de dns_manager).
+        // La usa el reto DNS-01 de Let's Encrypt para provisionar/limpiar el TXT _acme-challenge al
+        // momento (sin esperar al ciclo del daemon). Sin args variables -> sin superficie de inyección.
+        'dns_rebuild' => array(
+            'argv' => array('/usr/local/bin/php', '-q', '/usr/local/sentora/bin/dns_rebuild.php'),
+            'sudo_rule' => '/usr/local/bin/php -q /usr/local/sentora/bin/dns_rebuild.php',
+            'doas_rule' => 'cmd /usr/local/bin/php args -q /usr/local/sentora/bin/dns_rebuild.php',
+        ),
+
         // Cron reload (used by cron module after writing the crontab).
         // Note: the legacy `zsudo` invocation took 4 args
         // (cron_reload_command, _flag, _user, _path). With sudo/doas, only

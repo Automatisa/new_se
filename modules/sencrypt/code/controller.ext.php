@@ -130,6 +130,97 @@ class module_controller extends ctrl_module {
 		return ((int)$user['usergroupid'] === ctrl_groups::GROUP_ADMIN);
 	}
 
+	// ===== DNS-01: provisión/limpieza del reto _acme-challenge (necesario para WILDCARDS) =========
+	// Reconstrucción SÍNCRONA de la zona (privilege dns_rebuild) + espera de propagación en el BIND
+	// local, para que el reto DNS-01 de Let's Encrypt esté servido antes de pedir la validación.
+
+	// Zona (dominio registrado, vh_type_in=1) que es sufijo más largo de $base. Devuelve fila o null.
+	private static function Dns01FindZone($base) {
+		global $zdbh;
+		$best = null; $bestLen = -1;
+		foreach ($zdbh->query("SELECT vh_id_pk, vh_name_vc FROM x_vhosts WHERE vh_type_in=1 AND vh_deleted_ts IS NULL")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+			$n = strtolower($r['vh_name_vc']);
+			if ($base === $n || substr($base, -(strlen($n) + 1)) === '.' . $n) {
+				if (strlen($n) > $bestLen) { $bestLen = strlen($n); $best = $r; }
+			}
+		}
+		return $best;
+	}
+
+	private static function Dns01Label($recordName, $zoneName) {
+		if ($recordName === '_acme-challenge.' . $zoneName) return '_acme-challenge';
+		if (substr($recordName, -(strlen($zoneName) + 1)) === '.' . $zoneName) {
+			return substr($recordName, 0, strlen($recordName) - strlen($zoneName) - 1);
+		}
+		return null;
+	}
+
+	private static function Dns01MarkRebuild($vhostId) {
+		global $zdbh;
+		$row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+		$ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+		if (!in_array((string)$vhostId, $ids, true)) { $ids[] = (string)$vhostId; }
+		$zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")->execute([':v' => implode(',', $ids)]);
+	}
+
+	// Sondea el BIND local hasta que el TXT $recordName contenga (o deje de contener) $value.
+	private static function Dns01WaitTxt($recordName, $value, $want, $timeout = 60) {
+		$deadline = time() + $timeout;
+		do {
+			$out = array();
+			@exec('/usr/local/bin/dig +short @127.0.0.1 TXT ' . escapeshellarg($recordName) . ' 2>/dev/null', $out);
+			$found = false;
+			foreach ($out as $line) { if (strpos($line, $value) !== false) { $found = true; break; } }
+			if ($found === $want) return true;
+			sleep(3);
+		} while (time() < $deadline);
+		return false;
+	}
+
+	// Callback de provisión para Lescript::signDomains(dns-01). Crea/actualiza el TXT y espera propagación.
+	static function Dns01Provision($recordName, $value) {
+		global $zdbh;
+		if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+		$recordName = strtolower(rtrim($recordName, '.'));
+		if (strpos($recordName, '_acme-challenge.') !== 0) return false;
+		$base = substr($recordName, strlen('_acme-challenge.'));
+		$zone = self::Dns01FindZone($base);
+		if (!$zone) { error_log("dns01: sin zona para $base"); return false; }
+		$zoneName = strtolower($zone['vh_name_vc']);
+		$label = self::Dns01Label($recordName, $zoneName);
+		if ($label === null) return false;
+		$acc = (int)$zdbh->query("SELECT dn_acc_fk FROM x_dns WHERE dn_vhost_fk=" . (int)$zone['vh_id_pk'] . " LIMIT 1")->fetchColumn();
+		$ex = $zdbh->prepare("SELECT dn_id_pk FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='TXT' AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
+		$ex->execute([':v' => $zone['vh_id_pk'], ':h' => $label]);
+		if ($id = $ex->fetchColumn()) {
+			$zdbh->prepare("UPDATE x_dns SET dn_target_vc=:t WHERE dn_id_pk=:id")->execute([':t' => $value, ':id' => $id]);
+		} else {
+			$zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts) VALUES (:a,:n,:v,'TXT',:h,60,:t,UNIX_TIMESTAMP())")
+			     ->execute([':a' => $acc, ':n' => $zoneName, ':v' => $zone['vh_id_pk'], ':h' => $label, ':t' => $value]);
+		}
+		self::Dns01MarkRebuild($zone['vh_id_pk']);
+		try { privilege::run('dns_rebuild'); } catch (\Exception $e) { error_log("dns01 rebuild: " . $e->getMessage()); }
+		return self::Dns01WaitTxt($recordName, $value, true, 60);
+	}
+
+	// Callback de limpieza para Lescript::signDomains(dns-01). Borra el TXT y reconstruye la zona.
+	static function Dns01Cleanup($recordName, $value) {
+		global $zdbh;
+		if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+		$recordName = strtolower(rtrim($recordName, '.'));
+		if (strpos($recordName, '_acme-challenge.') !== 0) return false;
+		$base = substr($recordName, strlen('_acme-challenge.'));
+		$zone = self::Dns01FindZone($base);
+		if (!$zone) return false;
+		$label = self::Dns01Label($recordName, strtolower($zone['vh_name_vc']));
+		if ($label === null) return false;
+		$zdbh->prepare("UPDATE x_dns SET dn_deleted_ts=UNIX_TIMESTAMP() WHERE dn_vhost_fk=:v AND dn_type_vc='TXT' AND dn_host_vc=:h AND dn_deleted_ts IS NULL")
+		     ->execute([':v' => $zone['vh_id_pk'], ':h' => $label]);
+		self::Dns01MarkRebuild($zone['vh_id_pk']);
+		try { privilege::run('dns_rebuild'); } catch (\Exception $e) {}
+		return true;
+	}
+
 	static function getList_of_Panel_Domains() {
 		$currentuser = ctrl_users::GetUserDetail();
 		return self::Show_Panel_domains($currentuser['userid']);
