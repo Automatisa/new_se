@@ -576,8 +576,16 @@ class module_controller extends ctrl_module
             'max_exec'       => $s['dp_max_exec_in']      ?? 30,
             'max_input'      => $s['dp_max_input_in']     ?? 60,
             'display_errors' => $s['dp_display_errors_in'] ?? 0,
+            'php_version'    => $s['dp_php_version_vc']   ?? '',
         ];
         return self::$phpSettingsCache;
+    }
+
+    /** Etiqueta legible de una versión de PHP: '' => "Versión del sistema"; '84' => "PHP 8.4". */
+    private static function phpVersionLabel($v)
+    {
+        if ($v === '' || $v === null) return 'Versión del sistema (por defecto)';
+        return 'PHP ' . substr($v, 0, 1) . '.' . substr($v, 1);
     }
 
     static function getisPhpSettings()
@@ -674,6 +682,32 @@ class module_controller extends ctrl_module
         return ($s && $s['display_errors']) ? 'checked' : '';
     }
 
+    /** <option> del selector de versión de PHP: solo versiones INSTALADAS (autodetectadas). */
+    static function getPhpVersionOptions()
+    {
+        if (!class_exists('fpm_pool_manager')) {
+            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+        }
+        $s   = self::loadPhpSettings();
+        $cur = $s ? (string)$s['php_version'] : '';
+        $out = '';
+        foreach (array_keys(fpm_pool_manager::InstalledVersions()) as $v) {
+            $sel = ($v === $cur) ? ' selected' : '';
+            $out .= '<option value="' . htmlspecialchars($v, ENT_QUOTES) . '"' . $sel . '>'
+                 . htmlspecialchars(self::phpVersionLabel($v), ENT_QUOTES) . '</option>';
+        }
+        return $out;
+    }
+
+    /** true si hay más de una versión disponible (para mostrar u ocultar el selector). */
+    static function getHasMultiplePhpVersions()
+    {
+        if (!class_exists('fpm_pool_manager')) {
+            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+        }
+        return count(fpm_pool_manager::InstalledVersions()) > 1;
+    }
+
     static function doSavePhpSettings()
     {
         global $controller;
@@ -738,13 +772,24 @@ class module_controller extends ctrl_module
         $max_input   = min(max(1, (int)($formvars['inMaxInput'] ?? 60)),  (int)$pkg['pkg_maxinput']);
         $display_err = isset($formvars['inDisplayErrors']) ? 1 : 0;
 
+        // Versión de PHP: solo se acepta si está INSTALADA (autodetección). Cualquier otro valor
+        // (incluida una versión desinstalada) cae a '' = versión del sistema.
+        if (!class_exists('fpm_pool_manager')) {
+            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+        }
+        $php_version = (string)($formvars['inPhpVersion'] ?? '');
+        if (!array_key_exists($php_version, fpm_pool_manager::InstalledVersions())) {
+            $php_version = '';
+        }
+
         $upd = $zdbh->prepare("INSERT INTO x_domain_php
                 (dp_vhost_fk, dp_upload_max_vc, dp_post_max_vc, dp_memory_limit_vc,
-                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in)
-            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err)
+                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in, dp_php_version_vc)
+            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err, :ver)
             ON DUPLICATE KEY UPDATE
                 dp_upload_max_vc=:umax, dp_post_max_vc=:pmax, dp_memory_limit_vc=:mem,
-                dp_max_exec_in=:exec, dp_max_input_in=:input, dp_display_errors_in=:err");
+                dp_max_exec_in=:exec, dp_max_input_in=:input, dp_display_errors_in=:err,
+                dp_php_version_vc=:ver");
         $upd->execute([
             ':vid'   => $vhostid,
             ':umax'  => $upload_max,
@@ -753,6 +798,7 @@ class module_controller extends ctrl_module
             ':exec'  => $max_exec,
             ':input' => $max_input,
             ':err'   => $display_err,
+            ':ver'   => $php_version,
         ]);
         return true;
     }

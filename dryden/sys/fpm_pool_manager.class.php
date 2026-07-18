@@ -11,9 +11,41 @@ if (!class_exists('fpm_pool_manager')) {
  */
 class fpm_pool_manager
 {
-    const POOL_DIR   = '/usr/local/etc/php-fpm.d/';
+    const POOL_DIR   = '/usr/local/etc/php-fpm.d/';   // pools de la versión del sistema (por defecto)
     const SOCKET_DIR = '/var/run/php-fpm/';
     const PREFIX     = 'sentora_';
+
+    /**
+     * Versiones de PHP disponibles para asignar por dominio.
+     * '' = versión del sistema (pkg estándar, /usr/local). 'NN' = /usr/local/phpNN (PREFIX propio,
+     * compilada con php_multi_build.sh e instalada con php_version_install.sh).
+     * Se AUTODETECTA por la presencia del binario FPM, así no hay ajuste que mantener ni drift.
+     *
+     * @return array<string,string> versión => directorio de pools (POOL_DIR)
+     */
+    static function InstalledVersions()
+    {
+        $out = array('' => self::POOL_DIR); // el sistema siempre está
+        foreach (glob('/usr/local/php[0-9][0-9]/sbin/php-fpm') as $bin) {
+            if (preg_match('#/usr/local/php([0-9]{2})/sbin/php-fpm$#', $bin, $m)) {
+                $out[$m[1]] = '/usr/local/php' . $m[1] . '/etc/php-fpm.d/';
+            }
+        }
+        return $out;
+    }
+
+    /** Directorio de pools de una versión ('' = sistema). Cadena vacía si la versión no existe. */
+    static function poolDirForVersion($v)
+    {
+        $vers = self::InstalledVersions();
+        return $vers[$v] ?? '';
+    }
+
+    /** Nombre del servicio rc.d de FPM para una versión ('' = php_fpm del sistema). */
+    static function serviceForVersion($v)
+    {
+        return ($v === '' || $v === null) ? 'php_fpm' : ('php' . $v . '_fpm');
+    }
 
     /**
      * Regenera todos los pools FPM desde la BD y recarga FPM.
@@ -30,6 +62,7 @@ class fpm_pool_manager
         try {
             $sql = $zdbh->prepare("
                 SELECT v.vh_directory_vc, u.ac_user_vc AS username,
+                       COALESCE(p.dp_php_version_vc, '')                            AS php_version,
                        COALESCE(p.dp_upload_max_vc,    q.qt_php_upload_vc,  '50M')  AS upload_max_raw,
                        COALESCE(p.dp_post_max_vc,      q.qt_php_post_vc,    '50M')  AS post_max_raw,
                        COALESCE(p.dp_memory_limit_vc,  q.qt_php_memory_vc,  '128M') AS memory_limit_raw,
@@ -51,16 +84,26 @@ class fpm_pool_manager
             $sql->execute();
             $vhosts = $sql->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            // La tabla x_domain_php o x_quotas aún no existe; no hacer nada
+            // La tabla x_domain_php o x_quotas (o la columna php_version) aún no existe; no hacer nada
             return 0;
         }
 
-        $active  = [];
-        $changed = false;
+        // Directorios de pool gestionados (sistema + cada versión instalada). Para cada uno llevamos
+        // la lista de pools "vivos" (para limpiar obsoletos) y si cambió algo (para recargar SOLO ese
+        // master FPM). El socket es el MISMO sea cual sea la versión, así Apache no se toca nunca.
+        $installed   = self::InstalledVersions();
+        $activeByDir = array();                 // dir => [ 'name.conf', ... ]
+        $changedDirs = array();                 // dir => true
+        foreach ($installed as $dir) { $activeByDir[$dir] = array(); }
 
         foreach ($vhosts as $vh) {
             $name   = self::PREFIX . preg_replace('/[^a-zA-Z0-9_]/', '_', $vh['vh_directory_vc']);
             $socket = self::SOCKET_DIR . $name . '.sock';
+
+            // Versión pedida; si no está instalada, caer a la del sistema ('').
+            $ver     = preg_match('/^[0-9]{2}$/', (string)$vh['php_version']) ? $vh['php_version'] : '';
+            if (!isset($installed[$ver])) { $ver = ''; }
+            $poolDir = $installed[$ver];
             $base   = rtrim($hostedDir, '/') . '/' . $vh['username'] . '/' . ctrl_options::DOMAINS_SUBDIR . '/' . $vh['vh_directory_vc'];
             $tmp    = $base . '/tmp';
             $errors = $vh['display_errors'] ? 'on' : 'off';
@@ -106,14 +149,14 @@ class fpm_pool_manager
             $conf .= "php_admin_value[open_basedir] = {$base}/public_html/:{$base}/tmp/\n";
             $conf .= "php_admin_value[error_log] = {$base}/logs/php-error.log\n";
 
-            $file = self::POOL_DIR . $name . '.conf';
+            $file = $poolDir . $name . '.conf';
             // Solo escribir y marcar cambio si el contenido es diferente al disco
             if (!file_exists($file) || file_get_contents($file) !== $conf) {
                 file_put_contents($file, $conf);
                 chmod($file, 0644);
-                $changed = true;
+                $changedDirs[$poolDir] = true;
             }
-            $active[] = $name . '.conf';
+            $activeByDir[$poolDir][] = $name . '.conf';
 
             // Asegurar que el directorio del dominio pertenece al sysuser correcto.
             // El panel crea los directorios como www:www (corre como www); el daemon
@@ -123,33 +166,47 @@ class fpm_pool_manager
             }
         }
 
-        // Eliminar pools obsoletos
-        foreach (glob(self::POOL_DIR . self::PREFIX . '*.conf') as $f) {
-            if (!in_array(basename($f), $active)) {
-                @unlink($f);
-                @unlink(self::SOCKET_DIR . basename($f, '.conf') . '.sock');
-                $changed = true;
-            }
-        }
-
-        // Solo recargar FPM si los ficheros de pool cambiaron realmente
-        if ($changed) {
-            if (!class_exists('privilege')) {
-                require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
-            }
-            try {
-                privilege::run('phpfpm_reload');
-            } catch (Exception $e) {
-                // fallback: SIGUSR2 directo si posix disponible
-                $pidFile = '/var/run/php-fpm.pid';
-                if (file_exists($pidFile) && function_exists('posix_kill')) {
-                    $pid = (int)trim(file_get_contents($pidFile));
-                    if ($pid > 0) posix_kill($pid, SIGUSR2);
+        // Eliminar pools obsoletos en CADA directorio gestionado. Un dominio que cambia de versión
+        // deja de aparecer en el dir viejo (se borra allí) y aparece en el nuevo. El socket es el
+        // mismo nombre, pero un dominio solo tiene su pool en UN dir a la vez, así no hay colisión.
+        $totalActive = 0;
+        foreach ($installed as $dir) {
+            $keep = $activeByDir[$dir];
+            $totalActive += count($keep);
+            foreach (glob($dir . self::PREFIX . '*.conf') as $f) {
+                if (!in_array(basename($f), $keep, true)) {
+                    @unlink($f);
+                    @unlink(self::SOCKET_DIR . basename($f, '.conf') . '.sock');
+                    $changedDirs[$dir] = true;
                 }
             }
         }
 
-        return count($active);
+        // Recargar SOLO los masters FPM cuyos pools cambiaron (por versión).
+        if ($changedDirs) {
+            if (!class_exists('privilege')) {
+                require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            }
+            // dir de pool -> versión (para saber qué servicio recargar)
+            $dirToVer = array_flip($installed);
+            foreach (array_keys($changedDirs) as $dir) {
+                $svc = self::serviceForVersion($dirToVer[$dir] ?? '');
+                try {
+                    privilege::run('phpfpm_reload_svc', array($svc));
+                } catch (Exception $e) {
+                    // fallback (solo para el master del sistema): SIGUSR2 directo si posix disponible
+                    if ($svc === 'php_fpm') {
+                        $pidFile = '/var/run/php-fpm.pid';
+                        if (file_exists($pidFile) && function_exists('posix_kill')) {
+                            $pid = (int)trim(file_get_contents($pidFile));
+                            if ($pid > 0) posix_kill($pid, SIGUSR2);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $totalActive;
     }
 
     /**

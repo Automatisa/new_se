@@ -20,6 +20,13 @@
         <form action="./?module=domains&action=SavePhpSettings" method="post">
             <input type="hidden" name="inVhostId" value="<@ PhpVhostId @>">
             <table class="table table-striped">
+                <% if HasMultiplePhpVersions %>
+                <tr>
+                    <th style="width:220px">Versión de PHP</th>
+                    <td><select name="inPhpVersion"><@ PhpVersionOptions @></select></td>
+                    <td><small>Versión del intérprete para este dominio</small></td>
+                </tr>
+                <% endif %>
                 <tr>
                     <th style="width:220px">upload_max_filesize</th>
                     <td><input type="text" name="inUploadMax" value="<@ PhpUploadMax @>" size="10" maxlength="10"></td>

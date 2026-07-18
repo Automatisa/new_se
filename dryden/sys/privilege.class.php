@@ -209,6 +209,19 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args php_fpm reload',
         ),
 
+        // Recarga graceful de UN master PHP-FPM concreto (multi-PHP): php_fpm (sistema) o phpNN_fpm
+        // (versión con PREFIX propio). El servicio se valida contra ^(php_fpm|phpNN_fpm)$ y proviene
+        // de la lista de versiones instaladas, no de entrada de usuario.
+        // root_only: NUNCA se ejecuta vía doas (Regenerate corre siempre como root: en el daemon,
+        // o vía el wrapper fpm_regenerate que ya es root). Por eso NO se emite regla en doas.conf —
+        // así no se concede a www un 'service' comodín (que permitiría parar mysql, etc.).
+        'phpfpm_reload_svc' => array(
+            'argv_template' => array('/usr/sbin/service', '__PHPFPM_SVC__', 'reload'),
+            'root_only' => true,
+            'sudo_rule' => '',
+            'doas_rule' => '',
+        ),
+
         // Regenera todos los pools FPM desde x_domain_php y recarga FPM.
         // Usado al guardar config PHP de un dominio — aplica cambios sin esperar al daemon.
         // El script necesita root para escribir en /usr/local/etc/php-fpm.d/.
@@ -622,6 +635,10 @@ class privilege
             '',
         );
         foreach (self::$actions as $key => $spec) {
+            // Acciones root_only no se ejecutan por doas: no se les emite regla (no dar más a www).
+            if (!empty($spec['root_only'])) {
+                continue;
+            }
             $lines[] = "# privilege::run('$key')";
             $lines[] = "permit nopass $webUser as root " . $spec['doas_rule'];
             $lines[] = '';
@@ -760,6 +777,16 @@ class privilege
                         // toca alias (nunca la primaria). Sin metacaracteres posibles tras esto.
                         if (filter_var($value, FILTER_VALIDATE_IP) === false) {
                             throw new RuntimeException("privilege::run: invalid IP '$value'");
+                        }
+                        $out[] = $value;
+                        break;
+                    case '__PHPFPM_SVC__':
+                        // Servicio rc.d de PHP-FPM: el del sistema (php_fpm) o el de una versión
+                        // con PREFIX propio (phpNN_fpm). La versión la elige el admin de una lista
+                        // de versiones INSTALADAS (autodetectadas), no es texto libre; esto es el
+                        // saneo de forma que impide cualquier otro servicio/metacaracter.
+                        if (!preg_match('/^(php_fpm|php[0-9]{2}_fpm)$/', $value)) {
+                            throw new RuntimeException("privilege::run: invalid php-fpm service '$value'");
                         }
                         $out[] = $value;
                         break;
