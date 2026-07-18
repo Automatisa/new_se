@@ -147,7 +147,10 @@ class Lescript
         return array('start' => $start, 'end' => $end, 'explanationURL' => isset($resp['explanationURL']) ? $resp['explanationURL'] : '');
     }
 
-    public function signDomains(array $domains, $reuseCsr = false, $replaces = '')
+    # $challengeType: 'http-01' (por defecto) o 'dns-01'. Para dns-01 (obligatorio en WILDCARDS
+    # *.dominio) se pasan callbacks: $dnsProvision($recordName,$txtValue) crea el TXT en
+    # _acme-challenge.<dominio> y espera propagación; $dnsCleanup($recordName,$txtValue) lo borra.
+    public function signDomains(array $domains, $reuseCsr = false, $replaces = '', $challengeType = 'http-01', $dnsProvision = null, $dnsCleanup = null)
     {
         $this->log('Starting certificate generation process for domains');
 
@@ -182,22 +185,15 @@ class Lescript
             }
 
             $self = $this;
-            $challenge = array_reduce($response['challenges'], function ($v, $w) use (&$self) {
-                return $v ? $v : ($w['type'] == $self->challenge ? $w : false);
+            $challenge = array_reduce($response['challenges'], function ($v, $w) use (&$self, $challengeType) {
+                return $v ? $v : ($w['type'] == $challengeType ? $w : false);
             });
-            if (!$challenge) throw new RuntimeException("HTTP Challenge for $domain is not available. Whole response: " . json_encode($response));
+            if (!$challenge) throw new RuntimeException("Challenge $challengeType for $domain is not available. Whole response: " . json_encode($response));
 
-            $this->log("Got challenge token for $domain");
+            $this->log("Got challenge token for $domain ($challengeType)");
 
-            # 2. saving authentication token for web verification
-            # ---------------------------------------------------
-            $directory = $this->webRootDir . '/.well-known/acme-challenge';
-            $tokenPath = $directory . '/' . $challenge['token'];
-
-            if (!file_exists($directory) && !@mkdir($directory, 0755, true)) {
-                throw new RuntimeException("Couldn't create directory to expose challenge: " . $tokenPath);
-            }
-
+            # 2. exponer la autorización (keyAuthorization = token.thumbprint)
+            # ---------------------------------------------------------------
             $header = array(
                 # need to be in precise order!
                 "e" => Base64UrlSafeEncoder::encode($accountKeyDetails["rsa"]["e"]),
@@ -207,15 +203,32 @@ class Lescript
             );
             $payload = $challenge['token'] . '.' . Base64UrlSafeEncoder::encode(hash('sha256', json_encode($header), true));
 
-            file_put_contents($tokenPath, $payload);
-            chmod($tokenPath, 0644);
+            $tokenPath = null; $dnsRecordName = null; $dnsTxtValue = null;
+            if ($challengeType === 'dns-01') {
+                # DNS-01: el valor TXT es base64url(sha256(keyAuthorization)); va en
+                # _acme-challenge.<dominio> (para *.dominio se quita el comodín). Provisionar y esperar.
+                $dnsTxtValue  = Base64UrlSafeEncoder::encode(hash('sha256', $payload, true));
+                $baseDomain   = preg_replace('/^\*\./', '', $domain);
+                $dnsRecordName = '_acme-challenge.' . $baseDomain;
+                if (!is_callable($dnsProvision)) {
+                    throw new RuntimeException("dns-01 requiere un callback de provisión de TXT.");
+                }
+                $this->log("DNS-01: provisionando $dnsRecordName TXT ...");
+                call_user_func($dnsProvision, $dnsRecordName, $dnsTxtValue);
+            } else {
+                # HTTP-01: escribir el token en el webroot.
+                $directory = $this->webRootDir . '/.well-known/acme-challenge';
+                $tokenPath = $directory . '/' . $challenge['token'];
+                if (!file_exists($directory) && !@mkdir($directory, 0755, true)) {
+                    throw new RuntimeException("Couldn't create directory to expose challenge: " . $tokenPath);
+                }
+                file_put_contents($tokenPath, $payload);
+                chmod($tokenPath, 0644);
+                $this->log("Token for $domain saved at $tokenPath");
+            }
 
             # 3. verification process itself
             # -------------------------------
-            $uri = "http://" . $domain . "/.well-known/acme-challenge/" . $challenge['token'];
-
-            $this->log("Token for $domain saved at $tokenPath and should be available at $uri");
-
             $this->log("Sending request to challenge");
                 
             # send request to challenge
@@ -249,8 +262,12 @@ class Lescript
 
             $this->log("Verification ended with status: " . $result['status']);
 
-            @unlink($tokenPath);
-        } 
+            if ($challengeType === 'dns-01') {
+                if (is_callable($dnsCleanup)) { call_user_func($dnsCleanup, $dnsRecordName, $dnsTxtValue); }
+            } else {
+                @unlink($tokenPath);
+            }
+        }
 
         # requesting certificate
         # ----------------------
