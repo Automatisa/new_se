@@ -25,16 +25,7 @@
 <div class="tab">
 	<button class="tablinks <@ ShowViewCerts @>" onclick="openTABS(event, 'ViewCerts')"><i class="bi bi-eye me-1"></i><b><u>View Your Certificates</u></b></button>
 	<button class="tablinks <@ ShowCreateCerts @>" onclick="openTABS(event, 'CreateCerts')"><i class="bi bi-shield-lock me-1"></i><b><u>Create or Manage Certificates</u></b></button>
-	<% if Admin %>
-		<button class="tablinks" onclick="openTABS(event, 'LeStatus')"><i class="bi bi-activity me-1"></i><b><u>Estado LE (admin)</u></b></button>
-	<% endif %>
 </div>
-
-<% if Admin %>
-	<div style="display: none;" id="LeStatus" class="tabcontent">
-		<@ LeAdminHTML @>
-	</div>
-<% endif %>
 
 <div style="display: <@ ShowViewCerts @>;" id="ViewCerts" class="tabcontent">
   	<% if Admin %>
