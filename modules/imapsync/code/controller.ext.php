@@ -26,9 +26,10 @@ class module_controller extends ctrl_module
     static function getModuleName()  { return ui_module::GetModuleName(); }
 
     // Conmutador de vista: log (show=log) vs principal.
-    static function getIsViewLog() { return isset($_GET['show']) && $_GET['show'] === 'log'; }
-    static function getIsMain()    { return !self::getIsViewLog(); }
-    static function getAdmin()     { return self::isAdmin(); } // para <% if Admin %> en la plantilla
+    static function getIsViewLog()  { return isset($_GET['show']) && $_GET['show'] === 'log'; }
+    static function getIsSettings() { return isset($_GET['show']) && $_GET['show'] === 'settings'; }
+    static function getIsMain()     { return !self::getIsViewLog() && !self::getIsSettings(); }
+    static function getAdmin()      { return self::isAdmin(); } // para <% if Admin %> en la plantilla
 
     static function getFlash()
     {
@@ -117,19 +118,25 @@ class module_controller extends ctrl_module
     // ---- Ajustes ----
     static function getSettingsHTML()
     {
-        if (!self::isAdmin()) return ''; // solo administradores; la plantilla también lo oculta
+        self::requireAdmin(); // vista dedicada de administrador
+        // Etiqueta => [texto, valor por defecto, ámbito]. Los límites de recursos son POR PROCESO
+        // (cada migración se limita por estos criterios, NO es la suma de todas); la concurrencia es
+        // el tope GLOBAL de procesos a la vez, y las ejecuciones/día son por cuenta.
         $f = array(
-            'imapsync_max_concurrent'   => array('Máx. procesos simultáneos', 2),
-            'imapsync_max_per_acct_day' => array('Máx. ejecuciones por cuenta y día', 5),
-            'imapsync_job_timeout'      => array('Timeout por tanda (segundos)', 900),
-            'imapsync_nice'             => array('Prioridad CPU (nice 0-19)', 19),
-            'imapsync_max_bytes_sec'    => array('Límite bytes/seg (0 = sin límite)', 0),
-            'imapsync_max_msgs_sec'     => array('Límite mensajes/seg (0 = sin límite)', 0),
+            'imapsync_max_concurrent'   => array('Máx. procesos simultáneos', 2,   'global (todo el servidor)'),
+            'imapsync_max_per_acct_day' => array('Máx. ejecuciones por cuenta y día', 5, 'por cuenta'),
+            'imapsync_job_timeout'      => array('Timeout por tanda (segundos)', 900, 'por proceso'),
+            'imapsync_nice'             => array('Prioridad CPU (nice 0-19)', 19,   'por proceso'),
+            'imapsync_max_bytes_sec'    => array('Límite bytes/seg (0 = sin límite)', 0, 'por proceso'),
+            'imapsync_max_msgs_sec'     => array('Límite mensajes/seg (0 = sin límite)', 0, 'por proceso'),
         );
         $csrf = runtime_csfr::Token();
-        $h = '<form action="./?module=imapsync&action=SaveSettings" method="post">' . $csrf . '<table class="zform table">';
+        $h  = '<a class="btn btn-sm btn-secondary" href="./?module=imapsync">&larr; Volver a migraciones</a>';
+        $h .= '<p class="text-muted">Estos límites los fija el administrador y se aplican a CADA proceso de migración por igual (no a la suma).</p>';
+        $h .= '<form action="./?module=imapsync&action=SaveSettings" method="post">' . $csrf . '<table class="zform table">';
         foreach ($f as $k => $d) {
-            $h .= '<tr><td style="width:320px;">' . self::esc($d[0]) . '</td><td><input type="number" name="' . $k . '" value="' . self::esc(self::opt($k, $d[1])) . '" class="form-control form-control-sm" style="width:140px;"></td></tr>';
+            $h .= '<tr><td style="width:320px;">' . self::esc($d[0]) . ' <small class="text-muted">(' . self::esc($d[2]) . ')</small></td>'
+                . '<td><input type="number" name="' . $k . '" value="' . self::esc(self::opt($k, $d[1])) . '" class="form-control form-control-sm" style="width:140px;"></td></tr>';
         }
         $h .= '<tr><td></td><td><button class="btn btn-primary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar ajustes</button></td></tr></table></form>';
         return $h;
