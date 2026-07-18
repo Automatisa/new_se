@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+<name>IMAP Migration (imapsync)</name>
+<version>100</version>
+<type>user</type>
+<defaultcat>Server Admin</defaultcat>
+<desc>Migración de cuentas de correo IMAP externas hacia el panel (imapsync). Solo administradores.</desc>
+<authorname>Automatisa</authorname>
+<authoremail>casisinpelo@gmail.com</authoremail>
+<authorurl>https://github.com/Automatisa/new_se</authorurl>
+</module>

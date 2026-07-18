@@ -1,0 +1,30 @@
+<div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+        <div class="zmodule_title"><@ ModuleName @></div>
+        <div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ Description @></div>
+    </div>
+
+    <@ Flash @>
+
+    <% if isViewLog %>
+        <@ ViewLogHTML @>
+    <% endif %>
+
+    <% if isMain %>
+        <div class="zform_wrapper">
+            <h2><i class="bi bi-envelope-arrow-down me-1"></i>Nueva migración (externo &rarr; panel)</h2>
+            <@ MigrateFormHTML @>
+        </div>
+
+        <div class="zform_wrapper">
+            <h2><i class="bi bi-list-task me-1"></i>Trabajos</h2>
+            <@ JobsHTML @>
+        </div>
+
+        <div class="zform_wrapper">
+            <h2><i class="bi bi-sliders me-1"></i>Ajustes (límites de recursos)</h2>
+            <@ SettingsHTML @>
+        </div>
+    <% endif %>
+</div>
