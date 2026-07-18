@@ -97,7 +97,7 @@ function sencrypt_le_subdir() {
 
 # Cachea el estado de un certificado en x_le_status (para la vista de administración): lee la fecha
 # de emisión/caducidad del .pem y clasifica el estado. Si hubo error en la pasada, lo guarda.
-function sencrypt_status_upsert($vhostFk, $domain, $owner, $certfile, $lastErr) {
+function sencrypt_status_upsert($vhostFk, $domain, $owner, $certfile, $lastErr, $ariStart = null, $ariEnd = null, $renewAt = null) {
     global $zdbh;
     $issued = null; $expires = null; $state = 'missing';
     if (is_file($certfile)) {
@@ -114,15 +114,16 @@ function sencrypt_status_upsert($vhostFk, $domain, $owner, $certfile, $lastErr) 
     if ($lastErr !== '') { $state = 'error'; }
     try {
         $zdbh->prepare("REPLACE INTO x_le_status
-            (ls_vhost_fk, ls_domain_vc, ls_owner_vc, ls_env_vc, ls_state_vc, ls_issued_ts, ls_expires_ts, ls_last_error_tx, ls_updated_ts)
-            VALUES (:v,:d,:o,:e,:s,:i,:x,:err,:u)")
+            (ls_vhost_fk, ls_domain_vc, ls_owner_vc, ls_env_vc, ls_state_vc, ls_issued_ts, ls_expires_ts, ls_last_error_tx, ls_ari_start_ts, ls_ari_end_ts, ls_renew_at_ts, ls_updated_ts)
+            VALUES (:v,:d,:o,:e,:s,:i,:x,:err,:as,:ae,:ra,:u)")
             ->execute(array(
                 ':v' => (int)$vhostFk, ':d' => $domain, ':o' => $owner,
                 ':e' => sencrypt_is_staging() ? 'staging' : 'production',
                 ':s' => $state, ':i' => $issued, ':x' => $expires,
-                ':err' => ($lastErr !== '' ? $lastErr : null), ':u' => time(),
+                ':err' => ($lastErr !== '' ? $lastErr : null),
+                ':as' => $ariStart, ':ae' => $ariEnd, ':ra' => $renewAt, ':u' => time(),
             ));
-    } catch (\Exception $e) { /* la tabla se crea por migración; no bloquear el daemon */ }
+    } catch (\Exception $e) { /* la tabla/columnas se crean por migración; no bloquear el daemon */ }
 }
 
 function renewCertificates() {
@@ -189,65 +190,55 @@ function renewCertificates() {
 				echo "   DNS is not LIVE or POINTING to server. SKIPPING." . fs_filehandler::NewLine();
 
 			} else {
-				// Do we HAVE a certificate for all our domains?
-				foreach ($domains as $d) {
 					$certfile = "$certlocation/cert.pem";
-					if (!file_exists($certfile)) {
-						// We don't have a cert, so we need to request one.
-						$needsgen = true;
-					} else {
-						// We DO have a certificate.
-						$certdata = openssl_x509_parse(file_get_contents($certfile));
-						echo "   Checking certificate for renewal: " . $d . "..." . fs_filehandler::NewLine();
-						// If it expires in less than a month, we want to renew it.
-						$renewafter = $certdata['validTo_time_t']-(86400*30);
+					$ariUsed = false;
 
-						if (time() > $renewafter) {
-							// Less than a month left, we need to renew.
-							echo "   --- Renewing certificate : " . $d . " for ... 90 Days" . fs_filehandler::NewLine();
-							$needsgen = true;
-						}
-					}
-				}
-				// Reemisión forzada desde el panel (botón "Reemitir"): si hay marca vh_le_reissue_ts
-				// y el cert es anterior a esa marca (o falta), forzar emisión saltándose los 30 días.
-				// El cooldown de 48h que respeta el límite de LE lo aplica el panel (doForceReissue).
-				$reissueReq = (int)($sslVhost['vh_le_reissue_ts'] ?? 0);
-				if ($reissueReq > 0) {
-					$certfile = "$certlocation/cert.pem";
-					if (!file_exists($certfile) || filemtime($certfile) < $reissueReq) {
-						echo "   Forced reissue requested via panel — forcing renewal." . fs_filehandler::NewLine();
-						$needsgen = true;
-					}
-				}
-
-				// ARI (ACME Renewal Info): si está habilitado (le_ari_enabled) y aún no toca renovar por
-				// la regla de 30 días, preguntar a Let's Encrypt la ventana de renovación sugerida y
-				// renovar si ya empezó. Best-effort: cualquier fallo cae al comportamiento de 30 días.
-				if (!$needsgen && ctrl_options::GetSystemOption('le_ari_enabled') === 'true') {
-					$certfile = "$certlocation/cert.pem";
-					if (is_file($certfile)) {
+					// ARI PRIMARIO (estilo Shopify): si esta habilitado y hay cert, la ventana sugerida por LE
+					// es la LOGICA PRINCIPAL de renovacion -> resiliente a cambios de duracion del cert (45/6
+					// dias) y responde a REVOCACION (LE acorta la ventana). Best-effort: si ARI falla o esta
+					// desactivado, fallback estatico de 30 dias.
+					if (ctrl_options::GetSystemOption('le_ari_enabled') === 'true' && is_file($certfile)) {
 						try {
 							$ariLe = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, NULL);
 							if (sencrypt_is_staging()) { $ariLe->setCaUrl(sencrypt_staging_ca()); }
 							$ariLe->initCommunication();
-								$certID = $ariLe->getAriCertID($certfile);
-								$ari = $ariLe->getRenewalInfo($certID);
-								if (is_array($ari)) {
-									// RFC 9773: instante ALEATORIO uniforme dentro de la ventana (reparte carga),
-									// determinista por certificado (hash del certID) para no re-sortear cada ciclo.
-									$window  = max(0, (int)$ari["end"] - (int)$ari["start"]);
-									$offset  = $window > 0 ? (hexdec(substr(md5($certID), 0, 8)) % $window) : 0;
-									$renewAt = (int)$ari["start"] + $offset;
-									if ($renewAt <= time()) {
-										echo "   ARI: momento de renovacion alcanzado (ventana ".gmdate("Y-m-d H:i",(int)$ari["start"])." .. ".gmdate("Y-m-d H:i",(int)$ari["end"])." UTC) - renovando.".fs_filehandler::NewLine();
-										if (!empty($ari["explanationURL"])) { echo "   ARI explanation: ".$ari["explanationURL"].fs_filehandler::NewLine(); }
-										$needsgen = true;
-									}
+							$certID = $ariLe->getAriCertID($certfile);
+							$ari = $ariLe->getRenewalInfo($certID);
+							if (is_array($ari)) {
+								$ariUsed = true;
+								$ariStart = (int)$ari["start"]; $ariEnd = (int)$ari["end"];
+								$win = max(0, $ariEnd - $ariStart);
+								$renewAt = $ariStart + ($win > 0 ? (hexdec(substr(md5($certID), 0, 8)) % $win) : 0);
+								if ($renewAt <= time()) {
+									echo "   ARI: renovacion (ventana ".gmdate("Y-m-d H:i", $ariStart)." .. ".gmdate("Y-m-d H:i", $ariEnd)." UTC).".fs_filehandler::NewLine();
+									if (!empty($ari["explanationURL"])) { echo "   ARI explanation: ".$ari["explanationURL"].fs_filehandler::NewLine(); }
+									$needsgen = true;
 								}
-						} catch (\Exception $e) { /* ARI best-effort; se mantiene la regla de 30 días */ }
+							}
+						} catch (\Exception $e) { $ariUsed = false; }
 					}
-				}
+
+					// Fallback ESTATICO (ARI desactivado o no disponible): falta el cert o quedan <30 dias.
+					if (!$ariUsed) {
+						if (!file_exists($certfile)) {
+							$needsgen = true;
+						} else {
+							$certdata = openssl_x509_parse(file_get_contents($certfile));
+							if (is_array($certdata) && !empty($certdata["validTo_time_t"]) && time() > ($certdata["validTo_time_t"] - 86400*30)) {
+								echo "   --- Renovando (regla 30 dias): ".$domain.fs_filehandler::NewLine();
+								$needsgen = true;
+							}
+						}
+					}
+
+					// Reemision forzada desde el panel (fuerza aunque ARI/estatico no toque).
+					$reissueReq = (int)($sslVhost["vh_le_reissue_ts"] ?? 0);
+					if ($reissueReq > 0) {
+						if (!file_exists($certfile) || filemtime($certfile) < $reissueReq) {
+							echo "   Forced reissue requested via panel.".fs_filehandler::NewLine();
+							$needsgen = true;
+						}
+					}
 			}
 
 			// Do we need to generate a certificate?
@@ -316,8 +307,9 @@ function renewCertificates() {
 				}
 			}
 
-			// Cachear el estado del cert para la vista de administración (x_le_status).
-			sencrypt_status_upsert($sslVhost['vh_id_pk'], $sslVhost['vh_name_vc'], $vhostOwner['username'], "$certlocation/cert.pem", $lastErr);
+			// Cachear el estado del cert para la vista de administración (x_le_status), incluida la
+			// ventana ARI y el instante de renovación elegido (visibilidad estilo Shopify).
+			sencrypt_status_upsert($sslVhost['vh_id_pk'], $sslVhost['vh_name_vc'], $vhostOwner['username'], "$certlocation/cert.pem", $lastErr, $ariStart, $ariEnd, $renewAt);
 
 			echo "Domain: " . $sslVhost['vh_name_vc'] . " analyzed." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 		}

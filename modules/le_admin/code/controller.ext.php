@@ -44,7 +44,7 @@ class module_controller extends ctrl_module
 
         // --- 2. Tabla de certificados (todos los usuarios) ---
         $h .= '<div class="zgrid_wrapper"><h3>Certificados (todos los usuarios)</h3><table class="table">';
-        $h .= '<tr><th>Dominio</th><th>Propietario</th><th>Entorno</th><th>Estado</th><th>Caduca</th><th>Emitido</th><th>Actualizado</th></tr>';
+        $h .= '<tr><th>Dominio</th><th>Propietario</th><th>Entorno</th><th>Estado</th><th>Caduca</th><th>Renovación (ARI)</th><th>Emitido</th><th>Actualizado</th></tr>';
         $rows = $zdbh->query("SELECT * FROM x_le_status ORDER BY (ls_expires_ts IS NULL) DESC, ls_expires_ts ASC")->fetchAll(PDO::FETCH_ASSOC);
         $labels = array('valid' => array('Válido', '#2e7d32'), 'expiring' => array('Por caducar', '#e65100'),
                         'expired' => array('Caducado', '#c62828'), 'missing' => array('Sin emitir', '#616161'),
@@ -58,10 +58,19 @@ class module_controller extends ctrl_module
                 $exp = $r['ls_expires_ts'] ? (floor(($r['ls_expires_ts'] - time()) / 86400) . ' días (' . gmdate('Y-m-d', $r['ls_expires_ts']) . ')') : '—';
                 $iss = $r['ls_issued_ts'] ? gmdate('Y-m-d', $r['ls_issued_ts']) : '—';
                 $upd = $r['ls_updated_ts'] ? gmdate('Y-m-d H:i', $r['ls_updated_ts']) : '—';
+                // Renovación según ARI (ventana sugerida por LE + instante elegido); '—' si aún sin ARI.
+                if (!empty($r['ls_renew_at_ts'])) {
+                    $ren = gmdate('Y-m-d H:i', $r['ls_renew_at_ts']);
+                    if (!empty($r['ls_ari_start_ts']) && !empty($r['ls_ari_end_ts'])) {
+                        $ren .= '<br><small style="color:#888;">' . gmdate('m-d', $r['ls_ari_start_ts']) . '..' . gmdate('m-d', $r['ls_ari_end_ts']) . '</small>';
+                    }
+                } else {
+                    $ren = '<small style="color:#888;">estática (30d)</small>';
+                }
                 $h .= '<tr><td>' . $esc($r['ls_domain_vc']) . '</td><td>' . $esc($r['ls_owner_vc']) . '</td><td>' . $esc($r['ls_env_vc']) . '</td>';
                 $h .= '<td><span style="color:' . $col . ';font-weight:bold;">' . $lab . '</span>';
                 if ($st === 'error' && !empty($r['ls_last_error_tx'])) { $h .= '<br><small style="color:#c62828;">' . $esc(substr($r['ls_last_error_tx'], 0, 140)) . '</small>'; }
-                $h .= '</td><td>' . $esc($exp) . '</td><td>' . $esc($iss) . '</td><td>' . $esc($upd) . '</td></tr>';
+                $h .= '</td><td>' . $esc($exp) . '</td><td>' . $ren . '</td><td>' . $esc($iss) . '</td><td>' . $esc($upd) . '</td></tr>';
             }
         }
         $h .= '</table></div>';
