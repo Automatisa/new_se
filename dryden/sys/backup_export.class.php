@@ -49,6 +49,22 @@ class sys_backup_export
                 $out[$key] = $s->fetchAll(PDO::FETCH_ASSOC);
             } catch (Exception $e) { $out[$key] = array(); }
         }
+
+        // MIGRACIÓN: IPs del servidor de ORIGEN, para que el restore reescriba A/AAAA/SPF a la IP del
+        // servidor DESTINO si difieren (si no, tras migrar el DNS apuntaría a la IP vieja). Se guardan
+        // la primaria (server_ip/server_ip6) y las dedicadas de los vhosts de la cuenta.
+        $out['server_ip']  = (string)ctrl_options::GetSystemOption('server_ip');
+        $out['server_ip6'] = (string)ctrl_options::GetSystemOption('server_ip6');
+        $src4 = array(); $src6 = array();
+        if ($out['server_ip']  !== '') { $src4[$out['server_ip']]  = true; }
+        if ($out['server_ip6'] !== '') { $src6[$out['server_ip6']] = true; }
+        foreach ((array)$out['vhosts'] as $v) {
+            if (!empty($v['vh_custom_ip_vc']))  { $src4[$v['vh_custom_ip_vc']]  = true; }
+            if (!empty($v['vh_custom_ip6_vc'])) { $src6[$v['vh_custom_ip6_vc']] = true; }
+        }
+        $out['source_ips4'] = array_keys($src4);
+        $out['source_ips6'] = array_keys($src6);
+
         return json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 }

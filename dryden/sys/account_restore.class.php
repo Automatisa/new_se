@@ -183,6 +183,21 @@ class sys_account_restore
         $userid = (int)$userid;
         $total  = 0;
 
+        // ── MIGRACIÓN: remapeo de IPs. Si el servidor de ORIGEN (guardado en el backup) tiene IP
+        //    distinta a la del DESTINO, se reescriben los registros A/AAAA/SPF cuyo objetivo sea una IP
+        //    del origen -> la IP primaria del destino. Así, tras migrar, el DNS apunta al servidor nuevo
+        //    (las IP dedicadas no se restauran; el usuario las reasigna después si quiere).
+        $dst4 = (string)ctrl_options::GetSystemOption('server_ip');
+        $dst6 = (string)ctrl_options::GetSystemOption('server_ip6');
+        $src4 = array_values(array_filter(array_map('strval', (array)($cfg['source_ips4'] ?? array()))));
+        $src6 = array_values(array_filter(array_map('strval', (array)($cfg['source_ips6'] ?? array()))));
+        if (!$src4 && !empty($cfg['server_ip']))  { $src4 = array((string)$cfg['server_ip']); }   // backups antiguos
+        if (!$src6 && !empty($cfg['server_ip6'])) { $src6 = array((string)$cfg['server_ip6']); }
+        // ordenar por longitud desc para que ip4:X.X.X.200 se reemplace antes que X.X.X.2 (evita solapes)
+        usort($src4, function ($a, $b) { return strlen($b) - strlen($a); });
+        usort($src6, function ($a, $b) { return strlen($b) - strlen($a); });
+        $nRemap = 0;
+
         // ── 1. VHOSTS (endurecido): validar el nombre de dominio, rechazar dominios de OTRA cuenta y
         //    (sub)dominios que cuelguen de otra cuenta (anti-robo), DERIVAR el directorio (no confiar en
         //    el del backup -> path traversal) y usar ALLOWLIST de columnas (se DESCARTAN vh_ssl_tx,
@@ -229,6 +244,16 @@ class sys_account_restore
                 if (!isset($vhostMap[$oldVh])) { self::log('restore: registro DNS de un vhost no restaurado, omitido'); continue; }
                 $type = strtoupper(trim((string)($row['dn_type_vc'] ?? '')));
                 if ($allowed && !in_array($type, $allowed, true)) { self::log("restore: tipo DNS '$type' no permitido, omitido"); continue; }
+                // MIGRACIÓN: reescribir el objetivo si es una IP del origen -> IP del destino.
+                $tgt = (string)($row['dn_target_vc'] ?? '');
+                if ($type === 'A' && $dst4 !== '' && in_array($tgt, $src4, true) && $tgt !== $dst4) {
+                    $tgt = $dst4; $nRemap++;
+                } elseif ($type === 'AAAA' && $dst6 !== '' && in_array($tgt, $src6, true) && $tgt !== $dst6) {
+                    $tgt = $dst6; $nRemap++;
+                } elseif ($type === 'TXT' || $type === 'SPF') {
+                    foreach ($src4 as $s) { if ($s !== '' && $dst4 !== '' && $s !== $dst4 && strpos($tgt, 'ip4:' . $s) !== false) { $tgt = str_replace('ip4:' . $s, 'ip4:' . $dst4, $tgt); $nRemap++; } }
+                    foreach ($src6 as $s) { if ($s !== '' && $dst6 !== '' && $s !== $dst6 && strpos($tgt, 'ip6:' . $s) !== false) { $tgt = str_replace('ip6:' . $s, 'ip6:' . $dst6, $tgt); $nRemap++; } }
+                }
                 $ins = array(
                     'dn_acc_fk'        => $userid,
                     'dn_name_vc'       => substr((string)($row['dn_name_vc'] ?? ''), 0, 255),
@@ -236,7 +261,7 @@ class sys_account_restore
                     'dn_type_vc'       => substr($type, 0, 50),
                     'dn_host_vc'       => substr((string)($row['dn_host_vc'] ?? '@'), 0, 100),
                     'dn_ttl_in'        => (int)($row['dn_ttl_in'] ?? 3600),
-                    'dn_target_vc'     => substr((string)($row['dn_target_vc'] ?? ''), 0, 2000),
+                    'dn_target_vc'     => substr($tgt, 0, 2000),
                     'dn_texttarget_tx' => isset($row['dn_texttarget_tx']) ? $row['dn_texttarget_tx'] : null,
                     'dn_priority_in'   => isset($row['dn_priority_in']) ? (int)$row['dn_priority_in'] : null,
                     'dn_weight_in'     => isset($row['dn_weight_in']) ? (int)$row['dn_weight_in'] : null,
@@ -273,7 +298,7 @@ class sys_account_restore
             }
         }
 
-        self::log("Config reinsertada (endurecida): $total filas nuevas. El daemon reconciliará los servicios.");
+        self::log("Config reinsertada (endurecida): $total filas nuevas, $nRemap objetivo(s) DNS/SPF remapeados a la IP del destino. El daemon reconciliará los servicios.");
         return $total;
     }
 
