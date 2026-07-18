@@ -101,6 +101,18 @@ function renewCertificates() {
 	$sslVhosts = $rowvhost->fetchAll();
 	$result = "";
 
+	// Escalado (100+ dominios): límite de EMISIONES por pasada para no superar el límite de LE de
+	// 300 órdenes/cuenta/3h, y BACKOFF si LE devuelve rate-limit (se pausan emisiones hasta la marca).
+	// Las que no entran esta pasada se emiten en la siguiente. Las renovaciones se reparten además por
+	// ARI (timing aleatorio) y por la ventana de 30 días.
+	$maxPerRun = (int)ctrl_options::GetSystemOption('le_max_per_run');
+	if ($maxPerRun <= 0) { $maxPerRun = 100; }
+	$issuedThisRun = 0;
+	$inBackoff = time() < (int)ctrl_options::GetSystemOption('le_backoff_until');
+	if ($inBackoff) {
+		echo "Sencrypt: en BACKOFF por rate-limit de Let's Encrypt hasta " . gmdate('Y-m-d H:i', (int)ctrl_options::GetSystemOption('le_backoff_until')) . " UTC — se omiten emisiones esta pasada." . fs_filehandler::NewLine();
+	}
+
 	foreach($sslVhosts as $sslVhost) {
 		if ($sslVhost['vh_ssl_tx'] !== false) {
 
@@ -205,7 +217,9 @@ function renewCertificates() {
 			}
 
 			// Do we need to generate a certificate?
-			if ($needsgen) {
+			if ($needsgen && ($inBackoff || $issuedThisRun >= $maxPerRun)) {
+					echo "   Emision aplazada (".($inBackoff?"backoff rate-limit":"limite $maxPerRun/pasada").") - en la proxima pasada.".fs_filehandler::NewLine();
+				} elseif ($needsgen) {
 				try {
 					# or without logger:
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
@@ -236,13 +250,20 @@ function renewCertificates() {
 						// Create a SSL with www. because its a root domain
 						$le->signDomains(array($domain, 'www.'.$domain), false, $replaces);
 					}
+						$issuedThisRun++;
 
 				}
 				catch (\Exception $e) {
-					echo "ERROR: " . $e->getMessage() . fs_filehandler::NewLine();
-					# Log error but continue with remaining domains (do NOT exit)
-					error_log( date('Y-m-d H:i:s') . " - DOMAIN: " . $domain . " - " . $e->getMessage() . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
-				}
+						$emsg = $e->getMessage();
+						if (stripos($emsg,"ratelimited")!==false || stripos($emsg,"rate limit")!==false || stripos($emsg,"too many")!==false) {
+							$inBackoff = true;
+							ctrl_options::SetSystemOption("le_backoff_until", (string)(time()+3*3600));
+							echo "   RATE LIMIT de Lets Encrypt: pausando emisiones 3h.".fs_filehandler::NewLine();
+						} else {
+							echo "ERROR: ".$emsg.fs_filehandler::NewLine();
+						}
+						error_log( date("Y-m-d H:i:s")." - DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("sentora_root")."modules/sencrypt/sencrypt.log");
+					}
 			}
 
 			// Aviso de caducidad: Let's Encrypt dejó de enviar emails de aviso el 4-jun-2025, así que
@@ -333,7 +354,10 @@ function renewPanelCertificates() {
 			}
 
 			// Do we need to generate a certificate?
-			if ($needsgen) {
+			$inBackoff = time() < (int)ctrl_options::GetSystemOption("le_backoff_until");
+				if ($needsgen && $inBackoff) {
+					echo "   Panel: emision aplazada (backoff rate-limit) - en la proxima pasada.".fs_filehandler::NewLine();
+				} elseif ($needsgen) {
 				try {
 					# or without logger:
 					$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $webroot, $logger = NULL);
@@ -367,10 +391,15 @@ function renewPanelCertificates() {
 
 				}
 				catch (\Exception $e) {
-					echo "ERROR: " . $e->getMessage() . fs_filehandler::NewLine();
-					# Log error but do NOT exit — daemon must continue
-					error_log( date('Y-m-d H:i:s') . " - PANEL DOMAIN: " . $domain . " - " . $e->getMessage() . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
-				}
+						$emsg = $e->getMessage();
+						if (stripos($emsg,"ratelimited")!==false || stripos($emsg,"rate limit")!==false || stripos($emsg,"too many")!==false) {
+							ctrl_options::SetSystemOption("le_backoff_until", (string)(time()+3*3600));
+							echo "   RATE LIMIT de Lets Encrypt (panel): pausando emisiones 3h.".fs_filehandler::NewLine();
+						} else {
+							echo "ERROR: ".$emsg.fs_filehandler::NewLine();
+						}
+						error_log( date("Y-m-d H:i:s")." - PANEL DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("sentora_root")."modules/sencrypt/sencrypt.log");
+					}
 			}
 
 			echo "Control Panel Domain: " . $domain . " analyzed." . fs_filehandler::NewLine();
