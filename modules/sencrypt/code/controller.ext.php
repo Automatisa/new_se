@@ -402,6 +402,53 @@ class module_controller extends ctrl_module {
 		return self::Show_list_of_active_domain_ssl($currentuser['userid']);
 	}
 
+	# Botón "Wildcard": marca el dominio para emitir un cert *.dominio (+ dominio) por DNS-01. Solo
+	# dominios raíz (no subdominios). Un cert cubre todos los subdominios (esquiva 50 certs/dominio/7d).
+	static function WildcardButton($rowdomains) {
+		if ((int)($rowdomains['vh_type_in'] ?? 1) === 2) return ''; // no en subdominios
+		$on = (int)($rowdomains['vh_le_wildcard_in'] ?? 0) === 1;
+		return '<form action="./?module=sencrypt&action=SetWildcard" method="post" style="display:inline">'
+			. runtime_csfr::Token()
+			. '<input type="hidden" name="inDomain" value="' . htmlspecialchars($rowdomains['vh_name_vc'], ENT_QUOTES, 'UTF-8') . '">'
+			. '<input type="hidden" name="inOn" value="' . ($on ? '0' : '1') . '">'
+			. '<button class="button-loader btn ' . ($on ? 'btn-success' : 'btn-outline-secondary') . '" type="submit">'
+			. '<i class="bi bi-asterisk me-1"></i>' . ($on ? 'Wildcard: ON' : 'Wildcard') . '</button>'
+			. '</form>';
+	}
+
+	# Activa/desactiva wildcard en un dominio del PROPIO usuario (anti-IDOR). Al activar, marca reemisión
+	# (con las mismas guardas que doForceReissue: cooldown + DNS) para que el daemon emita el wildcard.
+	static function doSetWildcard() {
+		global $zdbh, $controller;
+		runtime_csfr::Protect();
+		$cu     = ctrl_users::GetUserDetail();
+		$domain = (string)$controller->GetControllerRequest('FORM', 'inDomain');
+		$on     = $controller->GetControllerRequest('FORM', 'inOn') ? 1 : 0;
+		$q = $zdbh->prepare("SELECT vh_id_pk, vh_le_reissue_ts, vh_custom_ip_vc, vh_custom_ip6_vc FROM x_vhosts
+		                     WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_type_in=1 AND vh_deleted_ts IS NULL");
+		$q->execute(array(':d' => $domain, ':u' => (int)$cu['userid']));
+		$vh = $q->fetch(PDO::FETCH_ASSOC);
+		if (!$vh) {
+			$_SESSION['sencrypt_flash'] = array('err', ui_language::translate('Domain not valid.'));
+		} else {
+			$zdbh->prepare("UPDATE x_vhosts SET vh_le_wildcard_in=:w WHERE vh_id_pk=:id")->execute(array(':w' => $on, ':id' => (int)$vh['vh_id_pk']));
+			if ($on) {
+				$last = (int)($vh['vh_le_reissue_ts'] ?? 0);
+				if ($last > 0 && (time() - $last) < 48 * 3600) {
+					$_SESSION['sencrypt_flash'] = array('ok', 'Wildcard activado para ' . htmlspecialchars($domain) . '. (Ya hubo una (re)emisión reciente; se emitirá pasado el cooldown de 48h de Let\'s Encrypt.)');
+				} elseif (!self::domainResolvesToUs($domain, $vh['vh_custom_ip_vc'] ?? '', $vh['vh_custom_ip6_vc'] ?? '')) {
+					$_SESSION['sencrypt_flash'] = array('ok', 'Wildcard activado para ' . htmlspecialchars($domain) . '. Ajusta el DNS del dominio a este servidor para que el daemon lo emita (validación DNS-01).');
+				} else {
+					$zdbh->prepare("UPDATE x_vhosts SET vh_le_reissue_ts=:t WHERE vh_id_pk=:id")->execute(array(':t' => time(), ':id' => (int)$vh['vh_id_pk']));
+					$_SESSION['sencrypt_flash'] = array('ok', 'Wildcard activado para ' . htmlspecialchars($domain) . '. Se emitirá *.' . htmlspecialchars($domain) . ' por DNS-01 en el próximo ciclo del daemon.');
+				}
+			} else {
+				$_SESSION['sencrypt_flash'] = array('ok', 'Wildcard desactivado para ' . htmlspecialchars($domain) . ' (el cert actual sigue vigente hasta su renovación normal).');
+			}
+		}
+		if (!headers_sent()) { header('location: ./?module=sencrypt&ShowPanel=letsencrypt'); exit; }
+	}
+
 	# Toggle "Forzar HTTPS" por dominio (cliente): checkbox que auto-envía.
 	static function ForceToggle($rowdomains) {
 		$chk = ((int)$rowdomains['vh_forcessl_in'] !== 0) ? 'checked' : '';
@@ -550,7 +597,7 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ".";
 					}
 							
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL, 'Force_AC' => self::ForceToggle($rowdomains) , 'Reissue_AC' => NULL );
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => $Downloadbutton, 'Revoke_AC' => NULL, 'Force_AC' => self::ForceToggle($rowdomains) , 'Reissue_AC' => NULL, 'Wildcard_AC' => NULL );
 					
 				# If Letsencrypt cert	
 				} elseif ( is_file(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $rowdomains['vh_name_vc'] . "/cert.pem" ) ) {
@@ -583,18 +630,18 @@ class module_controller extends ctrl_module {
 						$days = ui_language::translate("Expiry in") . ' ' . $day . ' ' . ui_language::translate("days") . ' - ' . ui_language::translate("Auto-renewal in") . ' ' . $reNewDay . ' ' . ui_language::translate("days") . '.';
 					}
 					
-					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton, 'Force_AC' => self::ForceToggle($rowdomains), 'Reissue_AC' => self::ReissueButton($rowdomains));
+					$res[] = array('Domain_AC' => $rowdomains['vh_name_vc'], 'Button_AC' => $button, 'Vendor_AC' => $sslvendor, 'Days_AC' =>  $days, 'Download_AC' => NULL, 'Revoke_AC' => $RevokeButton, 'Force_AC' => self::ForceToggle($rowdomains), 'Reissue_AC' => self::ReissueButton($rowdomains), 'Wildcard_AC' => self::WildcardButton($rowdomains));
 					
 				}
 			}
 			if (!$res)
 			{
-				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL);
+				$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL, 'Wildcard_AC' => NULL);
 			}
 
 		} else {		
 								
-			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL);
+			$res[] = array('Domain_AC' => ui_language::translate("No Active Domain Certificates"), 'Button_AC' => NULL, 'Vendor_AC' => NULL, 'Days_AC' =>  NULL, 'Download_AC' => NULL, 'Revoke_AC' => NULL, 'Force_AC' => NULL, 'Reissue_AC' => NULL, 'Wildcard_AC' => NULL);
 			
 		}
 		

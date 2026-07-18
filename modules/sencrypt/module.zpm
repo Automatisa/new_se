@@ -97,6 +97,7 @@
 							{! Download_AC !}
 							{! Revoke_AC !}
 							{! Reissue_AC !}
+							{! Wildcard_AC !}
 						</td>
 					</tr>
 				<% endloop %>

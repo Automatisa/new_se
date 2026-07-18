@@ -268,7 +268,14 @@ function renewCertificates() {
 					# Get domain type
 					$domainType = $query->fetchColumn();
 
-					if ($domainType == 2 ) {
+					if ((int)($sslVhost['vh_le_wildcard_in'] ?? 0) === 1 && $domainType != 2) {
+						// WILDCARD: un solo cert *.dominio + dominio via DNS-01 (reto _acme-challenge). Cubre todos
+						// los subdominios en un cert -> esquiva el limite 50 certs/dominio/7d.
+						require_once 'modules/sencrypt/code/controller.ext.php';
+						echo "   WILDCARD (DNS-01): emitiendo *.".$domain." + ".$domain.fs_filehandler::NewLine();
+						$le->signDomains(array('*.'.$domain, $domain), false, $replaces, 'dns-01',
+							array('module_controller','Dns01Provision'), array('module_controller','Dns01Cleanup'));
+					} else if ($domainType == 2 ) {
 						// Create domain without www. becuase its a subdomain
 						$le->signDomains(array($domain), false, $replaces);
 					} else {
