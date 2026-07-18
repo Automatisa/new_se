@@ -92,6 +92,36 @@ function sencrypt_le_subdir() {
     return sencrypt_is_staging() ? 'letsencrypt-staging' : 'letsencrypt';
 }
 
+# Cachea el estado de un certificado en x_le_status (para la vista de administración): lee la fecha
+# de emisión/caducidad del .pem y clasifica el estado. Si hubo error en la pasada, lo guarda.
+function sencrypt_status_upsert($vhostFk, $domain, $owner, $certfile, $lastErr) {
+    global $zdbh;
+    $issued = null; $expires = null; $state = 'missing';
+    if (is_file($certfile)) {
+        $cd = @openssl_x509_parse(@file_get_contents($certfile));
+        if (is_array($cd)) {
+            if (!empty($cd['validFrom_time_t'])) { $issued = (int)$cd['validFrom_time_t']; }
+            if (!empty($cd['validTo_time_t']))   { $expires = (int)$cd['validTo_time_t']; }
+            if ($expires !== null) {
+                $days = floor(($expires - time()) / 86400);
+                $state = ($days < 0) ? 'expired' : (($days <= 10) ? 'expiring' : 'valid');
+            }
+        }
+    }
+    if ($lastErr !== '') { $state = 'error'; }
+    try {
+        $zdbh->prepare("REPLACE INTO x_le_status
+            (ls_vhost_fk, ls_domain_vc, ls_owner_vc, ls_env_vc, ls_state_vc, ls_issued_ts, ls_expires_ts, ls_last_error_tx, ls_updated_ts)
+            VALUES (:v,:d,:o,:e,:s,:i,:x,:err,:u)")
+            ->execute(array(
+                ':v' => (int)$vhostFk, ':d' => $domain, ':o' => $owner,
+                ':e' => sencrypt_is_staging() ? 'staging' : 'production',
+                ':s' => $state, ':i' => $issued, ':x' => $expires,
+                ':err' => ($lastErr !== '' ? $lastErr : null), ':u' => time(),
+            ));
+    } catch (\Exception $e) { /* la tabla se crea por migración; no bloquear el daemon */ }
+}
+
 function renewCertificates() {
 	global $zdbh, $controller;
 	$logger = new Logger();
@@ -116,6 +146,7 @@ function renewCertificates() {
 	foreach($sslVhosts as $sslVhost) {
 		if ($sslVhost['vh_ssl_tx'] !== false) {
 
+			$lastErr = '';
 			$vhostOwner = ctrl_users::GetUserDetail($sslVhost['vh_acc_fk']);
 			$_vhp_ssl = ctrl_options::GetVhostPaths($vhostOwner['username'], $sslVhost['vh_directory_vc']);
 			$domainPath = $_vhp_ssl['public_html'];
@@ -262,6 +293,7 @@ function renewCertificates() {
 						} else {
 							echo "ERROR: ".$emsg.fs_filehandler::NewLine();
 						}
+						$lastErr = $emsg;
 						error_log( date("Y-m-d H:i:s")." - DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("sentora_root")."modules/sencrypt/sencrypt.log");
 					}
 			}
@@ -280,6 +312,9 @@ function renewCertificates() {
 					}
 				}
 			}
+
+			// Cachear el estado del cert para la vista de administración (x_le_status).
+			sencrypt_status_upsert($sslVhost['vh_id_pk'], $sslVhost['vh_name_vc'], $vhostOwner['username'], "$certlocation/cert.pem", $lastErr);
 
 			echo "Domain: " . $sslVhost['vh_name_vc'] . " analyzed." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 		}
