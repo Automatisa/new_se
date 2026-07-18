@@ -180,33 +180,129 @@ class sys_account_restore
         $cfg = json_decode($json, true);
         if (!is_array($cfg)) { self::log('panel_config.json ilegible.'); return false; }
 
-        // key en el json => [tabla, fk_cuenta]
+        $userid = (int)$userid;
+        $total  = 0;
+
+        // ── 1. VHOSTS (endurecido): validar el nombre de dominio, rechazar dominios de OTRA cuenta y
+        //    (sub)dominios que cuelguen de otra cuenta (anti-robo), DERIVAR el directorio (no confiar en
+        //    el del backup -> path traversal) y usar ALLOWLIST de columnas (se DESCARTAN vh_ssl_tx,
+        //    vh_custom_tx, vh_custom_ip*, puertos: no se restauran del backup). Se mapea el vh_id_pk del
+        //    JSON -> id real nuevo para remapear después las referencias del DNS.
+        $vhostMap = array();
+        if (!empty($cfg['vhosts']) && is_array($cfg['vhosts'])) {
+            foreach ($cfg['vhosts'] as $row) {
+                if (!is_array($row)) continue;
+                $name  = strtolower(trim((string)($row['vh_name_vc'] ?? '')));
+                $oldId = isset($row['vh_id_pk']) ? (int)$row['vh_id_pk'] : 0;
+                if ($name === '' || !fs_director::IsValidDomainName($name)) { self::log("restore: vhost con nombre inválido '$name' omitido"); continue; }
+                $ex = $zdbh->prepare("SELECT vh_id_pk, vh_acc_fk FROM x_vhosts WHERE vh_name_vc=:n AND vh_deleted_ts IS NULL LIMIT 1");
+                $ex->execute(array(':n' => $name));
+                $exist = $ex->fetch(PDO::FETCH_ASSOC);
+                if ($exist) {
+                    if ((int)$exist['vh_acc_fk'] === $userid) { if ($oldId) $vhostMap[$oldId] = (int)$exist['vh_id_pk']; }
+                    else { self::log("restore: vhost '$name' pertenece a otra cuenta, omitido"); }
+                    continue;
+                }
+                if (self::isUnderOtherAccount($name, $userid)) { self::log("restore: '$name' cuelga de un dominio de otra cuenta, omitido"); continue; }
+                $dir = str_replace('.', '_', $name);
+                if (!preg_match('/^[a-z0-9][a-z0-9_.-]{0,253}$/', $dir) || strpos($dir, '..') !== false) continue;
+                $newId = self::insertReturnId('x_vhosts', array(
+                    'vh_acc_fk'       => $userid,
+                    'vh_name_vc'      => $name,
+                    'vh_directory_vc' => $dir,
+                    'vh_type_in'      => ((int)($row['vh_type_in'] ?? 1) === 2) ? 2 : 1,
+                    'vh_enabled_in'   => 1,
+                    'vh_created_ts'   => time(),
+                ));
+                if ($newId) { $total++; if ($oldId) $vhostMap[$oldId] = $newId; }
+            }
+        }
+
+        // ── 2. DNS (endurecido): REMAPEAR dn_vhost_fk al id nuevo y RECHAZAR si no mapea (evita inyectar
+        //    registros en la zona de OTRA cuenta). Validar el tipo. Forzar dn_acc_fk. Allowlist de columnas.
+        if (!empty($cfg['dns']) && is_array($cfg['dns'])) {
+            $allowed = array_filter(explode(' ', strtoupper((string)ctrl_options::GetSystemOption('allowed_types'))));
+            $dnsCols = self::tableColumns('x_dns');
+            foreach ($cfg['dns'] as $row) {
+                if (!is_array($row)) continue;
+                $oldVh = isset($row['dn_vhost_fk']) ? (int)$row['dn_vhost_fk'] : 0;
+                if (!isset($vhostMap[$oldVh])) { self::log('restore: registro DNS de un vhost no restaurado, omitido'); continue; }
+                $type = strtoupper(trim((string)($row['dn_type_vc'] ?? '')));
+                if ($allowed && !in_array($type, $allowed, true)) { self::log("restore: tipo DNS '$type' no permitido, omitido"); continue; }
+                $ins = array(
+                    'dn_acc_fk'        => $userid,
+                    'dn_name_vc'       => substr((string)($row['dn_name_vc'] ?? ''), 0, 255),
+                    'dn_vhost_fk'      => (int)$vhostMap[$oldVh],
+                    'dn_type_vc'       => substr($type, 0, 50),
+                    'dn_host_vc'       => substr((string)($row['dn_host_vc'] ?? '@'), 0, 100),
+                    'dn_ttl_in'        => (int)($row['dn_ttl_in'] ?? 3600),
+                    'dn_target_vc'     => substr((string)($row['dn_target_vc'] ?? ''), 0, 2000),
+                    'dn_texttarget_tx' => isset($row['dn_texttarget_tx']) ? $row['dn_texttarget_tx'] : null,
+                    'dn_priority_in'   => isset($row['dn_priority_in']) ? (int)$row['dn_priority_in'] : null,
+                    'dn_weight_in'     => isset($row['dn_weight_in']) ? (int)$row['dn_weight_in'] : null,
+                    'dn_port_in'       => isset($row['dn_port_in']) ? (int)$row['dn_port_in'] : null,
+                    'dn_created_ts'    => time(),
+                );
+                if (self::rowExists('x_dns', $dnsCols, $ins)) continue;
+                if (self::insertReturnId('x_dns', $ins)) $total++;
+            }
+        }
+
+        // ── 3. Resto de tablas de la cuenta: forzar el FK de propiedad + DESCARTAR PK y columnas de RUTA
+        //    peligrosas (se derivan/reconcilian; no se confían del backup). No incluye vhosts ni dns.
         $tables = array(
-            'vhosts'      => array('x_vhosts',      'vh_acc_fk'),
-            'dns'         => array('x_dns',         'dn_acc_fk'),
-            'mailboxes'   => array('x_mailboxes',   'mb_acc_fk'),
-            'aliases'     => array('x_aliases',     'al_acc_fk'),
-            'forwarders'  => array('x_forwarders',  'fw_acc_fk'),
-            'distlists'   => array('x_distlists',   'dl_acc_fk'),
-            'ftpaccounts' => array('x_ftpaccounts', 'ft_acc_fk'),
-            'cronjobs'    => array('x_cronjobs',    'ct_acc_fk'),
-            'htaccess'    => array('x_htaccess',    'ht_acc_fk'),
+            'mailboxes'   => array('x_mailboxes',   'mb_acc_fk',  array()),
+            'aliases'     => array('x_aliases',     'al_acc_fk',  array()),
+            'forwarders'  => array('x_forwarders',  'fw_acc_fk',  array()),
+            'distlists'   => array('x_distlists',   'dl_acc_fk',  array()),
+            'ftpaccounts' => array('x_ftpaccounts', 'ft_acc_fk',  array('ft_directory_vc')), // ruta -> no confiar
+            'cronjobs'    => array('x_cronjobs',    'ct_acc_fk',  array('ct_fullpath_vc')),   // ruta -> no confiar
+            'htaccess'    => array('x_htaccess',    'ht_acc_fk',  array()),
         );
-        $total = 0;
         foreach ($tables as $key => $def) {
             if (empty($cfg[$key]) || !is_array($cfg[$key])) continue;
-            list($table, $fk) = $def;
+            list($table, $fk, $drop) = $def;
             $cols = self::tableColumns($table);
             if (!$cols) continue;
             foreach ($cfg[$key] as $row) {
                 if (!is_array($row)) continue;
-                $row[$fk] = (int)$userid; // forzar propiedad a esta cuenta
-                if (self::rowExists($table, $cols, $row)) continue; // idempotencia
+                foreach ($drop as $d) { unset($row[$d]); }     // descartar columnas de ruta peligrosas
+                $row[$fk] = $userid;                            // forzar propiedad a esta cuenta
+                if (self::rowExists($table, $cols, $row)) continue;
                 if (self::insertRow($table, $cols, $row)) $total++;
             }
         }
-        self::log("Config reinsertada: $total filas nuevas. El daemon reconciliará los servicios.");
+
+        self::log("Config reinsertada (endurecida): $total filas nuevas. El daemon reconciliará los servicios.");
         return $total;
+    }
+
+    // Inserta una fila YA saneada (allowlist) y devuelve el id nuevo, o 0.
+    private static function insertReturnId($table, array $use)
+    {
+        global $zdbh;
+        if (!$use) return 0;
+        $names = array_keys($use);
+        $ph = array_map(function ($n) { return ':' . $n; }, $names);
+        try {
+            $st = $zdbh->prepare("INSERT INTO `$table` (`" . implode('`,`', $names) . "`) VALUES (" . implode(',', $ph) . ")");
+            foreach ($use as $k => $v) $st->bindValue(':' . $k, $v);
+            $st->execute();
+            return (int)$zdbh->lastInsertId();
+        } catch (Exception $e) { self::log("INSERT en $table omitido: " . $e->getMessage()); return 0; }
+    }
+
+    // ¿$name es (o cuelga de) un dominio de OTRA cuenta? -> bloquea el robo de (sub)dominios en la restauración.
+    private static function isUnderOtherAccount($name, $userid)
+    {
+        global $zdbh;
+        foreach ($zdbh->query("SELECT vh_name_vc, vh_acc_fk FROM x_vhosts WHERE vh_type_in=1 AND vh_deleted_ts IS NULL")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $d = strtolower($r['vh_name_vc']);
+            if (($name === $d || substr($name, -(strlen($d) + 1)) === '.' . $d) && (int)$r['vh_acc_fk'] !== (int)$userid) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
