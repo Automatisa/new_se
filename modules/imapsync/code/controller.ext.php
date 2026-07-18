@@ -11,10 +11,15 @@ class module_controller extends ctrl_module
     private static $flash = null;
     const RUNDIR = '/var/sentora/run/imapsync/';
 
-    private static function requireAdmin(): void
+    // El MÓDULO es de usuario (cada uno migra su propio correo). Solo los AJUSTES son de admin.
+    private static function isAdmin(): bool
     {
         $u = ctrl_users::GetUserDetail();
-        if ((int)($u['usergroupid'] ?? 3) !== 1) { header('Location: ./?module=dashboard'); exit; }
+        return (int)($u['usergroupid'] ?? 3) === 1;
+    }
+    private static function requireAdmin(): void
+    {
+        if (!self::isAdmin()) { header('Location: ./?module=dashboard'); exit; }
     }
 
     static function getDescription() { return ui_module::GetModuleDescription(); }
@@ -23,6 +28,7 @@ class module_controller extends ctrl_module
     // Conmutador de vista: log (show=log) vs principal.
     static function getIsViewLog() { return isset($_GET['show']) && $_GET['show'] === 'log'; }
     static function getIsMain()    { return !self::getIsViewLog(); }
+    static function getAdmin()     { return self::isAdmin(); } // para <% if Admin %> en la plantilla
 
     static function getFlash()
     {
@@ -39,10 +45,16 @@ class module_controller extends ctrl_module
     static function getMigrateFormHTML()
     {
         global $zdbh;
-        self::requireAdmin();
-        // Desplegable con TODOS los buzones locales (destino). El panel es siempre el destino.
+        $cu = ctrl_users::GetUserDetail();
+        // Desplegable de buzones (destino, siempre local). El usuario ve SOLO los suyos; el admin, todos.
+        if (self::isAdmin()) {
+            $st = $zdbh->query("SELECT mb_address_vc FROM x_mailboxes WHERE mb_deleted_ts IS NULL ORDER BY mb_address_vc");
+        } else {
+            $st = $zdbh->prepare("SELECT mb_address_vc FROM x_mailboxes WHERE mb_acc_fk=:u AND mb_deleted_ts IS NULL ORDER BY mb_address_vc");
+            $st->execute(array(':u' => (int)$cu['userid']));
+        }
         $opts = '';
-        foreach ($zdbh->query("SELECT mb_address_vc FROM x_mailboxes WHERE mb_deleted_ts IS NULL ORDER BY mb_address_vc")->fetchAll(PDO::FETCH_COLUMN) as $addr) {
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $addr) {
             $opts .= '<option value="' . self::esc($addr) . '">' . self::esc($addr) . '</option>';
         }
         if ($opts === '') { return '<p>No hay buzones locales. Crea alguno en el módulo de correo primero.</p>'; }
@@ -65,8 +77,14 @@ class module_controller extends ctrl_module
     static function getJobsHTML()
     {
         global $zdbh;
-        self::requireAdmin();
-        $rows = $zdbh->query("SELECT * FROM x_imapsync_jobs WHERE ij_deleted_ts IS NULL ORDER BY ij_id_pk DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+        $cu = ctrl_users::GetUserDetail();
+        if (self::isAdmin()) {
+            $rows = $zdbh->query("SELECT * FROM x_imapsync_jobs WHERE ij_deleted_ts IS NULL ORDER BY ij_id_pk DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            $st = $zdbh->prepare("SELECT * FROM x_imapsync_jobs WHERE ij_acc_fk=:u AND ij_deleted_ts IS NULL ORDER BY ij_id_pk DESC LIMIT 100");
+            $st->execute(array(':u' => (int)$cu['userid']));
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
         if (!$rows) return '<p>No hay trabajos todavía.</p>';
         $col = array('queued' => '#616161', 'running' => '#1565c0', 'partial' => '#e65100', 'done' => '#2e7d32', 'error' => '#c62828', 'canceled' => '#616161');
         $h = '<table class="table"><tr><th>#</th><th>Destino</th><th>Origen</th><th>Estado</th><th>Progreso</th><th>Última</th><th>Acciones</th></tr>';
@@ -95,7 +113,7 @@ class module_controller extends ctrl_module
     // ---- Ajustes ----
     static function getSettingsHTML()
     {
-        self::requireAdmin();
+        if (!self::isAdmin()) return ''; // solo administradores; la plantilla también lo oculta
         $f = array(
             'imapsync_max_concurrent'   => array('Máx. procesos simultáneos', 2),
             'imapsync_max_per_acct_day' => array('Máx. ejecuciones por cuenta y día', 5),
@@ -133,7 +151,6 @@ class module_controller extends ctrl_module
     {
         global $zdbh, $controller;
         runtime_csfr::Protect();
-        self::requireAdmin();
         $cu   = ctrl_users::GetUserDetail();
         $dest = trim((string)$controller->GetControllerRequest('FORM', 'inDest'));
         $dpw  = (string)$controller->GetControllerRequest('FORM', 'inDestPass');
@@ -143,10 +160,16 @@ class module_controller extends ctrl_module
         $suser= trim((string)$controller->GetControllerRequest('FORM', 'inSrcUser'));
         $spw  = (string)$controller->GetControllerRequest('FORM', 'inSrcPass');
 
-        // Validaciones (dirección BLOQUEADA: destino = buzón local existente).
-        $ok = $zdbh->prepare("SELECT COUNT(*) FROM x_mailboxes WHERE mb_address_vc=:a AND mb_deleted_ts IS NULL");
-        $ok->execute(array(':a' => $dest));
-        if (!(int)$ok->fetchColumn())                                   { self::fail('El buzón destino no existe en el panel.'); }
+        // Validaciones (dirección BLOQUEADA: destino = buzón local existente). Anti-IDOR: el buzón
+        // destino debe ser del PROPIO usuario (el admin puede migrar a cualquiera).
+        if (self::isAdmin()) {
+            $ok = $zdbh->prepare("SELECT COUNT(*) FROM x_mailboxes WHERE mb_address_vc=:a AND mb_deleted_ts IS NULL");
+            $ok->execute(array(':a' => $dest));
+        } else {
+            $ok = $zdbh->prepare("SELECT COUNT(*) FROM x_mailboxes WHERE mb_address_vc=:a AND mb_acc_fk=:u AND mb_deleted_ts IS NULL");
+            $ok->execute(array(':a' => $dest, ':u' => (int)$cu['userid']));
+        }
+        if (!(int)$ok->fetchColumn())                                   { self::fail('El buzón destino no existe o no es tuyo.'); }
         if (!preg_match('/^[a-zA-Z0-9.-]{1,255}$/', $host))             { self::fail('Servidor de origen no válido.'); }
         if (!preg_match('/^[^\s@]{1,120}@?[a-zA-Z0-9.-]{0,255}$/', $suser)) { self::fail('Usuario de origen no válido.'); }
         if ($port < 1 || $port > 65535) $port = 993;
@@ -187,14 +210,16 @@ class module_controller extends ctrl_module
     {
         global $zdbh, $controller;
         runtime_csfr::Protect();
-        self::requireAdmin();
+        $cu = ctrl_users::GetUserDetail();
         $id = (int)$controller->GetControllerRequest('FORM', 'inId');
-        // Marcar cancelado; el worker/runner respeta este estado. Borrar el passfile.
-        $j = $zdbh->prepare("SELECT ij_passfile_vc FROM x_imapsync_jobs WHERE ij_id_pk=:id");
+        // Anti-IDOR: solo el dueño del trabajo (o el admin) puede cancelarlo.
+        $own = self::isAdmin() ? '' : ' AND ij_acc_fk=' . (int)$cu['userid'];
+        $j = $zdbh->prepare("SELECT ij_passfile_vc FROM x_imapsync_jobs WHERE ij_id_pk=:id" . $own);
         $j->execute(array(':id' => $id));
         $pf = $j->fetchColumn();
+        if ($pf === false) { $_SESSION['imapsync_flash'] = array('err', 'Trabajo no encontrado.'); if (!headers_sent()) { header('location: ./?module=imapsync'); exit; } }
         if ($pf && is_file($pf)) { @unlink($pf); }
-        $zdbh->prepare("UPDATE x_imapsync_jobs SET ij_status_vc='canceled', ij_updated_ts=UNIX_TIMESTAMP() WHERE ij_id_pk=:id AND ij_status_vc IN ('queued','running','partial')")
+        $zdbh->prepare("UPDATE x_imapsync_jobs SET ij_status_vc='canceled', ij_updated_ts=UNIX_TIMESTAMP() WHERE ij_id_pk=:id AND ij_status_vc IN ('queued','running','partial')" . $own)
              ->execute(array(':id' => $id));
         $_SESSION['imapsync_flash'] = array('ok', 'Trabajo #' . $id . ' cancelado.');
         if (!headers_sent()) { header('location: ./?module=imapsync'); exit; }
@@ -204,9 +229,11 @@ class module_controller extends ctrl_module
     static function getViewLogHTML()
     {
         global $zdbh;
-        self::requireAdmin();
+        $cu = ctrl_users::GetUserDetail();
         if (!isset($_GET['id'])) return '';
-        $j = $zdbh->prepare("SELECT ij_log_vc FROM x_imapsync_jobs WHERE ij_id_pk=:id AND ij_deleted_ts IS NULL");
+        // Anti-IDOR: solo el log de un trabajo propio (o cualquiera si admin).
+        $own = self::isAdmin() ? '' : ' AND ij_acc_fk=' . (int)$cu['userid'];
+        $j = $zdbh->prepare("SELECT ij_log_vc FROM x_imapsync_jobs WHERE ij_id_pk=:id AND ij_deleted_ts IS NULL" . $own);
         $j->execute(array(':id' => (int)$_GET['id']));
         $log = $j->fetchColumn();
         $lines = ($log && is_file($log)) ? @file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : array();

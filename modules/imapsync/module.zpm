@@ -22,9 +22,11 @@
             <@ JobsHTML @>
         </div>
 
+        <% if Admin %>
         <div class="zform_wrapper">
-            <h2><i class="bi bi-sliders me-1"></i>Ajustes (límites de recursos)</h2>
+            <h2><i class="bi bi-sliders me-1"></i>Ajustes (límites de recursos) <small class="text-muted">— solo administradores</small></h2>
             <@ SettingsHTML @>
         </div>
+        <% endif %>
     <% endif %>
 </div>

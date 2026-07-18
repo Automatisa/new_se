@@ -820,7 +820,7 @@ INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('48', '3', 'Protected Directories', '200', 'protected_directories', 'user', 'Password protect your web applications and directories.', NULL, 'true', NULL, '');
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('49', '2', 'AutoIP Updater', '102', 'autoip', 'user', 'Automatically update your control panel IP address.', '1701028845', 'true', NULL, '');
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('60', '2', 'Let\'s Encrypt Status', '100', 'le_admin', 'user', 'Estado de emisiones y certificados Let\'s Encrypt de todo el servidor (solo administradores).', '1701028845', 'true', NULL, '');
-INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('61', '2', 'IMAP Migration (imapsync)', '100', 'imapsync', 'user', 'Migracion de cuentas de correo IMAP externas hacia el panel (solo administradores).', '1701028845', 'true', NULL, '');
+INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('61', '6', 'IMAP Migration (imapsync)', '100', 'imapsync', 'user', 'Migracion de cuentas de correo IMAP externas hacia el panel (cada usuario migra su correo; ajustes solo admin).', '1701028845', 'true', NULL, '');
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('50', '3', 'View Logs', '101', 'user_logviewer', 'user', 'Allows user to view several logs of their sites', '1701028845', 'true', NULL, 'http://zppy-repo.mach-hosting.com/repo/user_logviewer.xml');
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('51', '5', 'Sencrypt SSL', '201', 'sencrypt', 'user', 'Add or remove Let\'s Encrypt SSL certificates for your domains and sub domains', '1701028845', 'true', NULL, 'http://zppy-repo.mach-hosting.com/testing/sencrypt.zpp');
 INSERT INTO `x_modules` (`mo_id_pk`, `mo_category_fk`, `mo_name_vc`, `mo_version_in`, `mo_folder_vc`, `mo_type_en`, `mo_desc_tx`, `mo_installed_ts`, `mo_enabled_en`, `mo_updatever_vc`, `mo_updateurl_tx`) VALUES ('52', '2', 'API Manager', '100', 'api_manager', 'user', 'Gestiona los tokens de acceso a la API REST y activa o desactiva la API.', '1782474766', 'true', NULL, NULL);
@@ -1003,7 +1003,7 @@ INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
     'mailboxes','forwarders','aliases','distlists','ftp_management',
     'mysql_databases','mysql_users','protected_directories','cron','backupmgr',
     'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
-    'sencrypt','dns_manager','user_logviewer','antispam','clamav_user');
+    'sencrypt','dns_manager','user_logviewer','antispam','clamav_user','imapsync');
 -- Resellers (grupo 2): lo de usuario + gestión de clientes/paquetes/grupos.
 INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
   SELECT '2', `mo_id_pk` FROM `x_modules` WHERE `mo_folder_vc` IN (
@@ -1013,7 +1013,7 @@ INSERT INTO `x_permissions` (`pe_group_fk`, `pe_module_fk`)
     'usage_viewer','webalizer_stats','phpinfo','phpmyadmin','faqs','webmail',
     'sencrypt','dns_manager','user_logviewer',
     'antispam','clamav_user',
-    'manage_clients','packages','shadowing','client_notices','manage_groups');
+    'manage_clients','packages','shadowing','client_notices','manage_groups','imapsync');
 
 TRUNCATE TABLE `x_quotas`;
 INSERT INTO `x_quotas` (`qt_id_pk`, `qt_package_fk`, `qt_domains_in`, `qt_subdomains_in`, `qt_parkeddomains_in`, `qt_mailboxes_in`, `qt_fowarders_in`, `qt_distlists_in`, `qt_ftpaccounts_in`, `qt_mysql_in`, `qt_cronjobs_in`, `qt_php_memory_vc`, `qt_php_upload_vc`, `qt_php_post_vc`, `qt_php_exec_in`, `qt_php_maxinput_in`, `qt_diskspace_bi`, `qt_bandwidth_bi`, `qt_bwenabled_in`, `qt_dlenabled_in`, `qt_totalbw_fk`, `qt_minbw_fk`, `qt_maxcon_fk`, `qt_filesize_fk`, `qt_filespeed_fk`, `qt_filetype_vc`, `qt_modified_in`) VALUES ('1', '1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '0', '2G', '1G', '1G', '300', '600', '0', '0', '0', '0', NULL, NULL, NULL, NULL, NULL, '*', '1');
