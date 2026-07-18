@@ -660,7 +660,49 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment');
 
         return $this->client->post($uri, json_encode($data));
     }
-		
+
+	# Revocación por la CLAVE DEL PROPIO CERTIFICADO (RFC 8555 §7.6): funciona sin importar qué cuenta
+	# emitió el cert (útil para certs heredados de otras cuentas). No requiere initAccount(); solo
+	# initCommunication() para tener el directorio y un nonce. $certData = DER base64url del cert;
+	# $certKeyPath = ruta a la clave privada del cert (private.pem). Sin código de razón = unspecified.
+	public function postRevokeByCertKey($certData, $certKeyPath)
+	{
+		if (!is_file($certKeyPath)) {
+			throw new RuntimeException("No existe la clave del certificado para revocar: $certKeyPath");
+		}
+		$data = array('certificate' => $certData);
+		return $this->revokeRequestWithKey($this->urlRevokeCert, $data, $certKeyPath);
+	}
+
+	# Igual que revokeRequest pero firmando con una clave ARBITRARIA (la del certificado) y usando
+	# SIEMPRE cabecera 'jwk' (nunca 'kid'): así la autoriza la posesión de la clave del cert, no la
+	# cuenta. Soporta RSA (lo que emite este módulo).
+	public function revokeRequestWithKey($uri, $payload, $keyPath, $nonce = null)
+	{
+		$privateKey = $this->readPrivateKey($keyPath);
+		$details    = openssl_pkey_get_details($privateKey);
+		if (!isset($details["rsa"])) {
+			throw new RuntimeException("La clave del certificado no es RSA; revocación por clave no soportada.");
+		}
+		$protected = array(
+			"alg"   => "RS256",
+			"nonce" => $nonce ? $nonce : $this->client->getLastNonce(),
+			"url"   => $uri,
+			"jwk"   => array(
+				"kty" => "RSA",
+				"n"   => Base64UrlSafeEncoder::encode($details["rsa"]["n"]),
+				"e"   => Base64UrlSafeEncoder::encode($details["rsa"]["e"]),
+			),
+		);
+		$payload64   = Base64UrlSafeEncoder::encode(empty($payload) ? "" : json_encode($payload));
+		$protected64 = Base64UrlSafeEncoder::encode(json_encode($protected));
+		openssl_sign($protected64 . '.' . $payload64, $signed, $privateKey, "SHA256");
+		$signed64 = Base64UrlSafeEncoder::encode($signed);
+		$data = array('protected' => $protected64, 'payload' => $payload64, 'signature' => $signed64);
+		$this->log("Sending revoke-by-cert-key request to $uri");
+		return $this->client->post($uri, json_encode($data));
+	}
+
 }
 
 interface ClientInterface

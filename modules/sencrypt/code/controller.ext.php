@@ -1868,8 +1868,15 @@ class module_controller extends ctrl_module {
 				$logger  = new Logger();
 				$pem2der = self::base64url(self::pem2der(file_get_contents($certFile)));
 				$le = new Analogic\ACME\Lescript($accountDir, $certlocation, $certlocation, $logger);
-				$le->initAccount();
-				$le->postRevoke($pem2der);
+				if (ctrl_options::GetSystemOption("le_staging") === "true") { $le->setCaUrl("https://acme-staging-v02.api.letsencrypt.org"); }
+					$le->initCommunication();
+					$panelCertKey = $certlocation . "/private.pem";
+					if (is_file($panelCertKey)) {
+						$le->postRevokeByCertKey($pem2der, $panelCertKey);
+					} else {
+						$le->initAccount();
+						$le->postRevoke($pem2der);
+					}
 			} catch (\Throwable $e) {
 				// Log y continuar: la limpieza local se hace igualmente.
 				error_log('sencrypt doRevokePanelSSL: fallo al revocar en LE: ' . $e->getMessage());
@@ -1929,10 +1936,17 @@ class module_controller extends ctrl_module {
 			# uses client's email used during registration
 			//$le->contact = array('mailto:' . $currentuser['email']); // optional
 		
-			$le->initAccount();
-							
-			# start revoke
-			$le->postRevoke($pem2der);
+			if (ctrl_options::GetSystemOption("le_staging") === "true") { $le->setCaUrl("https://acme-staging-v02.api.letsencrypt.org"); }
+			$le->initCommunication();
+			$certKey = $certlocation . $domain . "/private.pem";
+			if (is_file($certKey)) {
+				# Robusto: revocar con la CLAVE del propio certificado (RFC 8555; no depende de la cuenta emisora).
+				$le->postRevokeByCertKey($pem2der, $certKey);
+			} else {
+				# Fallback: revocar con la cuenta ACME compartida.
+				$le->initAccount();
+				$le->postRevoke($pem2der);
+			}
 		}
 		
 		catch (\Exception $e) {
