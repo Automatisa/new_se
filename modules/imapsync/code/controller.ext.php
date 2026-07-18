@@ -17,19 +17,13 @@ class module_controller extends ctrl_module
         $u = ctrl_users::GetUserDetail();
         return (int)($u['usergroupid'] ?? 3) === 1;
     }
-    private static function requireAdmin(): void
-    {
-        if (!self::isAdmin()) { header('Location: ./?module=dashboard'); exit; }
-    }
-
     static function getDescription() { return ui_module::GetModuleDescription(); }
     static function getModuleName()  { return ui_module::GetModuleName(); }
 
-    // Conmutador de vista: log (show=log) vs principal.
+    // Conmutador de vista: log (show=log) vs principal. Los AJUSTES (límites de recursos) están
+    // en moduleadmin (?module=moduleadmin&showinfo=imapsync), no aquí — es una vista de admin.
     static function getIsViewLog()  { return isset($_GET['show']) && $_GET['show'] === 'log'; }
-    static function getIsSettings() { return isset($_GET['show']) && $_GET['show'] === 'settings'; }
-    static function getIsMain()     { return !self::getIsViewLog() && !self::getIsSettings(); }
-    static function getAdmin()      { return self::isAdmin(); } // para <% if Admin %> en la plantilla
+    static function getIsMain()     { return !self::getIsViewLog(); }
 
     static function getFlash()
     {
@@ -115,47 +109,8 @@ class module_controller extends ctrl_module
         return $h . '</table>';
     }
 
-    // ---- Ajustes ----
-    static function getSettingsHTML()
-    {
-        self::requireAdmin(); // vista dedicada de administrador
-        // Etiqueta => [texto, valor por defecto, ámbito]. Los límites de recursos son POR PROCESO
-        // (cada migración se limita por estos criterios, NO es la suma de todas); la concurrencia es
-        // el tope GLOBAL de procesos a la vez, y las ejecuciones/día son por cuenta.
-        $f = array(
-            'imapsync_max_concurrent'   => array('Máx. procesos simultáneos', 2,   'global (todo el servidor)'),
-            'imapsync_max_per_acct_day' => array('Máx. ejecuciones por cuenta y día', 5, 'por cuenta'),
-            'imapsync_job_timeout'      => array('Timeout por tanda (segundos)', 900, 'por proceso'),
-            'imapsync_nice'             => array('Prioridad CPU (nice 0-19)', 19,   'por proceso'),
-            'imapsync_max_bytes_sec'    => array('Límite bytes/seg (0 = sin límite)', 0, 'por proceso'),
-            'imapsync_max_msgs_sec'     => array('Límite mensajes/seg (0 = sin límite)', 0, 'por proceso'),
-        );
-        $csrf = runtime_csfr::Token();
-        $h  = '<a class="btn btn-sm btn-secondary" href="./?module=imapsync">&larr; Volver a migraciones</a>';
-        $h .= '<p class="text-muted">Estos límites los fija el administrador y se aplican a CADA proceso de migración por igual (no a la suma).</p>';
-        $h .= '<form action="./?module=imapsync&action=SaveSettings" method="post">' . $csrf . '<table class="zform table">';
-        foreach ($f as $k => $d) {
-            $h .= '<tr><td style="width:320px;">' . self::esc($d[0]) . ' <small class="text-muted">(' . self::esc($d[2]) . ')</small></td>'
-                . '<td><input type="number" name="' . $k . '" value="' . self::esc(self::opt($k, $d[1])) . '" class="form-control form-control-sm" style="width:140px;"></td></tr>';
-        }
-        $h .= '<tr><td></td><td><button class="btn btn-primary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar ajustes</button></td></tr></table></form>';
-        return $h;
-    }
-
-    static function doSaveSettings()
-    {
-        global $controller;
-        runtime_csfr::Protect();
-        self::requireAdmin();
-        foreach (array('imapsync_max_concurrent', 'imapsync_max_per_acct_day', 'imapsync_job_timeout', 'imapsync_nice', 'imapsync_max_bytes_sec', 'imapsync_max_msgs_sec') as $k) {
-            $v = (int)$controller->GetControllerRequest('FORM', $k);
-            if ($v < 0) $v = 0;
-            if ($k === 'imapsync_nice' && $v > 19) $v = 19;
-            ctrl_options::SetSystemOption($k, (string)$v);
-        }
-        $_SESSION['imapsync_flash'] = array('ok', 'Ajustes guardados.');
-        if (!headers_sent()) { header('location: ./?module=imapsync'); exit; }
-    }
+    // Los AJUSTES (límites de recursos) se gestionan desde moduleadmin (?module=moduleadmin&showinfo=imapsync),
+    // que es admin-only, mediante el formulario genérico de x_settings (so_module_vc='imapsync').
 
     // ---- Lanzar (encolar) ----
     static function doLaunch()

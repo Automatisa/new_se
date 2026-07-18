@@ -11,17 +11,7 @@
         <@ ViewLogHTML @>
     <% endif %>
 
-    <% if isSettings %>
-        <@ SettingsHTML @>
-    <% endif %>
-
     <% if isMain %>
-        <% if Admin %>
-            <div style="text-align:right;margin-bottom:8px;">
-                <a class="btn btn-sm btn-outline-secondary" href="./?module=imapsync&show=settings"><i class="bi bi-sliders me-1"></i>Ajustes (límites) — admin</a>
-            </div>
-        <% endif %>
-
         <div class="zform_wrapper">
             <h2><i class="bi bi-envelope-arrow-down me-1"></i>Nueva migración (externo &rarr; panel)</h2>
             <@ MigrateFormHTML @>

@@ -273,6 +273,59 @@ class module_controller extends ctrl_module
         }
     }
 
+    // Parámetros configurables del módulo mostrado (showinfo): formulario GENÉRICO editable con los
+    // ajustes de x_settings cuyo so_module_vc = ese módulo. Así los parámetros de cualquier módulo se
+    // configuran DESDE moduleadmin (que es admin-only). booleano si so_defvalues_tx = 'true|false'.
+    static function getModuleSettingsHTML()
+    {
+        global $zdbh, $controller;
+        if (!self::getIsShowModuleInfo()) return '';
+        $folder = (string)$controller->GetControllerRequest('URL', 'showinfo');
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $folder)) return '';
+        $st = $zdbh->prepare("SELECT so_name_vc, so_cleanname_vc, so_value_tx, so_desc_tx, so_defvalues_tx FROM x_settings WHERE so_module_vc=:m ORDER BY so_id_pk ASC");
+        $st->execute(array(':m' => $folder));
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) return '';
+        $esc = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+        $h  = '<hr><h3>' . ui_language::translate('Module parameters') . '</h3>';
+        $h .= '<form action="./?module=moduleadmin&showinfo=' . $esc($folder) . '&action=SaveModuleSettings" method="post">' . runtime_csfr::Token();
+        $h .= '<input type="hidden" name="inModule" value="' . $esc($folder) . '"><table class="zform table">';
+        foreach ($rows as $r) {
+            $label = $r['so_cleanname_vc'] !== '' && $r['so_cleanname_vc'] !== null ? $r['so_cleanname_vc'] : $r['so_name_vc'];
+            if ((string)$r['so_defvalues_tx'] === 'true|false') {
+                $chk = ($r['so_value_tx'] === 'true') ? 'checked' : '';
+                $field = '<input type="hidden" name="in_' . $esc($r['so_name_vc']) . '" value="false"><input type="checkbox" name="in_' . $esc($r['so_name_vc']) . '" value="true" ' . $chk . '>';
+            } else {
+                $field = '<input type="text" name="in_' . $esc($r['so_name_vc']) . '" value="' . $esc($r['so_value_tx']) . '" class="form-control form-control-sm" style="max-width:280px;">';
+            }
+            $h .= '<tr><td style="width:340px;">' . $esc($label);
+            if (!empty($r['so_desc_tx'])) { $h .= '<br><small class="text-muted">' . $esc($r['so_desc_tx']) . '</small>'; }
+            $h .= '</td><td>' . $field . '</td></tr>';
+        }
+        $h .= '<tr><td></td><td><button class="btn btn-primary" type="submit">' . ui_language::translate('Save') . '</button></td></tr></table></form>';
+        return $h;
+    }
+
+    static function doSaveModuleSettings()
+    {
+        global $zdbh, $controller;
+        runtime_csfr::Protect();
+        $folder = (string)$controller->GetControllerRequest('FORM', 'inModule');
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $folder)) return;
+        $form = $controller->GetAllControllerRequests('FORM');
+        $st = $zdbh->prepare("SELECT so_name_vc, so_defvalues_tx FROM x_settings WHERE so_module_vc=:m");
+        $st->execute(array(':m' => $folder));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $key = 'in_' . $r['so_name_vc'];
+            if (!array_key_exists($key, $form)) continue;
+            $val = (string)$form[$key];
+            if ((string)$r['so_defvalues_tx'] === 'true|false') { $val = ($val === 'true') ? 'true' : 'false'; }
+            $u = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc=:n AND so_module_vc=:m");
+            $u->execute(array(':v' => $val, ':n' => $r['so_name_vc'], ':m' => $folder));
+        }
+        if (!headers_sent()) { header('Location: ./?module=moduleadmin&showinfo=' . urlencode($folder)); exit; }
+    }
+
     static function getModuleDescription()
     {
         global $controller;
