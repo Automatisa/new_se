@@ -95,6 +95,61 @@ function sencrypt_le_subdir() {
     return sencrypt_is_staging() ? 'letsencrypt-staging' : 'letsencrypt';
 }
 
+# Bloque vh_ssl_tx que apunta al certificado WILDCARD del dominio padre (para servirlo en subdominios).
+function sencrypt_wildcard_ssl_tx($username, $parentDomain) {
+    $base = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . sencrypt_le_subdir() . "/" . $parentDomain . "/";
+    $t  = "# Made from Sencrypt - wildcard - start\n\n";
+    $t .= "SSLEngine On\n";
+    $t .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n";
+    $t .= "SSLHonorCipherOrder on\n";
+    $t .= "SSLCipherSuite \"ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384\"\n";
+    $t .= "SSLCertificateFile " . $base . "cert.pem\n";
+    $t .= "SSLCertificateKeyFile " . $base . "private.pem\n";
+    $t .= "SSLCACertificateFile " . $base . "chain.pem\n";
+    $t .= "# Made from Sencrypt - wildcard - end\n";
+    return $t;
+}
+
+# Cablea los SUBDOMINIOS de un dominio con wildcard para que sirvan el cert *.dominio del padre:
+# les fija vh_ssl_tx -> cert del padre y los marca vh_le_wildcard_in=2 ("cubierto") para que el
+# daemon NO les emita un cert propio. Se llama tras emitir/renovar el wildcard del padre.
+function sencrypt_wire_wildcard_subdomains($parentVhost) {
+    global $zdbh;
+    $owner = ctrl_users::GetUserDetail($parentVhost['vh_acc_fk']);
+    if (!$owner) return;
+    $ssl = sencrypt_wildcard_ssl_tx($owner['username'], $parentVhost['vh_name_vc']);
+    $q = $zdbh->prepare("SELECT vh_id_pk FROM x_vhosts WHERE vh_type_in=2 AND vh_deleted_ts IS NULL AND vh_name_vc LIKE :pat");
+    $q->execute(array(':pat' => '%.' . $parentVhost['vh_name_vc']));
+    $n = 0;
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $s) {
+        $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:t, vh_ssl_port_in=443, vh_le_wildcard_in=2 WHERE vh_id_pk=:id")
+             ->execute(array(':t' => $ssl, ':id' => $s['vh_id_pk']));
+        $n++;
+    }
+    if ($n > 0) {
+        ctrl_options::SetSystemOption('apache_changed', 'true');
+        echo "   Wildcard: cableados $n subdominio(s) al cert del padre." . fs_filehandler::NewLine();
+    }
+}
+
+# Offboarding / seguridad: borra TXT _acme-challenge huérfanos (>1 día) que quedaran si una validación
+# DNS-01 se interrumpió (el flujo normal los borra con Dns01Cleanup). Marca las zonas afectadas para rebuild.
+function sencrypt_cleanup_stale_acme() {
+    global $zdbh;
+    $zones = $zdbh->query("SELECT DISTINCT dn_vhost_fk FROM x_dns
+        WHERE dn_type_vc='TXT' AND dn_host_vc LIKE '\\_acme-challenge%' AND dn_deleted_ts IS NULL
+          AND dn_created_ts IS NOT NULL AND dn_created_ts < (UNIX_TIMESTAMP() - 86400)")->fetchAll(PDO::FETCH_COLUMN);
+    if (!$zones) return;
+    $zdbh->exec("UPDATE x_dns SET dn_deleted_ts=UNIX_TIMESTAMP()
+        WHERE dn_type_vc='TXT' AND dn_host_vc LIKE '\\_acme-challenge%' AND dn_deleted_ts IS NULL
+          AND dn_created_ts IS NOT NULL AND dn_created_ts < (UNIX_TIMESTAMP() - 86400)");
+    $row = $zdbh->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='dns_hasupdates'")->fetch();
+    $ids = array_filter(explode(',', (string)($row['so_value_tx'] ?? '')), 'strlen');
+    foreach ($zones as $z) { if (!in_array((string)$z, $ids, true)) { $ids[] = (string)$z; } }
+    $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_hasupdates'")->execute(array(':v' => implode(',', $ids)));
+    echo "Sencrypt: limpiados " . count($zones) . " grupo(s) de TXT _acme-challenge huérfanos." . fs_filehandler::NewLine();
+}
+
 # Cachea el estado de un certificado en x_le_status (para la vista de administración): lee la fecha
 # de emisión/caducidad del .pem y clasifica el estado. Si hubo error en la pasada, lo guarda.
 function sencrypt_status_upsert($vhostFk, $domain, $owner, $certfile, $lastErr, $ariStart = null, $ariEnd = null, $renewAt = null) {
@@ -135,6 +190,9 @@ function renewCertificates() {
 	$sslVhosts = $rowvhost->fetchAll();
 	$result = "";
 
+	// Offboarding / seguridad: barrido de TXT _acme-challenge huérfanos.
+	sencrypt_cleanup_stale_acme();
+
 	// Escalado (100+ dominios): límite de EMISIONES por pasada para no superar el límite de LE de
 	// 300 órdenes/cuenta/3h, y BACKOFF si LE devuelve rate-limit (se pausan emisiones hasta la marca).
 	// Las que no entran esta pasada se emiten en la siguiente. Las renovaciones se reparten además por
@@ -151,6 +209,12 @@ function renewCertificates() {
 		if ($sslVhost['vh_ssl_tx'] !== false) {
 
 			$lastErr = '';
+			// Subdominio CUBIERTO por el wildcard del padre (vh_le_wildcard_in=2): sirve el cert del
+			// padre (su vh_ssl_tx ya apunta ahí) y NO se le emite cert propio. Saltar.
+			if ((int)($sslVhost['vh_le_wildcard_in'] ?? 0) === 2) {
+				echo "Domain: " . $sslVhost['vh_name_vc'] . " — cubierto por wildcard del padre (sin cert propio)." . fs_filehandler::NewLine();
+				continue;
+			}
 			$vhostOwner = ctrl_users::GetUserDetail($sslVhost['vh_acc_fk']);
 			$_vhp_ssl = ctrl_options::GetVhostPaths($vhostOwner['username'], $sslVhost['vh_directory_vc']);
 			$domainPath = $_vhp_ssl['public_html'];
@@ -275,6 +339,8 @@ function renewCertificates() {
 						echo "   WILDCARD (DNS-01): emitiendo *.".$domain." + ".$domain.fs_filehandler::NewLine();
 						$le->signDomains(array('*.'.$domain, $domain), false, $replaces, 'dns-01',
 							array('module_controller','Dns01Provision'), array('module_controller','Dns01Cleanup'));
+							// Cablear los subdominios del dominio para que sirvan este cert wildcard.
+							sencrypt_wire_wildcard_subdomains($sslVhost);
 					} else if ($domainType == 2 ) {
 						// Create domain without www. becuase its a subdomain
 						$le->signDomains(array($domain), false, $replaces);
