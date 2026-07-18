@@ -601,12 +601,12 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment');
 	
 	
 	function postRevoke($certData) {
-		
-		$reason = "1";
-		
+
+        # Se revoca SIN código de razón -> Let's Encrypt asume "unspecified" (0), que es lo correcto
+        # para una revocación normal iniciada por el usuario. NO usar keyCompromise (1): LE BLOQUEA
+        # esa clave para siempre; reservado a compromiso real de la clave privada (doc de revoking).
         $data = array(
             'certificate' => $certData
-			//'reason' => $reason
         );
 
         $this->log('Sending request to revoke certificate');

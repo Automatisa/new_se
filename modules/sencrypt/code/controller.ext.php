@@ -1853,8 +1853,11 @@ class module_controller extends ctrl_module {
 		$username    = $currentuser["username"];
 		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
 
-		$accountDir   = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/letsencrypt/";
-		$certlocation = $accountDir . $panelDomain;               // dir con cert.pem del panel
+		// Cuenta ACME COMPARTIDA (igual que la emisión, FIX-212); el cert del panel sigue en su home.
+		$staging      = ctrl_options::GetSystemOption('le_staging') === 'true';
+		$leSub        = $staging ? 'letsencrypt-staging' : 'letsencrypt';
+		$accountDir   = $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+		$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . $leSub . "/" . $panelDomain; // dir con cert.pem del panel
 		$certFile     = $certlocation . "/cert.pem";
 
 		// 1) Revocar en Let's Encrypt (best-effort: no romper el panel si falla)
@@ -1897,8 +1900,14 @@ class module_controller extends ctrl_module {
 		$currentuser = ctrl_users::GetUserDetail();
 		$username = $currentuser["username"];
 		$userid = $currentuser["userid"];
-		$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/letsencrypt/";
-		$certlocation = $accountDir . $domain;
+		// Revocación por la CUENTA ACME COMPARTIDA (la misma con la que se emite tras FIX-212); si se
+		// usara la antigua cuenta por-usuario, LE rechazaría la revocación (no emitió el cert). Los
+		// certificados siguen siendo por usuario. $certlocation es la base por-usuario SIN el dominio,
+		// porque más abajo se le añade "$domain/..." (antes se duplicaba el dominio en la ruta).
+		$staging      = ctrl_options::GetSystemOption('le_staging') === 'true';
+		$leSub        = $staging ? 'letsencrypt-staging' : 'letsencrypt';
+		$accountDir   = $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+		$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . $leSub . "/";
 		$_vhp2 = ctrl_options::GetVhostPaths($username, str_replace('.', '_', $domain));
 		$domainRoot = $_vhp2['public_html'];
 
