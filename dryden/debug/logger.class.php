@@ -2,6 +2,7 @@
 
 /**
  * @copyright 2014-2023 Sentora Project (http://www.sentora.org/) 
+ * @copyright 2024-present Bulwark / Automatisa (GPLv3 fork of Sentora)
  * Sentora is a GPL fork of the ZPanel Project whose original header follows:
  *
  * Logger class logs infomation passed to it and can record and report debug infomation in a number of ways.

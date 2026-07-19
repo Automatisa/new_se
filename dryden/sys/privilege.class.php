@@ -2,6 +2,7 @@
 
 /**
  * @copyright 2014-2023 Sentora Project (http://www.sentora.org/)
+ * @copyright 2024-present Bulwark / Automatisa (GPLv3 fork of Sentora)
  *
  * Privilege-escalation helper — replaces the legacy `zsudo` setuid binary.
  *

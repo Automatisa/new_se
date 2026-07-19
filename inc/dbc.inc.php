@@ -2,6 +2,7 @@
 
 /**
  * @copyright 2014-2023 Sentora Project (http://www.sentora.org/) 
+ * @copyright 2024-present Bulwark / Automatisa (GPLv3 fork of Sentora)
  * Sentora is a GPL fork of the ZPanel Project whose original header follows:
  *
  * Initiates the database driver object and debug object and registers the $zdhb and $zlo globals for the framework.
