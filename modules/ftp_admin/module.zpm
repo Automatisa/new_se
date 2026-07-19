@@ -78,7 +78,7 @@
 
                 <% if FtpSencryptCerts %>
                 <h5>Certificados detectados en el servidor</h5>
-                <p class="text-muted" style="font-size:12px;">Certs Let's Encrypt y SSL comerciales ya instalados en Sentora. Selecciona uno para usarlo en ProFTPD.</p>
+                <p class="text-muted" style="font-size:12px;">Certs Let's Encrypt y SSL comerciales ya instalados en Bulwark. Selecciona uno para usarlo en ProFTPD.</p>
                 <div class="table-responsive"><table class="table table-striped table-sm">
                     <thead><tr><th>Dominio</th><th>Tipo</th><th>Caduca</th><th></th></tr></thead>
                     <tbody>
@@ -135,7 +135,7 @@
                 <% else %>
                 <div class="alert alert-info" style="margin-top:18px;">
                     <strong>Let's Encrypt gratuito:</strong> usa el módulo <strong>SSL Certificates</strong>
-                    de Sentora para generar un cert para tu dominio. Una vez emitido aparecerá en la lista de arriba.
+                    de Bulwark para generar un cert para tu dominio. Una vez emitido aparecerá en la lista de arriba.
                 </div>
                 <% endif %>
 

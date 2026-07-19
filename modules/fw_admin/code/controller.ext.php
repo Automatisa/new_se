@@ -562,11 +562,11 @@ class module_controller extends ctrl_module
         $html .= '<div class="alert alert-info" style="max-width:600px;font-size:12px;margin-top:10px;">'
                . '<strong>Fragmento requerido en <code>/etc/pf.conf</code></strong> (ejecutar <code>service pf reload</code> tras añadirlo):<br>'
                . '<pre style="margin:6px 0;font-size:11px;">'
-               . "table &lt;sentora_whitelist&gt; persist file \"/var/bulwark/run/pf_whitelist.txt\"\n"
-               . "table &lt;sentora_blocked&gt;   persist file \"/var/bulwark/run/pf_blocked.txt\"\n"
+               . "table &lt;bulwark_whitelist&gt; persist file \"/var/bulwark/run/pf_whitelist.txt\"\n"
+               . "table &lt;bulwark_blocked&gt;   persist file \"/var/bulwark/run/pf_blocked.txt\"\n"
                . "table &lt;sshguard&gt;           persist\n\n"
-               . "pass  quick from &lt;sentora_whitelist&gt;\n"
-               . "block drop quick from &lt;sentora_blocked&gt;\n"
+               . "pass  quick from &lt;bulwark_whitelist&gt;\n"
+               . "block drop quick from &lt;bulwark_blocked&gt;\n"
                . "block drop quick from &lt;sshguard&gt;"
                . '</pre>'
                . '<strong>SSHGuard (<code>/usr/local/etc/sshguard.conf</code>) debe incluir:</strong><br>'
@@ -1146,12 +1146,12 @@ class module_controller extends ctrl_module
         }
         $html .= '</pre>';
 
-        $html .= '<h4>Reglas del anchor <code>sentora_rules</code></h4>';
+        $html .= '<h4>Reglas del anchor <code>bulwark_rules</code></h4>';
         if (empty($anchor)) {
             $html .= '<p class="text-muted" style="font-size:12px;">'
                    . 'El anchor está vacío (sin reglas personalizadas activas) '
                    . 'o no está declarado en <code>/etc/pf.conf</code>. '
-                   . 'Añade <code>anchor "sentora_rules"</code> antes de <code>pass all</code>.</p>';
+                   . 'Añade <code>anchor "bulwark_rules"</code> antes de <code>pass all</code>.</p>';
         } else {
             $html .= '<pre style="font-size:11px;background:#1e1e1e;color:#90ee90;'
                    . 'padding:10px;border-radius:4px;">';

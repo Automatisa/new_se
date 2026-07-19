@@ -10,7 +10,7 @@ mkdir -p "$OUT_DIR"
 [ -d "$REPO/.git" ] || exit 0
 printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$RUN"
 {
-    logger -t sentora-updates "panel update (git pull) iniciado"
+    logger -t bulwark-updates "panel update (git pull) iniciado"
     git -C "$REPO" rev-parse HEAD > "$PREV" 2>/dev/null
     echo "== git fetch ==" > "$LOG"
     git -C "$REPO" fetch --quiet >> "$LOG" 2>&1
@@ -40,7 +40,7 @@ printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
         [ -f "$REPO/bin/fix_permissions.php" ] && php "$REPO/bin/fix_permissions.php" >> "$LOG" 2>&1
         service php_fpm reload >> "$LOG" 2>&1
     fi
-    logger -t sentora-updates "panel update terminado (rc=$RC)"
+    logger -t bulwark-updates "panel update terminado (rc=$RC)"
     printf 'panel|%s|%s|' "$RC" "$(date +%s)" > "$RES"; chown root:www "$RES" "$LOG" 2>/dev/null || true; chmod 644 "$RES" "$LOG"
     /usr/local/bulwark/bin/sys_update_check.sh >/dev/null 2>&1
     rm -f "$RUN"

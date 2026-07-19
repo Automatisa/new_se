@@ -1,7 +1,7 @@
 <?php
 /**
  * fw_admin — OnDaemonRun.hook.php
- * Se ejecuta cada ~5 minutos con el daemon de Sentora.
+ * Se ejecuta cada ~5 minutos con el daemon de Bulwark.
  *
  * Responsabilidades:
  *  1. Genera /var/bulwark/logs/fw_status.json (vía privilege::run)
@@ -162,7 +162,7 @@ try {
     if ($code !== 0) {
         echo "  WARNING: fw_block_apply returned $code — $err" . fs_filehandler::NewLine();
     } else {
-        echo "  pf sentora_blocked table refreshed." . fs_filehandler::NewLine();
+        echo "  pf bulwark_blocked table refreshed." . fs_filehandler::NewLine();
     }
 } catch (\Exception $e) {
     echo "  ERROR (fw_block_apply): " . $e->getMessage() . fs_filehandler::NewLine();
@@ -176,21 +176,21 @@ try {
     if ($code !== 0) {
         echo "  WARNING: fw_whitelist_apply returned $code — $err" . fs_filehandler::NewLine();
     } else {
-        echo "  pf sentora_whitelist table refreshed." . fs_filehandler::NewLine();
+        echo "  pf bulwark_whitelist table refreshed." . fs_filehandler::NewLine();
     }
 } catch (\Exception $e) {
     echo "  ERROR (fw_whitelist_apply): " . $e->getMessage() . fs_filehandler::NewLine();
     error_log(date('Y-m-d H:i:s') . " fw_admin OnDaemonRun fw_whitelist_apply: " . $e->getMessage());
 }
 
-// ---- 5. Re-aplicar reglas personalizadas al anchor sentora_rules ----
+// ---- 5. Re-aplicar reglas personalizadas al anchor bulwark_rules ----
 echo "Re-applying custom rules to pf anchor..." . fs_filehandler::NewLine();
 try {
     [$code,, $err] = privilege::run('fw_rules_apply');
     if ($code !== 0) {
         echo "  WARNING: fw_rules_apply returned $code — $err" . fs_filehandler::NewLine();
     } else {
-        echo "  pf anchor sentora_rules refreshed." . fs_filehandler::NewLine();
+        echo "  pf anchor bulwark_rules refreshed." . fs_filehandler::NewLine();
     }
 } catch (\Exception $e) {
     echo "  ERROR (fw_rules_apply): " . $e->getMessage() . fs_filehandler::NewLine();

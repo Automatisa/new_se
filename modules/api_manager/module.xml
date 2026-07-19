@@ -5,7 +5,7 @@
     <type>user</type>
     <defaultcat>Server Admin</defaultcat>
     <desc>Gestiona los tokens de acceso a la API REST y activa o desactiva la API.</desc>
-    <authorname>Sentora Fork</authorname>
+    <authorname>Bulwark Fork</authorname>
     <authoremail>admin@localhost</authoremail>
     <authorurl>http://localhost/</authorurl>
 </module>

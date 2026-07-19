@@ -1,11 +1,11 @@
 #!/bin/sh
 # Actualiza las rutas de certificado TLS en el config de ProFTPD.
-# Lee las rutas desde /tmp/sentora_ftp_cert y /tmp/sentora_ftp_key.
+# Lee las rutas desde /tmp/bulwark_ftp_cert y /tmp/bulwark_ftp_key.
 # Llamado por privilege::run('proftpd_cert_paths_update') como root via doas.
 
 TMPDIR="/tmp"
-CERTPATH_FILE="$TMPDIR/sentora_ftp_cert"
-KEYPATH_FILE="$TMPDIR/sentora_ftp_key"
+CERTPATH_FILE="$TMPDIR/bulwark_ftp_cert"
+KEYPATH_FILE="$TMPDIR/bulwark_ftp_key"
 REAL_CONFIG="/usr/local/etc/bulwark/proftpd/proftpd-mysql.conf"
 
 if [ ! -f "$CERTPATH_FILE" ] || [ ! -f "$KEYPATH_FILE" ]; then

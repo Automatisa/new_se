@@ -3,9 +3,9 @@
 # Llamado por privilege::run('proftpd_config_update') como root via doas.
 # El panel (zpanel) escribe el contenido nuevo en TMPFILE antes de llamar a este script.
 
-TMPFILE="/tmp/sentora_proftpd_new.conf"
+TMPFILE="/tmp/bulwark_proftpd_new.conf"
 REAL_CONFIG="/usr/local/etc/bulwark/proftpd/proftpd-mysql.conf"
-BACKUP="/tmp/sentora_proftpd_backup.conf"
+BACKUP="/tmp/bulwark_proftpd_backup.conf"
 
 if [ ! -f "$TMPFILE" ]; then
     echo "ERROR: fichero temporal no encontrado" >&2

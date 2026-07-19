@@ -86,7 +86,7 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
                         $sql_path = $temp_dir . $db_name . "_" . $dbstamp . ".sql";
 
                         // Write temporary credentials file to avoid credentials in process list
-                        $cnf_path = tempnam(sys_get_temp_dir(), 'sentora_bu') . '.cnf';
+                        $cnf_path = tempnam(sys_get_temp_dir(), 'bulwark_bu') . '.cnf';
                         file_put_contents($cnf_path, "[mysqldump]\nhost={$host}\nuser={$user}\npassword={$pass}\n");
                         chmod($cnf_path, 0600);
 
@@ -234,7 +234,7 @@ if (ui_module::CheckModuleEnabled('Backup Config')) {
     echo fs_filehandler::NewLine() . "Purging backups from temp folder..." . fs_filehandler::NewLine();
     clearstatcache();
     echo "[FILE][PURGE_DATE][FILE_DATE][ACTION]" . fs_filehandler::NewLine();
-    $temp_dir = ctrl_options::GetSystemOption('sentora_root') . "/modules/backupmgr/temp/";
+    $temp_dir = ctrl_options::GetSystemOption('bulwark_root') . "/modules/backupmgr/temp/";
     if ($handle = @opendir($temp_dir)) {
         while (false !== ($file = readdir($handle))) {
             if ($file != "." && $file != "..") {

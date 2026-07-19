@@ -146,7 +146,7 @@ class module_controller extends ctrl_module
         return '';
     }
 
-    public static function getSentoraUpdates()
+    public static function getBulwarkUpdates()
     {
         $installed = htmlspecialchars((string)ctrl_options::GetSystemOption('dbversion'), ENT_QUOTES, 'UTF-8');
         return 'Versión del panel: <strong>' . $installed . '</strong>';

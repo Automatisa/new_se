@@ -1,5 +1,5 @@
 #!/bin/sh
-# fw_block_apply.sh — Reconstruye la tabla pf 'sentora_blocked' desde la BD.
+# fw_block_apply.sh — Reconstruye la tabla pf 'bulwark_blocked' desde la BD.
 # Invocado ÚNICAMENTE por privilege::run('fw_block_apply'). Sin argumentos.
 #
 # Flujo de datos seguro:
@@ -9,7 +9,7 @@
 #   4. Escribe a fichero temporal, mueve atómicamente a destino
 #   5. Reemplaza la tabla pf en caliente (sin recargar pf.conf completo)
 
-TABLE="sentora_blocked"
+TABLE="bulwark_blocked"
 DESTFILE="/var/bulwark/run/pf_blocked.txt"
 CNF="/usr/local/bulwark/cnf/db.php"
 mkdir -p /var/bulwark/run

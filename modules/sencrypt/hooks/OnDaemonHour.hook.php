@@ -1,6 +1,6 @@
 <?php
 /**
-	* Controller for sencrypt module for sentora version 2.0.0
+	* Controller for sencrypt module for bulwark version 2.0.0
 	* Version : 3.0.1
 	* Author : TGates
 	* Additional work by Diablo925, Jettaman
@@ -361,7 +361,7 @@ function renewCertificates() {
 							echo "ERROR: ".$emsg.fs_filehandler::NewLine();
 						}
 						$lastErr = $emsg;
-						error_log( date("Y-m-d H:i:s")." - DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("sentora_root")."modules/sencrypt/sencrypt.log");
+						error_log( date("Y-m-d H:i:s")." - DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("bulwark_root")."modules/sencrypt/sencrypt.log");
 					}
 			}
 
@@ -375,7 +375,7 @@ function renewCertificates() {
 					$daysLeft = floor(($cd['validTo_time_t'] - time()) / 86400);
 					if ($daysLeft <= 10) {
 						echo "   WARNING: el certificado de " . $domain . " caduca en " . $daysLeft . " días y no se ha renovado." . fs_filehandler::NewLine();
-						error_log(date('Y-m-d H:i:s') . " - EXPIRY WARNING - " . $domain . " caduca en " . $daysLeft . " dias\n", 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
+						error_log(date('Y-m-d H:i:s') . " - EXPIRY WARNING - " . $domain . " caduca en " . $daysLeft . " dias\n", 3, ctrl_options::GetSystemOption('bulwark_root') . 'modules/sencrypt/sencrypt.log');
 					}
 				}
 			}
@@ -396,17 +396,17 @@ function renewPanelCertificates() {
 
 	$result = "";
 
-		if ((ctrl_options::GetSystemOption('panel_ssl_tx') != NULL) && (ctrl_options::GetSystemOption('sentora_port' ) == 443 )) {
+		if ((ctrl_options::GetSystemOption('panel_ssl_tx') != NULL) && (ctrl_options::GetSystemOption('bulwark_port' ) == 443 )) {
 
 			# Renew values
 			$panelOwner = "zadmin";
-			$domainPath = ctrl_options::GetSystemOption('sentora_root');
-			echo "Checking certificate for Control Panel Domain: " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
+			$domainPath = ctrl_options::GetSystemOption('bulwark_root');
+			echo "Checking certificate for Control Panel Domain: " . ctrl_options::GetSystemOption('bulwark_domain') . fs_filehandler::NewLine();
 
 			// Configuration:
-			$domains = ctrl_options::GetSystemOption('sentora_domain');
+			$domains = ctrl_options::GetSystemOption('bulwark_domain');
 			$domains = array($domains);
-			$domain = ctrl_options::GetSystemOption('sentora_domain');
+			$domain = ctrl_options::GetSystemOption('bulwark_domain');
 			$webroot = $domainPath;
 
 			# Cuenta ACME compartida del servidor (no una por usuario) — ver sencrypt_shared_account_dir(sencrypt_is_staging()).
@@ -501,7 +501,7 @@ function renewPanelCertificates() {
 						} else {
 							echo "ERROR: ".$emsg.fs_filehandler::NewLine();
 						}
-						error_log( date("Y-m-d H:i:s")." - PANEL DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("sentora_root")."modules/sencrypt/sencrypt.log");
+						error_log( date("Y-m-d H:i:s")." - PANEL DOMAIN: ".$domain." - ".$emsg."\n", 3, ctrl_options::GetSystemOption("bulwark_root")."modules/sencrypt/sencrypt.log");
 					}
 			}
 

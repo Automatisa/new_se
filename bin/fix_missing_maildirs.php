@@ -1,7 +1,7 @@
 <?php
 /**
  * fix_missing_maildirs.php
- * Crea la estructura Maildir++ en disco para cualquier buzón activo en sentora_postfix
+ * Crea la estructura Maildir++ en disco para cualquier buzón activo en bulwark_postfix
  * que no tenga directorio. Útil tras migraciones o cuando el panel falla al crear dirs.
  * Uso: php /usr/local/bulwark/bin/fix_missing_maildirs.php
  */

@@ -101,11 +101,11 @@ class runtime_controller
     private static function prgInjectFlash(): void
     {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') return;
-        if (empty($_SESSION['_sentora_prg'])) return;
+        if (empty($_SESSION['_bulwark_prg'])) return;
         if (!class_exists('module_controller', false)) return;
 
-        $flash   = $_SESSION['_sentora_prg'];
-        unset($_SESSION['_sentora_prg']);
+        $flash   = $_SESSION['_bulwark_prg'];
+        unset($_SESSION['_bulwark_prg']);
         $targets = ($flash['type'] === 'ok') ? self::$PRG_OK_PROPS : self::$PRG_ERR_PROPS;
 
         foreach ($targets as $p) {
@@ -150,7 +150,7 @@ class runtime_controller
             }
         }
         if ($flash !== null) {
-            $_SESSION['_sentora_prg'] = $flash;
+            $_SESSION['_bulwark_prg'] = $flash;
         }
         $qs = $_GET;
         unset($qs['action']);

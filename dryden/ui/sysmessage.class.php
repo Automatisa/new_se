@@ -28,7 +28,7 @@ class ui_sysmessage {
      */
     static function shout($message,  $class = "zannounce", $title = '', $closeBtn = true) {
 
-        // Convert Sentora CSS Class to Bootstrap Class
+        // Convert Bulwark CSS Class to Bootstrap Class
         switch ($class) {
             case 'zannounce':
             case 'zannounceinfo':

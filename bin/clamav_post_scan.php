@@ -9,7 +9,7 @@
  * Uso: php clamav_post_scan.php <infected_list_file>
  */
 
-define('SENTORA_ROOT',      '/usr/local/bulwark');
+define('BULWARK_ROOT',      '/usr/local/bulwark');
 define('HOSTDATA_ROOT',     '/var/bulwark/hostdata');
 define('ADMIN_QUARANTINE',  '/var/bulwark/clamav/quarantine');
 define('SCAN_LOG',          '/var/bulwark/clamav/scan_results.log');
@@ -17,7 +17,7 @@ define('RESTORE_REQUESTS',  '/var/bulwark/run/restore_requests');
 define('REDIS_HOST',        '127.0.0.1');
 define('REDIS_PORT',        6379);
 
-require_once SENTORA_ROOT . '/cnf/db.php';
+require_once BULWARK_ROOT . '/cnf/db.php';
 
 // ---- DB / Redis helpers ------------------------------------------------
 
@@ -175,7 +175,7 @@ function sendUserEmail(string $email, string $username, array $quarantined): voi
 
     $headers = "From: seguridad@" . php_uname('n') . "\r\n"
         . "Content-Type: text/plain; charset=UTF-8\r\n"
-        . "X-Mailer: Sentora-ClamAV\r\n";
+        . "X-Mailer: Bulwark-ClamAV\r\n";
 
     @mail($email, '=?UTF-8?B?' . base64_encode($subject) . '?=', $body, $headers);
 }
@@ -183,7 +183,7 @@ function sendUserEmail(string $email, string $username, array $quarantined): voi
 function updateRedisNotification(string $username, int $count): void {
     $r = redisClient();
     if ($r === null) return;
-    $key = "sentora:quarantine:$username:count";
+    $key = "bulwark:quarantine:$username:count";
     if ($count > 0) {
         $r->set($key, $count);
     } else {

@@ -98,7 +98,7 @@ class module_controller extends ctrl_module
                 return ui_sysmessage::shout(ui_language::translate("Sorry, your current password does not match the one on your account!"), "zannounceerror");
             }
             if (self::$error == "error") {
-                return ui_sysmessage::shout(ui_language::translate("An error occured and your Sentora account password could not be updated. Please ensure you entered all passwords correctly and try again."), "zannounceerror");
+                return ui_sysmessage::shout(ui_language::translate("An error occured and your Bulwark account password could not be updated. Please ensure you entered all passwords correctly and try again."), "zannounceerror");
             }
             if (self::$error == "short") {
                 return ui_sysmessage::shout(ui_language::translate("Your password did not meet the minimun length requirements. Characters needed for password length") . ": " . ctrl_options::GetSystemOption('password_minlength'), "zannounceerror");

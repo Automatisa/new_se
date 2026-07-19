@@ -279,7 +279,7 @@ class module_controller extends ctrl_module
         $grant_sql = "GRANT ALL PRIVILEGES ON `$my_name_vc`.* TO `$usernameEsc`@`$accessEsc`";
         $zdbh->exec($grant_sql);
         $zdbh->exec("FLUSH PRIVILEGES");
-        // Add user to Sentora database...
+        // Add user to Bulwark database...
         $sql = $zdbh->prepare("INSERT INTO x_mysql_users (
 								mu_acc_fk,
 								mu_name_vc,
@@ -310,7 +310,7 @@ class module_controller extends ctrl_module
         $numrows->bindParam(':access', $access);
         $numrows->execute();
         $rowuser = $numrows->fetch();
-        // Add database to Sentora user account...
+        // Add database to Bulwark user account...
         self::ExecuteAddDB($uid, $rowuser['mu_id_pk'], $database);
         runtime_hook::Execute('OnAfterCreateDatabaseUser');
         self::$ok = true;

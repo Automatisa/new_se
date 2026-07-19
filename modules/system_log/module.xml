@@ -3,8 +3,8 @@
     <name>System Logs</name>
     <version>100</version>
     <defaultcat>Server Admin</defaultcat>
-    <desc>View, filter and manage internal Sentora system logs (x_logs table). Allows configuring retention period, purging and exporting logs as CSV.</desc>
-    <authorname>new_sentora</authorname>
-    <authoremail>admin@sentora.local</authoremail>
+    <desc>View, filter and manage internal Bulwark system logs (x_logs table). Allows configuring retention period, purging and exporting logs as CSV.</desc>
+    <authorname>new_bulwark</authorname>
+    <authoremail>admin@bulwark.local</authoremail>
     <authorurl></authorurl>
 </module>

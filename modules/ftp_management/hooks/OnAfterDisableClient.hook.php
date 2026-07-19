@@ -27,7 +27,7 @@ function SuspendFTPAccounts() {
 
     include('cnf/db.php');
     try {
-        $ftp_db = new db_driver("mysql:host={$host};dbname=sentora_proftpd", $user, $pass);
+        $ftp_db = new db_driver("mysql:host={$host};dbname=bulwark_proftpd", $user, $pass);
     } catch (PDOException $e) {
         return;
     }

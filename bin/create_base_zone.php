@@ -5,7 +5,7 @@
  * (modelo de nameservers compartidos, tipo HestiaCP) como dominio de 'zadmin'.
  *
  * Lee los ajustes dns_provider_domain / dns_ns1 / dns_ns2 / dns_ns1_ip /
- * dns_ns2_ip / server_ip / sentora_domain de x_settings y crea:
+ * dns_ns2_ip / server_ip / bulwark_domain de x_settings y crea:
  *   - el vhost del dominio proveedor (directorios + fila en x_vhosts)
  *   - la zona DNS: SOA(dns_ns1), NS ns1/ns2, A ns1/ns2 (a sus IPs), A @, A www,
  *     A del subdominio del panel, A mail, MX, SPF, DMARC y placeholder DKIM.
@@ -45,7 +45,7 @@ if (fs_director::CheckForEmptyValue($ns1))   { $ns1   = 'ns1.' . $provider; }
 if (fs_director::CheckForEmptyValue($ns2))   { $ns2   = 'ns2.' . $provider; }
 if (fs_director::CheckForEmptyValue($ns1ip)) { $ns1ip = $ip; }
 if (fs_director::CheckForEmptyValue($ns2ip)) { $ns2ip = $ip; }
-$fqdn = ctrl_options::GetSystemOption('sentora_domain'); // p.ej. panel.provider.com
+$fqdn = ctrl_options::GetSystemOption('bulwark_domain'); // p.ej. panel.provider.com
 
 // Cuenta zadmin (grupo 1)
 $uid = $zdbh->query("SELECT ac_id_pk FROM x_accounts WHERE ac_user_vc='zadmin' AND ac_deleted_ts IS NULL LIMIT 1")->fetchColumn();

@@ -13,7 +13,7 @@ if (!class_exists('mysql_quota_manager')) {
  * bajar del límite se restauran los grants completos. El estado se guarda en
  * x_mysql_quota_state para no re-aplicar grants en cada ciclo del daemon.
  *
- * Requiere que el usuario del panel tenga GRANT OPTION (lo tiene: sentora_panel).
+ * Requiere que el usuario del panel tenga GRANT OPTION (lo tiene: bulwark_panel).
  */
 class mysql_quota_manager
 {

@@ -369,7 +369,7 @@ input[type=submit] {
                 </tr>
                 <tr>
                     <th><: Email subject :>:</th>
-                    <td><input name="inEmailSubject" type="text" id="inEmailSubject" value="<: Your Sentora Account details :>" style="width:380px;" /></td>
+                    <td><input name="inEmailSubject" type="text" id="inEmailSubject" value="<: Your Bulwark Account details :>" style="width:380px;" /></td>
                 </tr>
                 <tr>
                     <th><: Email body :>:</th>

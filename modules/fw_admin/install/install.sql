@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS x_fw_auto_banned (
     UNIQUE KEY uk_ip (fa_ip_vc)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Reglas personalizadas de pf (cargadas en anchor "sentora_rules")
+-- Reglas personalizadas de pf (cargadas en anchor "bulwark_rules")
 -- La política base de pf.conf debe ser: block in all / pass out all
 CREATE TABLE IF NOT EXISTS x_fw_rules (
     fr_id_pk        INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,7 +89,7 @@ INSERT IGNORE INTO x_permissions (pe_group_fk, pe_module_fk)
 -- Requiere que /etc/pf.conf tenga:
 --   block in all          ← bloquea todo lo entrante por defecto
 --   pass out all          ← permite todo lo saliente
---   anchor "sentora_rules" ← donde se cargan estas reglas
+--   anchor "bulwark_rules" ← donde se cargan estas reglas
 -- ────────────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO x_fw_rules
     (fr_action_en, fr_proto_vc, fr_direction_en, fr_src_vc,

@@ -2,9 +2,9 @@
 /**
  * @package system_log
  * @version 100
- * @author new_sentora
+ * @author new_bulwark
  *
- * Admin-only module for managing internal Sentora system logs (x_logs).
+ * Admin-only module for managing internal Bulwark system logs (x_logs).
  * Access restricted to group 1 (Administrators) via x_permissions.
  */
 
@@ -87,7 +87,7 @@ class module_controller extends ctrl_module
         );
         $stmt->execute();
         header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="sentora_logs_' . date('Ymd_His') . '.csv"');
+        header('Content-Disposition: attachment; filename="bulwark_logs_' . date('Ymd_His') . '.csv"');
         header('Cache-Control: no-cache, must-revalidate');
         header('Pragma: no-cache');
         $out = fopen('php://output', 'w');

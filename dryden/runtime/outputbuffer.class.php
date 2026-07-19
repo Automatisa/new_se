@@ -5,7 +5,7 @@
  * @copyright 2024-present Bulwark / Automatisa (GPLv3 fork of Sentora)
  *
  * Output buffering support class.
- * @package sentora
+ * @package bulwark
  * @subpackage dryden -> runtime
  * @version 1.0.0
  * @author Bobby Allen (ballen@bobbyallen.me)

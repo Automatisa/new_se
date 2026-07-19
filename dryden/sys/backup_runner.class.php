@@ -32,7 +32,7 @@ class sys_backup_runner
 
         $homedir  = ctrl_options::GetSystemOption('hosted_dir') . $username;
         $temp_dir = ctrl_options::GetSystemOption('temp_dir');
-        if ($temp_dir === '' || $temp_dir === false) $temp_dir = ctrl_options::GetSystemOption('sentora_root') . 'etc/tmp/';
+        if ($temp_dir === '' || $temp_dir === false) $temp_dir = ctrl_options::GetSystemOption('bulwark_root') . 'etc/tmp/';
         $zip_exe  = ctrl_options::GetSystemOption('zip_exe');
         $backupname = $username . "_" . date("M-d-Y_His", time());
         $dbstamp    = date("dmy_Gi", time());
@@ -40,7 +40,7 @@ class sys_backup_runner
 
         // Credenciales de BD para mysqldump (sin exponerlas en la línea de comandos).
         $host = $user = $pass = '';
-        @include(ctrl_options::GetSystemOption('sentora_root') . 'cnf/db.php');
+        @include(ctrl_options::GetSystemOption('bulwark_root') . 'cnf/db.php');
 
         // GUARD DE DISCO: no llenar el HD con muchos temporales simultáneos.
         if (class_exists('sys_backup_retention') && !sys_backup_retention::tempSpaceGuard($username, $temp_dir)) {
@@ -60,7 +60,7 @@ class sys_backup_runner
             $db_name = $db['my_name_vc'];
             if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-]{0,63}$/', $db_name)) continue;
             $sql_path = $temp_dir . $db_name . "_" . $dbstamp . ".sql";
-            $cnf_path = tempnam(sys_get_temp_dir(), 'sentora_bu') . '.cnf';
+            $cnf_path = tempnam(sys_get_temp_dir(), 'bulwark_bu') . '.cnf';
             @file_put_contents($cnf_path, "[mysqldump]\nhost={$host}\nuser={$user}\npassword={$pass}\n");
             @chmod($cnf_path, 0600);
             self::runProc(array(ctrl_options::GetSystemOption('mysqldump_exe'), '--defaults-extra-file=' . $cnf_path, '--no-create-db', $db_name), null, $sql_path);

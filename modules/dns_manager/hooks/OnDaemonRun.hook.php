@@ -410,7 +410,7 @@ function WriteDNSNamedHook()
                     chown($keyDir, 'bind');
                     chgrp($keyDir, 'bind');
                 }
-                $lineExternal .= "\tdnssec-policy \"sentora-dnssec\";" . fs_filehandler::NewLine();
+                $lineExternal .= "\tdnssec-policy \"bulwark-dnssec\";" . fs_filehandler::NewLine();
                 $lineExternal .= "\tinline-signing yes;" . fs_filehandler::NewLine();
                 $lineExternal .= "\tkey-directory \"$keyDir\";" . fs_filehandler::NewLine();
                 echo "  DNSSEC signing enabled for $domain" . fs_filehandler::NewLine();

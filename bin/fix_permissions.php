@@ -1,7 +1,7 @@
 <?php
 /**
  * fix_permissions.php
- * Verifica y corrige permisos, propietarios y estructura de directorios de Sentora.
+ * Verifica y corrige permisos, propietarios y estructura de directorios de Bulwark.
  * Uso:
  *   php /usr/local/bulwark/bin/fix_permissions.php          # verifica y corrige
  *   php /usr/local/bulwark/bin/fix_permissions.php --check  # solo informa, no cambia nada
@@ -150,8 +150,8 @@ check_path("$PANEL_DATA/logs/bind",           0755, 'bind',  'bind');
 check_glob("$PANEL_DATA/logs/bind/*.log",     0640, 'bind',  'bind');
 check_path("$PANEL_DATA/logs/roundcube",      0755, 'www',   'www');
 check_glob("$PANEL_DATA/logs/roundcube/*",    0640, 'www',   'www');
-foreach (['sentora.log','sentora-access.log','sentora-error.log',
-          'sentora-bandwidth.log','php_errors.log','daemon-last-run.log'] as $f) {
+foreach (['bulwark.log','bulwark-access.log','bulwark-error.log',
+          'bulwark-bandwidth.log','php_errors.log','daemon-last-run.log'] as $f) {
     if (file_exists("$PANEL_DATA/logs/$f"))
         check_path("$PANEL_DATA/logs/$f", 0640, 'www', 'www');
 }

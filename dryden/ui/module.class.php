@@ -120,7 +120,7 @@ class ui_module {
     static function ScanForNewModules($init = false) {
         global $zdbh;
         $new_module_list = array();
-        $rootdir = ctrl_options::GetSystemOption('sentora_root') . 'modules';
+        $rootdir = ctrl_options::GetSystemOption('bulwark_root') . 'modules';
         $handle = @opendir($rootdir);
         $chkdir = $rootdir . '/';
         if ($handle) {

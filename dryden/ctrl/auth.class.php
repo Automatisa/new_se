@@ -47,8 +47,8 @@ class ctrl_auth
             $zdbh->bindQuery($sqlQuery, $bindArray);
             $themeRow = $zdbh->returnRow();
             // Validate theme name against filesystem to prevent path traversal via DB
-            $rawTheme = $themeRow['ac_usertheme_vc'] ?? 'Sentora_Default';
-            $themeName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawTheme) ? $rawTheme : 'Sentora_Default';
+            $rawTheme = $themeRow['ac_usertheme_vc'] ?? 'Bulwark_Default';
+            $themeName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawTheme) ? $rawTheme : 'Bulwark_Default';
             include 'etc/styles/' . $themeName . '/login.ztml';
             exit;
         }
@@ -58,7 +58,7 @@ class ctrl_auth
     /**
      * Sets a user session ID.
      * @author Bobby Allen (ballen@bobbyallen.me)
-     * @param int $zpuid The Sentora user account ID to set the session as.
+     * @param int $zpuid The Bulwark user account ID to set the session as.
      * @return bool
      */
     static function SetUserSession($zpuid = 0, $sessionSecuirty = true)
@@ -173,7 +173,7 @@ class ctrl_auth
     }
 
     /**
-     * Destroys a session and ends a user's Sentora session.
+     * Destroys a session and ends a user's Bulwark session.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @return bool
      */
@@ -229,7 +229,7 @@ class ctrl_auth
     /**
      * Returns the UID (User ID) of the current logged in user.
      * @author Bobby Allen (ballen@bobbyallen.me)
-     * @global obj $controller The Sentora controller object.
+     * @global obj $controller The Bulwark controller object.
      * @return int The current user's session ID.
      */
     static function CurrentUserID()

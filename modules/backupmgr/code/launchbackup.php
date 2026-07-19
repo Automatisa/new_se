@@ -26,8 +26,8 @@ $mode   = (isset($_GET['mode']) && in_array($_GET['mode'], array('local', 'remot
 
 if ($userid > 0 && (int)$_SESSION['zpuid'] === $userid) {
     $currentuser = ctrl_users::GetUserDetail($userid);
-    $rawTheme = $currentuser['usertheme'] ?? 'Sentora_Default';
-    $themeName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawTheme) ? $rawTheme : 'Sentora_Default';
+    $rawTheme = $currentuser['usertheme'] ?? 'Bulwark_Default';
+    $themeName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawTheme) ? $rawTheme : 'Bulwark_Default';
     $rawCSS = $currentuser['usercss'] ?? 'style';
     $cssName = preg_match('/^[A-Za-z0-9_\-]+$/', $rawCSS) ? $rawCSS : 'style';
     ?>
@@ -35,7 +35,7 @@ if ($userid > 0 && (int)$_SESSION['zpuid'] === $userid) {
     <html>
         <head>
             <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
-            <title>Sentora &gt; Back-Ups</title>
+            <title>Bulwark &gt; Back-Ups</title>
             <link href="../../../etc/styles/<?php echo htmlspecialchars($themeName, ENT_QUOTES, 'UTF-8'); ?>/css/<?php echo htmlspecialchars($cssName, ENT_QUOTES, 'UTF-8'); ?>.css" rel="stylesheet" type="text/css">
             <script src="../assets/ajaxsbmt.js" type="text/javascript"></script>
             <script>

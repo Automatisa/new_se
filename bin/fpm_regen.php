@@ -2,7 +2,7 @@
 /**
  * fpm_regen.php — Regenera pools PHP-FPM inmediatamente como root.
  *
- * Arranca el entorno mínimo de Sentora (BD + opciones) y llama a
+ * Arranca el entorno mínimo de Bulwark (BD + opciones) y llama a
  * fpm_pool_manager::Regenerate(). Se invoca vía privilege::run('fpm_regenerate')
  * desde el panel cuando el usuario guarda la configuración PHP de un dominio,
  * sin tener que esperar al siguiente ciclo del daemon.

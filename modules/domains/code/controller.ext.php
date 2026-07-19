@@ -230,7 +230,7 @@ class module_controller extends ctrl_module
             self::$error = TRUE;
             return FALSE;
         }
-        // Check to see if the domain already exists in Sentora somewhere and redirect if it does....
+        // Check to see if the domain already exists in Bulwark somewhere and redirect if it does....
         $sql = "SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:domain AND vh_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':domain', $domain);
@@ -1186,9 +1186,9 @@ class module_controller extends ctrl_module
             $r = $q->fetch(PDO::FETCH_ASSOC) ?: [];
             $has = !fs_director::CheckForEmptyValue($r['vh_custom_ip_vc'] ?? '') || !fs_director::CheckForEmptyValue($r['vh_custom_ip6_vc'] ?? '');
             if (!$has) {
-                $zdbh->prepare("DELETE FROM sentora_postfix.sender_transport WHERE domain=:d")->execute([':d' => $domain]);
+                $zdbh->prepare("DELETE FROM bulwark_postfix.sender_transport WHERE domain=:d")->execute([':d' => $domain]);
             } else {
-                $zdbh->prepare("REPLACE INTO sentora_postfix.sender_transport (domain, transport) VALUES (:d,:t)")
+                $zdbh->prepare("REPLACE INTO bulwark_postfix.sender_transport (domain, transport) VALUES (:d,:t)")
                      ->execute([':d' => $domain, ':t' => 'smtpout-' . (int)$vhostid]);
             }
         } catch (Exception $e) { /* la tabla se crea por migración; no bloquear la asignación */ }

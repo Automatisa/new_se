@@ -278,10 +278,10 @@ class module_controller extends ctrl_module
 
         // Escribir en /var/bulwark/run (no /tmp, world-writable) con 0600: el material de
         // clave privada no debe quedar legible por otros ni expuesto a symlink/TOCTOU en /tmp.
-        file_put_contents('/var/bulwark/run/sentora_ftp_cert_upload', $certContent);
-        @chmod('/var/bulwark/run/sentora_ftp_cert_upload', 0600);
-        file_put_contents('/var/bulwark/run/sentora_ftp_key_upload',  $keyContent);
-        @chmod('/var/bulwark/run/sentora_ftp_key_upload', 0600);
+        file_put_contents('/var/bulwark/run/bulwark_ftp_cert_upload', $certContent);
+        @chmod('/var/bulwark/run/bulwark_ftp_cert_upload', 0600);
+        file_put_contents('/var/bulwark/run/bulwark_ftp_key_upload',  $keyContent);
+        @chmod('/var/bulwark/run/bulwark_ftp_key_upload', 0600);
 
         self::runAndRedirect('proftpd_cert_upload', 'upload_ok', 'upload_err');
     }
@@ -308,8 +308,8 @@ class module_controller extends ctrl_module
         }
 
         // Escribir rutas en ficheros temporales para el script privilegiado
-        file_put_contents('/tmp/sentora_ftp_cert', $certPath);
-        file_put_contents('/tmp/sentora_ftp_key', $keyPath);
+        file_put_contents('/tmp/bulwark_ftp_cert', $certPath);
+        file_put_contents('/tmp/bulwark_ftp_key', $keyPath);
 
         self::runAndRedirect('proftpd_cert_paths_update', 'cert_paths_ok', 'cert_paths_err');
     }
@@ -402,7 +402,7 @@ class module_controller extends ctrl_module
             header('Location: ./?module=ftp_admin');
             die();
         }
-        file_put_contents('/tmp/sentora_proftpd_new.conf', $content);
+        file_put_contents('/tmp/bulwark_proftpd_new.conf', $content);
         self::runAndRedirect('proftpd_config_update', 'config_saved', 'config_err');
     }
 

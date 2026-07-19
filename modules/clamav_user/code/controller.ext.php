@@ -349,7 +349,7 @@ class module_controller extends ctrl_module
         // Intentar Redis primero
         $r = self::redisClient();
         if ($r !== null) {
-            $val = $r->get("sentora:scan:$username:last_scan");
+            $val = $r->get("bulwark:scan:$username:last_scan");
             if ($val !== false) return (int)$val;
         }
         // Fallback: fichero de timestamp
@@ -363,7 +363,7 @@ class module_controller extends ctrl_module
         $now = time();
         $r   = self::redisClient();
         if ($r !== null) {
-            $r->setEx("sentora:scan:$username:last_scan", self::SCAN_COOLDOWN, (string)$now);
+            $r->setEx("bulwark:scan:$username:last_scan", self::SCAN_COOLDOWN, (string)$now);
         }
         // Fichero de fallback
         $tsFile = self::SCAN_REQUESTS . '/' . $username . '.ts';
@@ -398,7 +398,7 @@ class module_controller extends ctrl_module
     {
         $r = self::redisClient();
         if ($r !== null) {
-            $val = $r->get("sentora:quarantine:$username:count");
+            $val = $r->get("bulwark:quarantine:$username:count");
             if ($val !== false) return (int)$val;
         }
         return count(self::listQuarantineFiles(self::userQuarantineDir($username)));
@@ -409,7 +409,7 @@ class module_controller extends ctrl_module
         $remaining = count(self::listQuarantineFiles(self::userQuarantineDir($username)));
         $r = self::redisClient();
         if ($r !== null) {
-            $r->set("sentora:quarantine:$username:count", $remaining);
+            $r->set("bulwark:quarantine:$username:count", $remaining);
         }
     }
 

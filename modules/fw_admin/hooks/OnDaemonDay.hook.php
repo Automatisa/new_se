@@ -1,7 +1,7 @@
 <?php
 /**
  * fw_admin — OnDaemonDay.hook.php
- * Se ejecuta una vez al día con el daemon de Sentora.
+ * Se ejecuta una vez al día con el daemon de Bulwark.
  *
  * Responsabilidades:
  *  1. Limpia registros inactivos de x_fw_auto_banned con más de 7 días de antigüedad
@@ -20,7 +20,7 @@ if (!ui_module::CheckModuleEnabled('Firewall Admin')) {
     return;
 }
 
-$logFile = ctrl_options::GetSystemOption('sentora_root') . 'modules/fw_admin/fw_admin.log';
+$logFile = ctrl_options::GetSystemOption('bulwark_root') . 'modules/fw_admin/fw_admin.log';
 $now     = time();
 
 // ---- 1. Limpiar x_fw_auto_banned inactivos > 7 días ----

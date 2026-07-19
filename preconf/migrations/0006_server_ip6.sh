@@ -17,7 +17,7 @@ if [ "$HAS" = "0" ]; then
             (so_name_vc, so_cleanname_vc, so_value_tx, so_defvalues_tx, so_desc_tx, so_module_vc, so_usereditable_en)
             VALUES ('server_ip6','Server IPv6 Address','',NULL,
                     'IPv6 primaria del servidor (doble pila). Si se define, el panel escucha tambien en [IPv6]:puerto. Vacio = panel solo por IPv4.',
-                    'Sentora Config','false')" 2>/dev/null
+                    'Bulwark Config','false')" 2>/dev/null
     echo "server_ip6 añadido a x_settings"
 else
     echo "server_ip6 ya existe"

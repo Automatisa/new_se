@@ -30,7 +30,7 @@ fi
 # 1. Usuario del panel (nologin) + miembro del grupo www.
 if ! pw usershow "$PANEL_USER" >/dev/null 2>&1; then
     info "Creando usuario $PANEL_USER (nologin)..."
-    pw useradd "$PANEL_USER" -d /nonexistent -s /usr/sbin/nologin -c "Sentora panel process"
+    pw useradd "$PANEL_USER" -d /nonexistent -s /usr/sbin/nologin -c "Bulwark panel process"
 fi
 pw groupmod www -m "$PANEL_USER"   # añadir al grupo www (lectura de lo compartido)
 info "Grupos de $PANEL_USER: $(id -Gn "$PANEL_USER")"
@@ -68,8 +68,8 @@ if [ -d "$PANEL_DATA/sessions" ]; then
     rm -f "$PANEL_DATA"/sessions/sess_* 2>/dev/null || true
 fi
 [ -d "$PANEL_PATH/etc/tmp" ]         && chown -R "${PANEL_USER}:www" "$PANEL_PATH/etc/tmp"
-if [ -f "$PANEL_DATA/logs/sentora.log" ]; then
-    chown "${PANEL_USER}:www" "$PANEL_DATA/logs/sentora.log"; chmod 660 "$PANEL_DATA/logs/sentora.log"
+if [ -f "$PANEL_DATA/logs/bulwark.log" ]; then
+    chown "${PANEL_USER}:www" "$PANEL_DATA/logs/bulwark.log"; chmod 660 "$PANEL_DATA/logs/bulwark.log"
 fi
 # Directorio de ficheros de petición privilegiada: root:PANEL_USER 770 (el panel escribe las req,
 # los wrappers root leen; www ya no lo necesita).

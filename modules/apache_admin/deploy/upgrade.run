@@ -1,6 +1,6 @@
 <?php
 /**
- * Upgrade script for Apache_Admin Module for Sentora 1.0.3+
+ * Upgrade script for Apache_Admin Module for Bulwark 1.0.3+
  * Version : 1.0.1
  * Author : TGates
  * Reworked by : Anthony D. -  Duke City Solutions, LLC
@@ -30,15 +30,15 @@ function UpgradeModule($newversion, $module){
     $sql = $zdbh->prepare("UPDATE x_modules SET mo_version_in = $newversion WHERE mo_folder_vc = '$module'");
     $sql->execute();  
 	
-	// Enter new tables to sentora database for apache admin
+	// Enter new tables to bulwark database for apache admin
 	$stmt = $zdbh->prepare("
 		INSERT INTO x_settings (
 			so_id_pk, so_name_vc, so_cleanname_vc, so_value_tx, so_defvalues_tx, so_desc_tx, so_module_vc, so_usereditable_en ) VALUES (
-			'', 'panel_ssl_tx', 'Panel SSL Config', null, null, 'apache ssl settings and certs', 'Sentora Config', true)"
+			'', 'panel_ssl_tx', 'Panel SSL Config', null, null, 'apache ssl settings and certs', 'Bulwark Config', true)"
 	);
 	$stmt->execute();
 		
-	// Copy needed templates and smarty template engine to sentora control panel
+	// Copy needed templates and smarty template engine to bulwark control panel
 	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/templates /etc/bulwark/configs/apache/");
 	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/httpd.conf /etc/bulwark/configs/apache/");
 	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/smarty /etc/bulwark/panel/etc/lib/");

@@ -663,8 +663,8 @@ class module_controller extends ctrl_module
             } else {
                 $protocol = 'http://';
             }
-            $port = ctrl_options::GetSystemOption('sentora_port');
-            $domain = ctrl_options::GetSystemOption('sentora_domain');
+            $port = ctrl_options::GetSystemOption('bulwark_port');
+            $domain = ctrl_options::GetSystemOption('bulwark_domain');
             # If using non-standard port
             if ($port !== "80" && $port !== "443" && !empty($port)) {
                 # Append port to domain

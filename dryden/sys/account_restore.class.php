@@ -1,7 +1,7 @@
 <?php
 
 /**
- * account_restore — Motor de restauración de una cuenta desde un backup .zip de Sentora.
+ * account_restore — Motor de restauración de una cuenta desde un backup .zip de Bulwark.
  *
  * Fase 1 (restore desde fichero ya en el servidor). Restaura, de forma selectiva:
  *   - FICHEROS del home (web/, mail/, ...): vía el script privilegiado account_restore.sh
@@ -47,7 +47,7 @@ class sys_account_restore
     private static function mysqlDefaultsFile()
     {
         global $host, $user, $pass;
-        $cnf = tempnam(sys_get_temp_dir(), 'sentora_rst') . '.cnf';
+        $cnf = tempnam(sys_get_temp_dir(), 'bulwark_rst') . '.cnf';
         file_put_contents($cnf, "[client]\nhost=\"" . $host . "\"\nuser=\"" . $user . "\"\npassword=\"" . $pass . "\"\n");
         @chmod($cnf, 0600);
         return $cnf;
@@ -114,7 +114,7 @@ class sys_account_restore
         }
         $za = new ZipArchive();
         if ($za->open($zipPath) !== true) { self::log('No se pudo abrir el ZIP para las BD.'); return false; }
-        $tmpDir = sys_get_temp_dir() . '/sentora_rst_' . getmypid();
+        $tmpDir = sys_get_temp_dir() . '/bulwark_rst_' . getmypid();
         @mkdir($tmpDir, 0700);
         $cnf = self::mysqlDefaultsFile();
         $done = 0;

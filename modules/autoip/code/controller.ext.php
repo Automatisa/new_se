@@ -502,7 +502,7 @@ class module_controller extends ctrl_module {
 
     static function getInstallDatabase() {
         global $zdbh;
-        include(ctrl_options::GetOption('sentora_root') . '/cnf/db.php');
+        include(ctrl_options::GetOption('bulwark_root') . '/cnf/db.php');
         $exists = $zdbh->query(
             "SELECT COUNT(*) FROM information_schema.tables
              WHERE table_schema='" . $dbname . "' AND table_name='x_autoip'"

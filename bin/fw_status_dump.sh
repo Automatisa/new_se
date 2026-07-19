@@ -6,7 +6,7 @@
 # El JSON es leído por el controller PHP y por OnDaemonRun.hook.php.
 
 OUTPUT="/var/bulwark/logs/fw_status.json"
-TMPFILE="/tmp/sentora_fw_status.$$"
+TMPFILE="/tmp/bulwark_fw_status.$$"
 
 mkdir -p /var/bulwark/logs
 
@@ -28,11 +28,11 @@ ips_to_json() {
       | awk 'BEGIN{f=1}{if(!f)printf ","; printf "\"%s\"",$0; f=0}'
 }
 
-BLOCKED_JSON=$(ips_to_json sentora_blocked)
+BLOCKED_JSON=$(ips_to_json bulwark_blocked)
 SSHGUARD_JSON=$(ips_to_json sshguard)
 
 # Contadores — wc -l no falla con exit 1 aunque cuente 0 líneas
-BLOCKED_N=$(pfctl -t sentora_blocked -T show 2>/dev/null \
+BLOCKED_N=$(pfctl -t bulwark_blocked -T show 2>/dev/null \
     | grep -E '^[[:space:]]*[0-9a-fA-F]' | wc -l | tr -d ' \t')
 SG_N=$(pfctl -t sshguard -T show 2>/dev/null \
     | grep -E '^[[:space:]]*[0-9a-fA-F]' | wc -l | tr -d ' \t')
@@ -51,9 +51,9 @@ pf_rules_to_json() {
 }
 PF_RULES_JSON=$(pf_rules_to_json)
 
-# ---- Reglas del anchor sentora_rules (personalizadas) ----
+# ---- Reglas del anchor bulwark_rules (personalizadas) ----
 pf_anchor_to_json() {
-    pfctl -a sentora_rules -sr 2>/dev/null | head -50 \
+    pfctl -a bulwark_rules -sr 2>/dev/null | head -50 \
       | awk 'BEGIN{f=1}{
           gsub(/\\/, "\\\\"); gsub(/"/, "\\\"");
           if(!f) printf ","; printf "\"%s\"",$0; f=0

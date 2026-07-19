@@ -28,7 +28,7 @@ class ctrl_options {
      * The main 'getter' class used to retrieve the value from the system options table.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @global db_driver $zdbh The ZPX database handle.
-     * @param string $name The name of the system option (eg. sentora_root)
+     * @param string $name The name of the system option (eg. bulwark_root)
      * @return string The system option value.
      */
     static function GetSystemOption($name) {
@@ -45,7 +45,7 @@ class ctrl_options {
     }
 
     /**
-     * An alias of 'GetSystemOption' to 'fix' the recent refactor of the sentora code, this was affecting third-party modules which relied on this old function name.
+     * An alias of 'GetSystemOption' to 'fix' the recent refactor of the bulwark code, this was affecting third-party modules which relied on this old function name.
      * @author Bobby Allen <ballen@bobbyallen.me>
      * @param string $name The name of the system option.
      * @return string The system option value.
@@ -59,7 +59,7 @@ class ctrl_options {
      * The main 'setter' class used to write/update system options.
      * @author Bobby Allen (ballen@bobbyallen.me)
      * @global db_driver $zdbh The ZPX database handle.
-     * @param string $name The name of the system option (eg. Sentora_root)
+     * @param string $name The name of the system option (eg. Bulwark_root)
      * @param string $value The value to set.
      * @param bool $create Instead of update the system option, create it instead?
      * @return bool

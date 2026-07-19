@@ -1,11 +1,11 @@
 #!/bin/sh
 # Instala un certificado SSL comercial subido via el panel.
-# Lee cert y key desde /tmp/sentora_ftp_cert_upload y /tmp/sentora_ftp_key_upload.
+# Lee cert y key desde /tmp/bulwark_ftp_cert_upload y /tmp/bulwark_ftp_key_upload.
 # Valida, instala en /usr/local/etc/bulwark/proftpd/ y actualiza el config.
 # Llamado por privilege::run('proftpd_cert_upload') como root via doas.
 
-CERTFILE_TMP="/var/bulwark/run/sentora_ftp_cert_upload"
-KEYFILE_TMP="/var/bulwark/run/sentora_ftp_key_upload"
+CERTFILE_TMP="/var/bulwark/run/bulwark_ftp_cert_upload"
+KEYFILE_TMP="/var/bulwark/run/bulwark_ftp_key_upload"
 CERTFILE_DEST="/usr/local/etc/bulwark/proftpd/commercial.crt"
 KEYFILE_DEST="/usr/local/etc/bulwark/proftpd/commercial.key"
 REAL_CONFIG="/usr/local/etc/bulwark/proftpd/proftpd-mysql.conf"

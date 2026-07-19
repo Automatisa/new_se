@@ -33,7 +33,7 @@ MIGRATE="/usr/local/bulwark/bin/preconf_migrate.sh"
 mkdir -p "$OUT_DIR"; chown root:www "$OUT_DIR" 2>/dev/null || true; chmod 755 "$OUT_DIR"
 
 # Paquetes gestionados: "nombre:profundidad_de_mayor" (nº de componentes dotted que definen la
-# mayor que NO debe saltar sola). Nombre EXACTO de pkg(8) (variantes -mysql en Sentora).
+# mayor que NO debe saltar sola). Nombre EXACTO de pkg(8) (variantes -mysql en Bulwark).
 # Elección de la profundidad por paquete (ajustable):
 #   dovecot-mysql:2  -> 2.3 : el salto 2.3->2.4 rompe la config (dovecot es estricto).
 #   proftpd:2        -> 1.3 : la serie 1.3.x es estable; 1.3->1.4 sería el salto de mayor.

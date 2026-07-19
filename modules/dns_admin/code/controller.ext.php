@@ -465,7 +465,7 @@ class module_controller extends ctrl_module
         //  daemon, que corre como root y recarga BIND.)
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inSyncCluster'))) {
             if (!class_exists('dns_cluster')) {
-                require_once ctrl_options::GetSystemOption('sentora_root') . 'dryden/sys/dns_cluster.class.php';
+                require_once ctrl_options::GetSystemOption('bulwark_root') . 'dryden/sys/dns_cluster.class.php';
             }
             dns_cluster::SyncClusterNodes();
             dns_cluster::SyncRemoteZones();

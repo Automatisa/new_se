@@ -39,7 +39,7 @@ class ui_template {
      */
     static function ListAvaliableTemplates() {
         $allstyles = array();
-        $rootdir = ctrl_options::GetSystemOption('sentora_root') . 'etc/styles';
+        $rootdir = ctrl_options::GetSystemOption('bulwark_root') . 'etc/styles';
         $handle = @opendir($rootdir);
         $chkdir = $rootdir . '/';
         if ($handle) {
@@ -63,7 +63,7 @@ class ui_template {
      */
     static function ListAvaliableCSS($template) {
         $allstyles = array();
-        $rootdir = ctrl_options::GetSystemOption('sentora_root') . 'etc/styles/' . $template . '/css';
+        $rootdir = ctrl_options::GetSystemOption('bulwark_root') . 'etc/styles/' . $template . '/css';
         $handle = @opendir($rootdir);
         $chkdir = $rootdir. '/';
         if ($handle) {

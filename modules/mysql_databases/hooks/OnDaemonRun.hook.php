@@ -32,7 +32,7 @@ function CalculateAllDatabaseSize() {
             $numrows->bindParam(':my_id_pk', $database['my_id_pk']);
             $numrows->execute();
         } catch (\Exception $e) {
-            error_log('[sentora:mysql_databases] BD inaccesible id=' . (int)$database['my_id_pk']
+            error_log('[bulwark:mysql_databases] BD inaccesible id=' . (int)$database['my_id_pk']
                       . ' (' . $database['my_name_vc'] . '): ' . $e->getMessage() . ' — se omite.');
             continue;
         }

@@ -6,7 +6,7 @@
 #   1. El panel (zpanel) escribe la IP en REQUEST (root:zpanel 660 — solo el panel puede escribir)
 #   2. Este script (ejecutado como root) lee y borra el archivo
 #   3. Valida el contenido con regex estricta antes de pasarlo a pfctl
-#   4. pfctl elimina la IP de la tabla sshguard (y de sentora_blocked si aplica)
+#   4. pfctl elimina la IP de la tabla sshguard (y de bulwark_blocked si aplica)
 
 REQUEST="/var/bulwark/run/fw_unban_request"
 
@@ -39,7 +39,7 @@ fi
 # Eliminar de la tabla sshguard (bans automáticos)
 pfctl -t sshguard -T delete "$IP" 2>/dev/null || true
 
-# Eliminar también de sentora_blocked por si fue bloqueada manualmente
-pfctl -t sentora_blocked -T delete "$IP" 2>/dev/null || true
+# Eliminar también de bulwark_blocked por si fue bloqueada manualmente
+pfctl -t bulwark_blocked -T delete "$IP" 2>/dev/null || true
 
 exit 0

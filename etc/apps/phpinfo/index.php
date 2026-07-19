@@ -19,7 +19,7 @@ $ini_keys = [
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>PHP Info — Sentora</title>
+<title>PHP Info — Bulwark</title>
 <style>
   body { font-family: sans-serif; margin: 2em; background: #f5f5f5; color: #333; }
   h1   { font-size: 1.4em; border-bottom: 2px solid #337ab7; padding-bottom:.4em; color:#337ab7; }

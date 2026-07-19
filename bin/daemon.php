@@ -31,7 +31,7 @@ $daemonLog = new debug_logger();
 $daemonLog->method = "file";
 $daemonLog->logcode = "001";
 
-$dateformat = ctrl_options::GetSystemOption('Sentora_df');
+$dateformat = ctrl_options::GetSystemOption('Bulwark_df');
 
 if (!runtime_controller::IsCLI())
     echo "<pre>";

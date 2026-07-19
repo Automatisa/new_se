@@ -5,12 +5,12 @@ OUT_DIR="/var/bulwark/updates"; RUN="$OUT_DIR/running"; LOG="$OUT_DIR/last_actio
 mkdir -p "$OUT_DIR"
 printf 'pkg' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$RUN"
 {
-    logger -t sentora-updates "pkg upgrade iniciado por el panel"
+    logger -t bulwark-updates "pkg upgrade iniciado por el panel"
     ASSUME_ALWAYS_YES=yes; export ASSUME_ALWAYS_YES
     pkg update -q >/dev/null 2>&1
     pkg upgrade -y > "$LOG" 2>&1; RC=$?
     N=$(grep -cE 'Upgrading|Installing|Reinstalling' "$LOG" 2>/dev/null)
-    logger -t sentora-updates "pkg upgrade terminado (rc=$RC)"
+    logger -t bulwark-updates "pkg upgrade terminado (rc=$RC)"
     printf 'pkg|%s|%s|%s' "$RC" "$(date +%s)" "$N" > "$RES"; chown root:www "$RES" "$LOG" 2>/dev/null || true; chmod 644 "$RES" "$LOG"
     /usr/local/bulwark/bin/sys_update_check.sh >/dev/null 2>&1
     rm -f "$RUN"

@@ -18,7 +18,7 @@ class ui_templateparser
 {
 
     /**
-     * Array of all the functions allowed by Sentora template system with the pattern to identify them
+     * Array of all the functions allowed by Bulwark template system with the pattern to identify them
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static public $Functions = array(
@@ -95,7 +95,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora loop template tags into valid PHP
+     * Compiles Bulwark loop template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileLoop($value, $data)
@@ -156,7 +156,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora end loop template tags into valid PHP
+     * Compiles Bulwark end loop template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileEndLoop($value, $data)
@@ -174,7 +174,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora if template tags into valid PHP
+     * Compiles Bulwark if template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileIf($value, $data)
@@ -192,7 +192,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora end if template tags into valid PHP
+     * Compiles Bulwark end if template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileEndIf($value, $data)
@@ -210,7 +210,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora lanuage template tags into valid PHP
+     * Compiles Bulwark lanuage template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileLanuage($value, $data)
@@ -229,7 +229,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora function each template tags into valid PHP
+     * Compiles Bulwark function each template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileFunctionEcho($value, $data)
@@ -253,7 +253,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora end if template tags into valid PHP
+     * Compiles Bulwark end if template tags into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileElse($value, $data)
@@ -271,7 +271,7 @@ class ui_templateparser
     }
 
     /**
-     * Compiles Sentora template class tag into valid PHP
+     * Compiles Bulwark template class tag into valid PHP
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static private function CompileTemplateClass($value, $data)
@@ -378,7 +378,7 @@ class ui_templateparser
      */
     static public function setLocation()
     {
-        self::$storageLocation = ctrl_options::GetSystemOption('sentora_root') . self::$storageLocation;
+        self::$storageLocation = ctrl_options::GetSystemOption('bulwark_root') . self::$storageLocation;
     }
 
     /**
@@ -399,7 +399,7 @@ class ui_templateparser
     }
 
     /**
-     * All br tags to be used using the Sentora br tag loader
+     * All br tags to be used using the Bulwark br tag loader
      * @author Sam Mottley (smottley@zpanelcp.com)
      */
     static function allowBr($templateCode)

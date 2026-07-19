@@ -268,7 +268,7 @@ class module_controller extends ctrl_module
             self::$error = TRUE;
             return FALSE;
         }
-        // Check to see if the domain already exists in Sentora somewhere and redirect if it does....
+        // Check to see if the domain already exists in Bulwark somewhere and redirect if it does....
         $sql = "SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:domain AND vh_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':domain', $domain);

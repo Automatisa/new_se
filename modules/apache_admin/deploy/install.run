@@ -1,6 +1,6 @@
 <?php
 /**
- * Install script for Apache_Admin Module for Sentora 1.0.3
+ * Install script for Apache_Admin Module for Bulwark 1.0.3
  * Version : 1.0.0
  * Author : TGates
  * Reworked by : Anthony D. -  Duke City Solutions, LLC
@@ -24,11 +24,11 @@ function installModule()
 	global $zdbh, $controller;
 	
 	/*
-	// Copy needed templates and smarty template engine to sentora control panel
-	echo "Creating sentora vhost template files ...."  . fs_filehandler::NewLine() . fs_filehandler::NewLine();
+	// Copy needed templates and smarty template engine to bulwark control panel
+	echo "Creating bulwark vhost template files ...."  . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 	//shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/templates /etc/bulwark/configs/apache/");
 	
-	//echo "Creating New sentora httpd.conf" . fs_filehandler::NewLine();
+	//echo "Creating New bulwark httpd.conf" . fs_filehandler::NewLine();
 	//shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/httpd.conf /etc/bulwark/configs/apache/");
 	
 	echo "Creating Smarty files ...." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
@@ -37,23 +37,23 @@ function installModule()
 	//echo "Creating loader.inc.php ...";
 	//shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/loader.inc.php /etc/bulwark/panel/dryden/");
 	
-	// Make vhost_cp dir in sentora apache config
+	// Make vhost_cp dir in bulwark apache config
 	//shell_exec ("mkdir -p /etc/bulwark/configs/apache/vhost_cp");
 	shell_exec ("mkdir -p /etc/bulwark/configs/apache/vhosts");
 	//shell_exec ("touch /etc/bulwark/configs/apache/vhosts/default.conf");
 	
 	// Copy/create control panel vhost file
-	echo "Copy sentora httpd-vhosts.conf file to /etc/bulwark/configs/apache/vhosts/sentora-cp.conf" . fs_filehandler::NewLine() . fs_filehandler::NewLine();
+	echo "Copy bulwark httpd-vhosts.conf file to /etc/bulwark/configs/apache/vhosts/bulwark-cp.conf" . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 	//shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/vhost-cp.conf /etc/bulwark/configs/apache/vhost_cp/");
-	shell_exec ("cp -r /etc/bulwark/configs/apache/httpd-vhosts.conf /etc/bulwark/configs/apache/vhosts/sentora-cp.conf");
+	shell_exec ("cp -r /etc/bulwark/configs/apache/httpd-vhosts.conf /etc/bulwark/configs/apache/vhosts/bulwark-cp.conf");
 	
 	
-	// Enter new tables to x_settings sentora database for apache_admin_pro
-	echo "Enter new tables to x_settings sentora database for apache_admin...." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
+	// Enter new tables to x_settings bulwark database for apache_admin_pro
+	echo "Enter new tables to x_settings bulwark database for apache_admin...." . fs_filehandler::NewLine() . fs_filehandler::NewLine();
 	$stmt = $zdbh->prepare("
 		INSERT INTO x_settings (
 			so_id_pk, so_name_vc, so_cleanname_vc, so_value_tx, so_defvalues_tx, so_desc_tx, so_module_vc, so_usereditable_en ) VALUES (
-			'', 'panel_ssl_tx', 'Sentora Panel SSL Config', null, null, 'Sentora SSL settings and certs', 'Sentora Config', true)"
+			'', 'panel_ssl_tx', 'Bulwark Panel SSL Config', null, null, 'Bulwark SSL settings and certs', 'Bulwark Config', true)"
 	);
 	$stmt->execute();
 

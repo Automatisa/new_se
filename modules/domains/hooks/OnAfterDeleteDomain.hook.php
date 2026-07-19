@@ -2,7 +2,7 @@
 
 // Cuando se elimina un dominio: limpiar su fila en x_domain_php.
 // El pool FPM obsoleto lo elimina el daemon en el siguiente ciclo
-// mediante el glob de sentora_*.conf vs vhosts activos.
+// mediante el glob de bulwark_*.conf vs vhosts activos.
 
 global $zdbh;
 

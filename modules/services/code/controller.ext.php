@@ -153,13 +153,13 @@ class module_controller extends ctrl_module
 
     static function getLastRunTime()
     {
-        return date(ctrl_options::GetSystemOption('sentora_df'), ctrl_options::GetSystemOption('daemon_lastrun'));
+        return date(ctrl_options::GetSystemOption('bulwark_df'), ctrl_options::GetSystemOption('daemon_lastrun'));
     }
 
     static function getNextRunTime()
     {
         $new_time = ctrl_options::GetSystemOption('daemon_lastrun') + ctrl_options::GetSystemOption('daemon_run_interval');
-        return date(ctrl_options::GetSystemOption('sentora_df'), $new_time);
+        return date(ctrl_options::GetSystemOption('bulwark_df'), $new_time);
     }
 
 }

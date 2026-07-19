@@ -1,7 +1,7 @@
 <?php
 /**
  * Limpieza automática diaria de x_logs según log_retention_days.
- * Se ejecuta una vez al día por el daemon de Sentora.
+ * Se ejecuta una vez al día por el daemon de Bulwark.
  */
 
 global $zdbh;

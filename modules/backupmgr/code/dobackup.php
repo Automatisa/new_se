@@ -102,11 +102,11 @@ function ExecuteBackup($userid, $username, $download = 0, $mode = 'both') {
     if (!is_dir($basedir)) {
         fs_director::CreateDirectory($basedir);
     }
-    $basedir = ctrl_options::GetSystemOption('sentora_root') . "etc/tmp/";
+    $basedir = ctrl_options::GetSystemOption('bulwark_root') . "etc/tmp/";
     if (!is_dir($basedir)) {
         fs_director::CreateDirectory($basedir);
     }
-    $temp_dir = ctrl_options::GetSystemOption('sentora_root') . "etc/tmp/";
+    $temp_dir = ctrl_options::GetSystemOption('bulwark_root') . "etc/tmp/";
     // Lets grab and archive the user's web data....
     $homedir    = ctrl_options::GetSystemOption('hosted_dir') . $username;
     $backupname = $username . "_" . date("M-d-Y_hms", time());
@@ -157,7 +157,7 @@ function ExecuteBackup($userid, $username, $download = 0, $mode = 'both') {
                 // CRIT-2 FIX: escapeshellarg on ALL variables passed to shell.
                 // La contraseña NO va en la línea de comandos (visible por `ps`): se pasa por
                 // un fichero de credenciales temporal 0600 con --defaults-extra-file.
-                $cnf_path = tempnam(sys_get_temp_dir(), 'sentora_bu') . '.cnf';
+                $cnf_path = tempnam(sys_get_temp_dir(), 'bulwark_bu') . '.cnf';
                 file_put_contents($cnf_path, "[mysqldump]\nhost=\"" . $host . "\"\nuser=\"" . $user . "\"\npassword=\"" . $pass . "\"\n");
                 @chmod($cnf_path, 0600);
                 $bkcommand = escapeshellarg(ctrl_options::GetSystemOption('mysqldump_exe'))

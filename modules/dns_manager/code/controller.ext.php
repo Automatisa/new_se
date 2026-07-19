@@ -1947,7 +1947,7 @@ function dnsCreateSubmit() {
             //Check the temp zone record for errors
             if (file_exists($zonecheck_file)) {
                 $command = ctrl_options::GetSystemOption('named_checkzone');
-                $tmpOut = tempnam(sys_get_temp_dir(), 'sentora_zoneout_');
+                $tmpOut = tempnam(sys_get_temp_dir(), 'bulwark_zoneout_');
                 $fullCmd = escapeshellcmd($command)
                     . ' ' . escapeshellarg($domain['dn_name_vc'])
                     . ' ' . escapeshellarg($zonecheck_file)

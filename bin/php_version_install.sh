@@ -18,14 +18,14 @@ REPO_BASE_URL="${REPO_BASE_URL:-https://github.com/Automatisa/new_se/releases/do
 PREFIX="/usr/local/php${V}"
 VER_DOT="${V%?}.${V#?}"                       # 81 -> 8.1
 REPO_LOCAL="/usr/local/poudriere-repos/php${V}"
-REPO_CONF="/usr/local/etc/pkg/repos/sentora-php${V}.conf"
+REPO_CONF="/usr/local/etc/pkg/repos/bulwark-php${V}.conf"
 FPM_BIN="${PREFIX}/sbin/php-fpm"
 FPM_CONF="${PREFIX}/etc/php-fpm.conf"
 POOL_DIR="${PREFIX}/etc/php-fpm.d"
 PHP_INI="${PREFIX}/etc/php.ini"
 PIDFILE="/var/run/php${V}-fpm.pid"
 RC="/usr/local/etc/rc.d/php${V}_fpm"
-WRAPPER="/usr/local/bulwark/bin/sentora_mail_limit.sh -t -i"
+WRAPPER="/usr/local/bulwark/bin/bulwark_mail_limit.sh -t -i"
 TIMEZONE="$(cat /var/db/zoneinfo 2>/dev/null || echo UTC)"
 
 info() { printf '\033[36m[php%s]\033[0m %s\n' "$V" "$*"; }
@@ -51,7 +51,7 @@ fi
 # ---------------------------------------------------------------------------
 info "Registrando repo pkg local en $REPO_CONF"
 cat > "$REPO_CONF" <<CONF
-sentora-php${V}: {
+bulwark-php${V}: {
     url: "file://${REPO_LOCAL}",
     enabled: yes,
     priority: 100
@@ -60,7 +60,7 @@ CONF
 
 info "Instalando php${V} + extensiones (a ${PREFIX})..."
 # Instala todo lo del repo de esa versión (core + extensiones compiladas con su PREFIX).
-pkg install -yr "sentora-php${V}" -g "php${V}*"
+pkg install -yr "bulwark-php${V}" -g "php${V}*"
 
 [ -x "$FPM_BIN" ] || { echo "ERROR: no existe $FPM_BIN tras la instalación."; exit 1; }
 

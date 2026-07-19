@@ -103,14 +103,14 @@ class module_controller extends ctrl_module
         try {
             $email = $mb['mb_address_vc'];
             $r     = self::redis();
-            $r->hMSet('sentora:antispam:' . $email, [
+            $r->hMSet('bulwark:antispam:' . $email, [
                 'enabled' => (int)$mb['mb_antispam_in'],
                 'score'   => $mb['mb_spam_score'] ?? '',
                 'action'  => $mb['mb_spam_action'] ?? '',
             ]);
 
             foreach (['white', 'black'] as $type) {
-                $wkey = 'sentora:antispam:' . $type[0] . 'l:' . $email;
+                $wkey = 'bulwark:antispam:' . $type[0] . 'l:' . $email;
                 $r->del($wkey);
                 $sql2 = $zdbh->prepare(
                     'SELECT al_address_vc FROM x_antispam_lists

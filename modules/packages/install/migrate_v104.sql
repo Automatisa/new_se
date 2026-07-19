@@ -1,5 +1,5 @@
 -- FIX-68: añade cuota de cron jobs por paquete
--- Aplicar en instalaciones existentes: mysql sentora < migrate_v104.sql
+-- Aplicar en instalaciones existentes: mysql bulwark < migrate_v104.sql
 ALTER TABLE x_quotas
     ADD COLUMN qt_cronjobs_in int(6) DEFAULT '0' AFTER qt_mysql_in;
 

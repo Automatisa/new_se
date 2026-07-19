@@ -1,0 +1,204 @@
+<div class="zmodule_content panel" id="zmodule_header_<@ ModuleName @>">
+    <div class="card-header">
+        <img src="<@ ModuleIcon @>" width="35" height="35" border="0" alt="<@ ModuleName @>">
+
+        <div class="zmodule_title">
+            <@ ModuleName @>
+        </div>
+
+        <div class="zmodule_desc" id="zmodule_desc_<@ ModuleName @>"><@ ModuleDesc @></div>
+
+    </div>
+
+    <@ Result @>
+
+    <div class="zgrid_wrapper">
+        <h2><: Configure your Bulwark Settings :></h2>
+        <form action="./?module=bulwarkconfig&action=UpdateConfig" method="post">
+            <table class="table table-striped">
+                <% loop Config %>
+                <tr valign="top">
+                    <th nowrap="nowrap"><& cleanname &></th>
+                    <td>{! fieldhtml !}<br><& description &><br><br></td>
+                </tr>
+                <% endloop %>
+                <tr>
+                    <th colspan="3">
+                        <@ CSFR_Tag @><button class="button-loader btn btn-primary" type="submit" id="button" name="inSaveSystem"><i class="bi bi-floppy me-1"></i><: Save Changes :></button>
+                    </th>
+                </tr>
+            </table>
+        </form>
+    </div>
+
+    <div class="zgrid_wrapper">
+        <h2>Dominio del panel</h2>
+        <p class="text-muted" style="font-size:12px;">
+            Dominio bajo el que es accesible el panel de control. Se usa en los emails de bienvenida y en los registros del sistema.<br>
+            Valor actual: <strong><@ CurrentBulwarkDomain @></strong>
+            &nbsp;·&nbsp; Puerto actual: <strong><@ BulwarkPort @></strong>
+            <em>(el puerto se cambia en el formulario de settings de arriba)</em>
+        </p>
+
+        <% if RootDomainOptions %>
+        <form action="./?module=bulwarkconfig&action=UpdateBulwarkDomain" method="post" id="formPanelDomain">
+            <@ CSFR_Tag @>
+            <div class="row" style="max-width:560px;">
+                <div class="col-4">
+                    <label>Subdominio <span class="text-muted">(opcional)</span></label>
+                    <input type="text" name="inPanelPrefix" id="inPanelPrefix"
+                           class="form-control" placeholder="panel"
+                           value="<@ CurrentPrefix @>"
+                           title="Solo letras minúsculas, números y guiones (ej: panel, cp, admin)">
+                </div>
+                <div class="col-1" style="padding-top:25px;text-align:center;font-size:20px;color:#aaa;">.</div>
+                <div class="col-7">
+                    <label>Dominio raíz</label>
+                    <select name="inRootDomain" id="inRootDomain" class="form-control">
+                        <% loop RootDomainOptions %>
+                        <option value="{! domain !}" {! selected !}>{! label !}</option>
+                        <% endloop %>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;">
+                <span class="text-muted" style="font-size:12px;">URL resultante del panel:</span><br>
+                <strong id="panelUrlPreview" style="font-size:14px;color:#333;"></strong>
+            </div>
+
+            <div id="panelDomainWarning" class="alert alert-warning" style="max-width:500px;margin-top:10px;display:none;">
+                <span class="bi bi-exclamation-triangle"></span>
+                El subdominio que has elegido está reservado para infraestructura (ns, mail, ftp, www…) y no puede usarse como dominio del panel.
+            </div>
+
+            <div style="margin-top:14px;">
+                <button type="submit" class="btn btn-primary" id="btnSavePanelDomain">
+                    <span class="bi bi-check-lg"></span> Guardar dominio del panel
+                </button>
+            </div>
+
+            <div id="panelDomainNote" style="max-width:540px;margin-top:14px;font-size:12px;"></div>
+            <script>
+            (function() {
+                var port = parseInt("<@ BulwarkPort @>", 10) || 80;
+
+                function buildNote() {
+                    var previewUrl = document.getElementById('panelUrlPreview').textContent;
+                    var html = '';
+
+                    if (port === 80) {
+                        html = '<div class="alert alert-info">'
+                             + '<span class="bi bi-info-circle"></span> '
+                             + 'Puerto estándar HTTP. El panel será accesible directamente en '
+                             + '<strong>' + previewUrl + '</strong> sin necesidad de escribir el puerto.<br>'
+                             + 'Si en el futuro activas SSL en el panel, el puerto cambiará a 443 y '
+                             + 'el acceso HTTP redirigirá automáticamente a HTTPS.'
+                             + '<br><br>Asegúrate de que existe un <strong>registro A</strong> en el DNS Manager '
+                             + 'para el subdominio que elijas, apuntando a la IP del servidor.'
+                             + '</div>';
+                    } else if (port === 443) {
+                        html = '<div class="alert alert-success">'
+                             + '<span class="bi bi-lock"></span> '
+                             + 'Puerto estándar HTTPS. El panel será accesible en '
+                             + '<strong>' + previewUrl + '</strong>.<br>'
+                             + 'Las visitas al puerto 80 (HTTP) se redirigen automáticamente a HTTPS, '
+                             + 'por lo que no es necesario escribir el puerto en la URL.'
+                             + '<br><br>Asegúrate de que existe un <strong>registro A</strong> en el DNS Manager '
+                             + 'para el subdominio que elijas, apuntando a la IP del servidor.'
+                             + '</div>';
+                    } else {
+                        html = '<div class="alert alert-warning">'
+                             + '<span class="bi bi-exclamation-triangle"></span> '
+                             + 'Puerto no estándar <strong>' + port + '</strong>. '
+                             + 'Los usuarios tendrán que escribir siempre el puerto en la URL: '
+                             + '<strong>' + previewUrl + '</strong><br>'
+                             + 'El navegador sin puerto va al 80, donde el panel <em>no</em> estará.<br>'
+                             + 'Para producción se recomienda usar el puerto <strong>80</strong> (HTTP) '
+                             + 'o el <strong>443</strong> (HTTPS con SSL activo). '
+                             + 'El puerto se cambia en el formulario de settings de arriba.'
+                             + '<br><br>Si cambias a un puerto no estándar, ese puerto debe estar '
+                             + '<strong>abierto en el firewall</strong> del servidor.'
+                             + '</div>';
+                    }
+                    document.getElementById('panelDomainNote').innerHTML = html;
+                }
+
+                document.getElementById('inPanelPrefix').addEventListener('input', buildNote);
+                document.getElementById('inRootDomain').addEventListener('change', buildNote);
+                setTimeout(buildNote, 60);
+            })();
+            </script>
+        </form>
+
+        <script>
+        (function() {
+            var reserved = ["ns1","ns2","ns3","ns4","mail","smtp","pop","pop3","imap",
+                            "ftp","www","webmail","autodiscover","autoconfig","vpn","ssh",
+                            "mx","mx1","mx2","api"];
+            var port = "<@ BulwarkPort @>";
+
+            function update() {
+                var prefix = document.getElementById('inPanelPrefix').value.trim().toLowerCase();
+                var root   = document.getElementById('inRootDomain').value;
+                var warn   = document.getElementById('panelDomainWarning');
+                var btn    = document.getElementById('btnSavePanelDomain');
+                var isReserved = prefix !== '' && reserved.indexOf(prefix) !== -1;
+
+                warn.style.display = isReserved ? 'block' : 'none';
+                btn.disabled = isReserved;
+
+                var fqdn = prefix !== '' ? prefix + '.' + root : root;
+                var portSuffix = (port === '80' || port === '443') ? '' : ':' + port;
+                document.getElementById('panelUrlPreview').textContent =
+                    'http://' + fqdn + portSuffix + '/';
+            }
+
+            document.getElementById('inPanelPrefix').addEventListener('input', update);
+            document.getElementById('inRootDomain').addEventListener('change', update);
+
+            document.getElementById('formPanelDomain').addEventListener('submit', function(e) {
+                var fqdn = document.getElementById('panelUrlPreview').textContent;
+                if (!confirm('¿Cambiar el dominio del panel a:\n' + fqdn + '?')) e.preventDefault();
+            });
+
+            update();
+        })();
+        </script>
+        <% endif %>
+
+        <% if RootDomainOptions %>
+        <% else %>
+        <div class="alert alert-info" style="max-width:500px;">
+            No hay dominios raíz creados en el panel todavía. Añade un dominio primero desde el módulo <strong>Domains</strong>.
+        </div>
+        <% endif %>
+    </div>
+
+    <div class="zgrid_wrapper">
+        <h2><: Bulwark Daemon :></h2>
+        <form action="./?module=bulwarkconfig&action=ForceDaemon" method="post">
+            <table class="table table-striped">
+                <tr valign="top">
+                    <th nowrap="nowrap" width="300px"><: Next Daemon Run :>:</th><td><@ NextRunTime @></td>
+                </tr>
+                <tr valign="top">
+                    <th nowrap="nowrap"><: Last Daemon Run :>:</th><td><% if LastRunTime %><@ LastRunTime @><% else %><: Never :><% endif %></td>
+                </tr>
+                <tr valign="top">
+                    <th nowrap="nowrap"><: Last Day Daemon Run :>:</th><td><% if LastDayRunTime %><@ LastDayRunTime @><% else %><: Never :><% endif %></td>
+                </tr>
+                <tr valign="top">
+                    <th nowrap="nowrap"><: Last Week Daemon Run :>:</th><td><% if LastWeekRunTime %><@ LastWeekRunTime @><% else %><: Never :><% endif %></td>
+                </tr>
+                <tr valign="top">
+                    <th nowrap="nowrap"><: Last Month Daemon Run :>:</th><td><% if LastMonthRunTime %><@ LastMonthRunTime @><% else %><: Never :><% endif %></td>
+                </tr>
+                <tr>
+                    <th><: Queue a full daemon run (reset) :>:</th><td><@ CSFR_Tag @><button class="btn btn-primary" type="submit" id="button" name="inForceFull"><i class="bi bi-arrow-right me-1"></i><: Go :></button></td>
+                </tr>
+            </table>
+        </form>
+    </div>
+
+</div>

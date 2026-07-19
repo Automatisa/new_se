@@ -1,13 +1,13 @@
 #!/bin/sh
-# fw_whitelist_apply.sh — Reconstruye la tabla pf 'sentora_whitelist' desde la BD.
+# fw_whitelist_apply.sh — Reconstruye la tabla pf 'bulwark_whitelist' desde la BD.
 # Invocado ÚNICAMENTE por privilege::run('fw_whitelist_apply'). Sin argumentos.
 #
-# La tabla pf sentora_whitelist tiene precedencia sobre bloqueos manuales y sobre
-# la tabla sshguard (pf.conf: pass quick from <sentora_whitelist> antes que block).
+# La tabla pf bulwark_whitelist tiene precedencia sobre bloqueos manuales y sobre
+# la tabla sshguard (pf.conf: pass quick from <bulwark_whitelist> antes que block).
 
-TABLE="sentora_whitelist"
+TABLE="bulwark_whitelist"
 DESTFILE="/var/bulwark/run/pf_whitelist.txt"
-TMPFILE="/tmp/sentora_pf_whitelist.$$"
+TMPFILE="/tmp/bulwark_pf_whitelist.$$"
 CNF="/usr/local/bulwark/cnf/db.php"
 
 VALID_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[02]))?$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(/([0-9]{1,2}|1[01][0-9]|12[0-8]))?$'

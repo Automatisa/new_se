@@ -25,7 +25,7 @@ $config = [];
 // For examples see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
 // NOTE: for SQLite use absolute path: 'sqlite:////full/path/to/sqlite.db?mode=0646'
 // Use 127.0.0.1 (TCP) not localhost (socket). FreeBSD MariaDB socket is not at /tmp/mysql.sock.
-$config['db_dsnw'] = 'mysql://roundcube:!ROUNDCUBE_PASSWORD!@127.0.0.1/sentora_roundcube';
+$config['db_dsnw'] = 'mysql://roundcube:!ROUNDCUBE_PASSWORD!@127.0.0.1/bulwark_roundcube';
 
 // ----------------------------------
 // SMTP
@@ -56,7 +56,7 @@ $config['login_lc'] = 0; //Default was 2
 $config['des_key'] = '!ROUNDCUBE_DESKEY!';
 
 // Name your service. This is displayed on the login screen and in the window title
-$config['product_name'] = 'Sentora Webmail'; //Default was 'Roundcube Webmail'
+$config['product_name'] = 'Bulwark Webmail'; //Default was 'Roundcube Webmail'
 
 // Path to a local mime magic database file for PHPs finfo extension.
 // Set to null if the default path should be used.

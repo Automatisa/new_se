@@ -105,7 +105,7 @@ class module_controller extends ctrl_module
         if (!$enabled) {
             return @file_put_contents(self::ANTIVIRUS_CONF, "# ClamAV email scanning desactivado\n") !== false;
         }
-        $conf  = "# Generado por Sentora clamav_admin — no editar manualmente\n";
+        $conf  = "# Generado por Bulwark clamav_admin — no editar manualmente\n";
         $conf .= "clamav {\n";
         $conf .= "    action        = \"" . ($action === 'reject' ? 'reject' : 'add header') . "\";\n";
         $conf .= "    scan_mime_parts = true;\n";
@@ -130,9 +130,9 @@ class module_controller extends ctrl_module
         runtime_csfr::Protect();
         try {
             $r       = self::redis();
-            $current = $r->hGet('sentora:clamav', 'email_enabled') === '1';
+            $current = $r->hGet('bulwark:clamav', 'email_enabled') === '1';
             $new     = !$current;
-            $action  = $r->hGet('sentora:clamav', 'email_action') ?: 'reject';
+            $action  = $r->hGet('bulwark:clamav', 'email_action') ?: 'reject';
 
             if ($new && !self::isClamdRunning()) {
                 self::$err_msg = 'clamd no está en ejecución — arranca ClamAV antes de activar la protección de email.';
@@ -144,7 +144,7 @@ class module_controller extends ctrl_module
                 return;
             }
 
-            $r->hSet('sentora:clamav', 'email_enabled', $new ? '1' : '0');
+            $r->hSet('bulwark:clamav', 'email_enabled', $new ? '1' : '0');
             privilege::run('rspamd_reload');
             self::prg(
                 $new ? 'Protección antivirus de email activada.' : 'Protección antivirus de email desactivada.',
@@ -166,8 +166,8 @@ class module_controller extends ctrl_module
         }
         try {
             $r       = self::redis();
-            $enabled = $r->hGet('sentora:clamav', 'email_enabled') === '1';
-            $r->hSet('sentora:clamav', 'email_action', $action);
+            $enabled = $r->hGet('bulwark:clamav', 'email_enabled') === '1';
+            $r->hSet('bulwark:clamav', 'email_action', $action);
             if ($enabled) {
                 if (!self::writeAntivirusConf(true, $action)) {
                     self::$err_msg = 'Error al escribir la configuración.';
@@ -192,7 +192,7 @@ class module_controller extends ctrl_module
         try {
             if ($running) {
                 self::writeAntivirusConf(false);
-                self::redis()->hSet('sentora:clamav', 'email_enabled', '0');
+                self::redis()->hSet('bulwark:clamav', 'email_enabled', '0');
                 privilege::run('rspamd_reload');
                 // Guardar flash ANTES de cerrar la sesión
                 $_SESSION['clamav_admin_flash'] = ['type' => 'ok', 'msg' => 'ClamAV detenido y protección de email desactivada.'];
@@ -256,8 +256,8 @@ class module_controller extends ctrl_module
         }
 
         privilege::run('clamav_cron_update');
-        try { self::redis()->hSet('sentora:clamav', 'scan_freq', $freq); } catch (Exception $e) {}
-        try { self::redis()->hSet('sentora:clamav', 'scan_hour', (string)$hour); } catch (Exception $e) {}
+        try { self::redis()->hSet('bulwark:clamav', 'scan_freq', $freq); } catch (Exception $e) {}
+        try { self::redis()->hSet('bulwark:clamav', 'scan_hour', (string)$hour); } catch (Exception $e) {}
 
         self::prg(
             $freq === 'disable' ? 'Escaneo programado desactivado.' : "Escaneo programado: {$freq} a las {$hour}:00.",
@@ -292,7 +292,7 @@ class module_controller extends ctrl_module
         }
 
         privilege::run('clamav_cron_update');
-        try { self::redis()->hSet('sentora:clamav', 'freshclam_checks', (string)$checks); } catch (Exception $e) {}
+        try { self::redis()->hSet('bulwark:clamav', 'freshclam_checks', (string)$checks); } catch (Exception $e) {}
 
         $interval = round(24 / $checks, 1);
         self::prg("Actualizaciones programadas: {$checks} veces al día (cada ~{$interval}h).", 'ok', 'update');
@@ -687,8 +687,8 @@ class module_controller extends ctrl_module
         $lastScan  = '—';
         try {
             $r       = self::redis();
-            $emailOn = $r->hGet('sentora:clamav', 'email_enabled') === '1';
-            $scanFreq = $r->hGet('sentora:clamav', 'scan_freq') ?: 'disable';
+            $emailOn = $r->hGet('bulwark:clamav', 'email_enabled') === '1';
+            $scanFreq = $r->hGet('bulwark:clamav', 'scan_freq') ?: 'disable';
         } catch (Exception $e) {}
 
         // Última línea del log de escaneo
@@ -761,8 +761,8 @@ class module_controller extends ctrl_module
         $action  = 'reject';
         try {
             $r       = self::redis();
-            $emailOn = $r->hGet('sentora:clamav', 'email_enabled') === '1';
-            $action  = $r->hGet('sentora:clamav', 'email_action') ?: 'reject';
+            $emailOn = $r->hGet('bulwark:clamav', 'email_enabled') === '1';
+            $action  = $r->hGet('bulwark:clamav', 'email_action') ?: 'reject';
         } catch (Exception $e) {}
 
         $running = self::isClamdRunning();
@@ -838,8 +838,8 @@ class module_controller extends ctrl_module
         $hour = 3;
         try {
             $r    = self::redis();
-            $freq = $r->hGet('sentora:clamav', 'scan_freq') ?: 'weekly';
-            $hour = (int)($r->hGet('sentora:clamav', 'scan_hour') ?: 3);
+            $freq = $r->hGet('bulwark:clamav', 'scan_freq') ?: 'weekly';
+            $hour = (int)($r->hGet('bulwark:clamav', 'scan_hour') ?: 3);
         } catch (Exception $e) {}
 
         $running    = self::isClamdRunning();
@@ -989,7 +989,7 @@ class module_controller extends ctrl_module
     {
         $checks = 4;
         try {
-            $val = self::redis()->hGet('sentora:clamav', 'freshclam_checks');
+            $val = self::redis()->hGet('bulwark:clamav', 'freshclam_checks');
             if ($val !== false && $val !== '') $checks = (int)$val;
         } catch (Exception $e) {}
 

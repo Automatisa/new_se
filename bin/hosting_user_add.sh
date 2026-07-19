@@ -44,7 +44,7 @@ pw useradd -n "$SYSUSER" \
            -g "$SYSUSER" \
            -s /usr/sbin/nologin \
            -d /nonexistent \
-           -c "Sentora hosting ${USERNAME}" \
+           -c "Bulwark hosting ${USERNAME}" \
            2>/dev/null || exit 3
 
 # Ajustar propiedad del directorio de hosting.

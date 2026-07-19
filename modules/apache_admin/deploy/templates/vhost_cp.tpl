@@ -1,4 +1,4 @@
-# Configuration for Sentora control panel.
+# Configuration for Bulwark control panel.
 <VirtualHost *:{$cp.server_port}>
 ServerAdmin {$cp.server_admin}
 DocumentRoot "{$cp.server_root}"
@@ -12,9 +12,9 @@ Options +FollowSymLinks -Indexes
 
 AddType application/x-httpd-php .php
 
-ErrorLog "{$cp.log_dir}sentora-error.log" 
-CustomLog "{$cp.log_dir}sentora-access.log" combined
-CustomLog "{$cp.log_dir}sentora-bandwidth.log" common
+ErrorLog "{$cp.log_dir}bulwark-error.log" 
+CustomLog "{$cp.log_dir}bulwark-access.log" combined
+CustomLog "{$cp.log_dir}bulwark-bandwidth.log" common
 
 {if $loaderrorpages <> "0"}
 {foreach $loaderrorpages as $errorpage}

@@ -28,13 +28,13 @@ class ui_tpl_sysnotice {
 			# If NEW version
 			if ($installed < $lastest) {
 				# Set message
-				$msg = ('There are currently new updates for your Sentora installation, please download the latest release')
+				$msg = ('There are currently new updates for your Bulwark installation, please download the latest release')
 				. $lastest_tagged . ' from <a href="http://www.sentora.org/">http://www.sentora.org/</a>.';
 				# Return mesagge
 				return ui_sysmessage::shout(
 					$msg,
 					'Notice',
-					'Sentora System Notice:',
+					'Bulwark System Notice:',
 					true
 				);
 			# If BETA version
@@ -46,7 +46,7 @@ class ui_tpl_sysnotice {
 				return ui_sysmessage::shout(
 					$msg,
 					'zannounceerror',
-					'Sentora <b>BETA</b> System Notice:',
+					'Bulwark <b>BETA</b> System Notice:',
 					false
 				);
 			} else {

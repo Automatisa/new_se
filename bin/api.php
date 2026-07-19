@@ -53,7 +53,7 @@ function cluster_auth(bool $requirePeerIp = true): void
     $presented = '';
     if (preg_match('/^Bearer\s+(\S+)$/i', get_auth_header(), $mm)) { $presented = $mm[1]; }
     if ($expected === '' || !hash_equals($expected, $presented)) {
-        header('WWW-Authenticate: Bearer realm="Sentora Cluster"');
+        header('WWW-Authenticate: Bearer realm="Bulwark Cluster"');
         api_respond(401, ['error' => 'Unauthorized', 'message' => 'Token de cluster ausente o inválido.', 'code' => 401]);
     }
     if ($requirePeerIp) {
@@ -432,7 +432,7 @@ if (ctrl_options::GetSystemOption('api_rest_enabled') !== 'true') {
 // ── 5. Autenticación Bearer ───────────────────────────────────────────────────
 
 if (!preg_match('/^Bearer\s+(\S+)$/i', get_auth_header(), $m)) {
-    header('WWW-Authenticate: Bearer realm="Sentora API v1"');
+    header('WWW-Authenticate: Bearer realm="Bulwark API v1"');
     api_respond(401, ['error' => 'Unauthorized', 'message' => 'Falta o es inválida la cabecera Authorization.', 'code' => 401]);
 }
 $raw_token = $m[1];
@@ -595,7 +595,7 @@ if ($resource !== '' && isset($known_resources[$resource])
 if ($method === 'GET' && $resource === 'status') {
     api_respond(200, [
         'status'    => 'ok',
-        'api'       => 'Sentora REST API v1',
+        'api'       => 'Bulwark REST API v1',
         'token'     => $token_row['at_name_vc'],
         'scope'     => $token_scope,
         'timestamp' => date('c'),
@@ -1579,7 +1579,7 @@ if ($resource === 'system') {
                 'used_mb'    => round($bytes / 1048576, 2),
             ];
         }
-        api_respond(200, ['month' => $month, 'data' => $data, 'note' => 'Valores registrados por el daemon de Sentora.']);
+        api_respond(200, ['month' => $month, 'data' => $data, 'note' => 'Valores registrados por el daemon de Bulwark.']);
     }
 
     // ── GET /v1/system/daemon/status ──────────────────────────────────────────

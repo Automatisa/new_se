@@ -11,7 +11,7 @@ REPO_LOCAL="${2:?Falta la ruta local del repo pkg}"
 
 PREFIX="/usr/local/php${V}"
 VER_DOT="${V%?}.${V#?}"
-REPO_CONF="/usr/local/etc/pkg/repos/sentora-php${V}.conf"
+REPO_CONF="/usr/local/etc/pkg/repos/bulwark-php${V}.conf"
 FPM_BIN="${PREFIX}/sbin/php-fpm"
 FPM_CONF="${PREFIX}/etc/php-fpm.conf"
 POOL_DIR="${PREFIX}/etc/php-fpm.d"
@@ -19,7 +19,7 @@ PHP_INI="${PREFIX}/etc/php.ini"
 PIDFILE="/var/run/php${V}-fpm.pid"
 RC="/usr/local/etc/rc.d/php${V}_fpm"
 SOCKDIR="/var/run/php-fpm"
-WRAPPER="/usr/local/bulwark/bin/sentora_mail_limit.sh -t -i"
+WRAPPER="/usr/local/bulwark/bin/bulwark_mail_limit.sh -t -i"
 TIMEZONE="$(cat /var/db/zoneinfo 2>/dev/null || echo UTC)"
 
 info() { printf '\033[36m[php%s]\033[0m %s\n' "$V" "$*"; }
@@ -29,7 +29,7 @@ info() { printf '\033[36m[php%s]\033[0m %s\n' "$V" "$*"; }
 # 1. Registrar el repo pkg local (file://) y instalar core + extensiones bajo el PREFIX.
 info "Registrando repo local en $REPO_CONF"
 cat > "$REPO_CONF" <<CONF
-sentora-php${V}: {
+bulwark-php${V}: {
     url: "file://${REPO_LOCAL}",
     enabled: yes,
     priority: 100
@@ -41,8 +41,8 @@ pkg update >/dev/null 2>&1 || true
 # php83-* OFICIALES de FreeBSD, que instalan en /usr/local y chocan con php84). Nuestro repo tiene
 # prioridad alta y SOLO contiene php${V}-* (reubicados), así que esos nombres se sirven de aquí;
 # sus dependencias (png, curl...) se resuelven del repo oficial (ya están en el servidor).
-NAMES=$(pkg rquery -r "sentora-php${V}" '%n' 2>/dev/null | sort -u)
-[ -n "$NAMES" ] || { echo "ERROR: el repo sentora-php${V} no lista paquetes."; exit 1; }
+NAMES=$(pkg rquery -r "bulwark-php${V}" '%n' 2>/dev/null | sort -u)
+[ -n "$NAMES" ] || { echo "ERROR: el repo bulwark-php${V} no lista paquetes."; exit 1; }
 info "Paquetes a instalar ($(echo $NAMES | wc -w | tr -d ' ')): $(echo $NAMES | tr '\n' ' ')"
 pkg install -y $NAMES
 [ -x "$FPM_BIN" ] || { echo "ERROR: no existe $FPM_BIN tras instalar."; exit 1; }
@@ -75,7 +75,7 @@ CONF
 # 4. Pool "keepalive": el master necesita AL MENOS un pool para arrancar. Así php${V}_fpm queda
 #    vivo aunque todavía no haya ningún dominio asignado a esta versión, y los reload posteriores
 #    del panel (al asignar el primer dominio) funcionan y crean el socket. El panel solo gestiona
-#    los pools sentora_*.conf, así que NO borra este keepalive.
+#    los pools bulwark_*.conf, así que NO borra este keepalive.
 cat > "${POOL_DIR}/00-keepalive.conf" <<CONF
 [keepalive]
 user = www

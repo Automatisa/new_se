@@ -192,11 +192,11 @@ class sys_versions {
     }
 
     /**
-     * Returns the Sentora version (based on the DB version number.)
+     * Returns the Bulwark version (based on the DB version number.)
      * @author Bobby Allen (ballen@bobbyallen.me)
-     * @return string Sentora DB Version
+     * @return string Bulwark DB Version
      */
-    static function ShowSentoraVersion() {
+    static function ShowBulwarkVersion() {
         return ctrl_options::GetSystemOption('dbversion');
     }
 }

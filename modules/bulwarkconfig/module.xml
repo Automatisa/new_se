@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+    <name>Bulwark Config</name>
+    <version>200</version>
+    <defaultcat>Server Admin</defaultcat>
+    <desc>Changes made here affect the entire Bulwark configuration, please double check everything before saving changes.</desc>
+    <authorname>Sentora Project</authorname>
+    <authoremail>info@sentora.org</authoremail>
+    <authorurl>http://sentora.org/</authorurl>
+</module>

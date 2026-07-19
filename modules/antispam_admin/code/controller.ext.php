@@ -89,7 +89,7 @@ class module_controller extends ctrl_module
 
         try {
             $r = self::redis();
-            $r->hMSet('sentora:antispam:global', ['score' => $score, 'action' => $action]);
+            $r->hMSet('bulwark:antispam:global', ['score' => $score, 'action' => $action]);
         } catch (Exception $e) {
             error_log('antispam_admin: Redis error: ' . $e->getMessage());
         }
@@ -163,7 +163,7 @@ class module_controller extends ctrl_module
 
     // ---- Límite DURO de mail() por cuenta (wrapper sendmail_path) --------------------------------
     // Complementa el rate-limit de rspamd: aquí PHP-FPM corre cada dominio como h_<cuenta>, así que
-    // el emisor es INFALSIFICABLE. El wrapper /usr/local/bulwark/bin/sentora_mail_limit.sh lee estos
+    // el emisor es INFALSIFICABLE. El wrapper /usr/local/bulwark/bin/bulwark_mail_limit.sh lee estos
     // dos ficheros (www-writable) y descarta el correo de una cuenta que supere el límite/hora.
     const MAILLIMIT_DIR   = '/var/bulwark/mail_limits';
     const MAILLIMIT_LIMIT = '/var/bulwark/mail_limits/limit';
@@ -349,7 +349,7 @@ class module_controller extends ctrl_module
         $new      = $enabling ? 'true' : 'false';
         self::saveOption('antispam_enabled', $new);
         try {
-            self::redis()->hSet('sentora:antispam:global', 'enabled', $enabling ? '1' : '0');
+            self::redis()->hSet('bulwark:antispam:global', 'enabled', $enabling ? '1' : '0');
         } catch (Exception $e) {
             error_log('antispam_admin: Redis error on toggle: ' . $e->getMessage());
         }
@@ -379,7 +379,7 @@ class module_controller extends ctrl_module
 
         try {
             $r = self::redis();
-            $r->sAdd('sentora:antispam:global:' . $type, $address);
+            $r->sAdd('bulwark:antispam:global:' . $type, $address);
             self::$ok_msg = 'Address added to global ' . $type . 'list.';
         } catch (Exception $e) {
             self::$err_msg = 'Redis error: ' . $e->getMessage();
@@ -396,7 +396,7 @@ class module_controller extends ctrl_module
 
         try {
             $r = self::redis();
-            $r->sRem('sentora:antispam:global:' . $type, $address);
+            $r->sRem('bulwark:antispam:global:' . $type, $address);
             self::$ok_msg = 'Address removed.';
         } catch (Exception $e) {
             self::$err_msg = 'Redis error: ' . $e->getMessage();
@@ -441,7 +441,7 @@ class module_controller extends ctrl_module
         fclose($sock);
 
         $meta   = self::extractReceivedMeta($raw);
-        $hdrs   = "Content-Type: text/plain\r\nQueue-Id: sentora-test\r\n";
+        $hdrs   = "Content-Type: text/plain\r\nQueue-Id: bulwark-test\r\n";
         if (!empty($meta['ip']))       $hdrs .= 'IP: '       . $meta['ip']       . "\r\n";
         if (!empty($meta['hostname'])) $hdrs .= 'Hostname: ' . $meta['hostname'] . "\r\n";
         if (!empty($meta['from']))     $hdrs .= 'From: '     . $meta['from']     . "\r\n";
@@ -597,7 +597,7 @@ class module_controller extends ctrl_module
         if (!$stat) return '<span class="text-danger">rspamd not reachable on 127.0.0.1:11334</span>';
         $learned  = number_format((int)($stat['learned'] ?? 0));
         try {
-            $count = count(self::redis()->keys('sentora:antispam:*@*'));
+            $count = count(self::redis()->keys('bulwark:antispam:*@*'));
         } catch (Exception $e) {
             $count = '?';
         }
@@ -675,7 +675,7 @@ class module_controller extends ctrl_module
         $redirectors = trim($controller->GetControllerRequest('FORM', 'inPhishRedirectors') ?? '');
         $strict      = trim($controller->GetControllerRequest('FORM', 'inPhishStrict') ?? '');
 
-        $conf  = "# Generado por Sentora antispam_admin — no editar manualmente\n";
+        $conf  = "# Generado por Bulwark antispam_admin — no editar manualmente\n";
         $conf .= 'openphish_enabled = ' . ($openphish ? 'true' : 'false') . ";\n";
         $conf .= 'openphish_map = "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt";' . "\n\n";
         $conf .= "exceptions {\n    REDIRECTOR_FALSE = [\"" . self::PHISHING_REDIRS . "\"];\n}\n\n";
@@ -699,7 +699,7 @@ class module_controller extends ctrl_module
         }
 
         try {
-            self::redis()->hSet('sentora:antispam:phishing', 'openphish_enabled', $openphish ? '1' : '0');
+            self::redis()->hSet('bulwark:antispam:phishing', 'openphish_enabled', $openphish ? '1' : '0');
         } catch (Exception $e) {}
 
         privilege::run('rspamd_reload');
@@ -723,7 +723,7 @@ class module_controller extends ctrl_module
     {
         $openphish = false;
         try {
-            $openphish = self::redis()->hGet('sentora:antispam:phishing', 'openphish_enabled') === '1';
+            $openphish = self::redis()->hGet('bulwark:antispam:phishing', 'openphish_enabled') === '1';
         } catch (Exception $e) {}
 
         $redirectors = is_readable(self::PHISHING_REDIRS)
@@ -877,7 +877,7 @@ class module_controller extends ctrl_module
 
     private static function writeSpamhausRbl(string $key): bool
     {
-        $content = "# Sentora: Spamhaus DQS — generado automáticamente, no editar.\n"
+        $content = "# Bulwark: Spamhaus DQS — generado automáticamente, no editar.\n"
                  . "rbls {\n"
                  . "  spamhaus {\n"
                  . "    enabled = false;\n"
@@ -922,7 +922,7 @@ class module_controller extends ctrl_module
         // Si el campo viene vacío, conservar el token almacenado en Redis
         if ($keyInput === '') {
             try {
-                $keyInput = self::redis()->hGet('sentora:antispam:spamhaus', 'key') ?? '';
+                $keyInput = self::redis()->hGet('bulwark:antispam:spamhaus', 'key') ?? '';
             } catch (Exception $e) {
                 $keyInput = '';
             }
@@ -950,7 +950,7 @@ class module_controller extends ctrl_module
         }
 
         try {
-            self::redis()->hMSet('sentora:antispam:spamhaus', ['enabled' => $enabled, 'key' => $key]);
+            self::redis()->hMSet('bulwark:antispam:spamhaus', ['enabled' => $enabled, 'key' => $key]);
         } catch (Exception $e) {
             self::$err_msg = 'Error Redis: ' . $e->getMessage();
             return;
@@ -973,7 +973,7 @@ class module_controller extends ctrl_module
     {
         try {
             $r       = self::redis();
-            $cfg     = $r->hGetAll('sentora:antispam:spamhaus');
+            $cfg     = $r->hGetAll('bulwark:antispam:spamhaus');
             $enabled = !empty($cfg['enabled']) && $cfg['enabled'] === '1';
             $key     = $cfg['key'] ?? '';
         } catch (Exception $e) {
@@ -1028,7 +1028,7 @@ class module_controller extends ctrl_module
     {
         try {
             $r     = self::redis();
-            $items = $r->sMembers('sentora:antispam:global:white');
+            $items = $r->sMembers('bulwark:antispam:global:white');
             if (!$items) return false;
             sort($items);
             $csrf = self::getCSFR_Tag();
@@ -1049,7 +1049,7 @@ class module_controller extends ctrl_module
     {
         try {
             $r     = self::redis();
-            $items = $r->sMembers('sentora:antispam:global:black');
+            $items = $r->sMembers('bulwark:antispam:global:black');
             if (!$items) return false;
             sort($items);
             $csrf = self::getCSFR_Tag();
@@ -1105,7 +1105,7 @@ class module_controller extends ctrl_module
         }
 
         try {
-            self::redis()->hMSet('sentora:antispam:dns', ['primary' => $primary, 'secondary' => $secondary]);
+            self::redis()->hMSet('bulwark:antispam:dns', ['primary' => $primary, 'secondary' => $secondary]);
         } catch (Exception $e) {
             self::$err_msg = 'Error Redis: ' . $e->getMessage();
             return;
@@ -1125,7 +1125,7 @@ class module_controller extends ctrl_module
     static function getDnsConfig()
     {
         try {
-            $cfg  = self::redis()->hGetAll('sentora:antispam:dns');
+            $cfg  = self::redis()->hGetAll('bulwark:antispam:dns');
             $pri  = $cfg['primary']   ?? '8.8.8.8';
             $sec  = $cfg['secondary'] ?? '8.8.4.4';
         } catch (Exception $e) {

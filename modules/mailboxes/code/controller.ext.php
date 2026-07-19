@@ -68,7 +68,7 @@ class module_controller extends ctrl_module
                     $status = '<img src="modules/' . $controller->GetControllerRequest('URL', 'module') . '/assets/down.gif" alt="Down"/>';
                 }
                 $res[] = array('address' => $rowmailboxes['mb_address_vc'],
-                    'created' => date(ctrl_options::GetSystemOption('sentora_df'), $rowmailboxes['mb_created_ts']),
+                    'created' => date(ctrl_options::GetSystemOption('bulwark_df'), $rowmailboxes['mb_created_ts']),
                     'status' => $status,
                     'id' => $rowmailboxes['mb_id_pk']);
             }
@@ -100,7 +100,7 @@ class module_controller extends ctrl_module
                     $ischeck = NULL;
                 }
                 $res[] = array('address' => $rowmailboxes['mb_address_vc'],
-                    'created' => date(ctrl_options::GetSystemOption('sentora_df'), $rowmailboxes['mb_created_ts']),
+                    'created' => date(ctrl_options::GetSystemOption('bulwark_df'), $rowmailboxes['mb_created_ts']),
                     'ischeck' => $ischeck,
                     'id' => $rowmailboxes['mb_id_pk']);
             }

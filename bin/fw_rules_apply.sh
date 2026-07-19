@@ -2,18 +2,18 @@
 # fw_rules_apply.sh — Aplica reglas personalizadas de pf desde x_fw_rules.
 #
 # Lee la tabla x_fw_rules (fr_enabled_in=1), genera reglas pf y las carga
-# en el anchor "sentora_rules". Sin argumentos. Sin ejecución directa del usuario.
+# en el anchor "bulwark_rules". Sin argumentos. Sin ejecución directa del usuario.
 #
 # Requisito en /etc/pf.conf:
 #   block in all          ← política por defecto: bloquear entrada
 #   pass out all keep state ← permitir salida y respuestas
-#   anchor "sentora_rules"  ← donde se cargan estas reglas (antes de block in all si necesario)
+#   anchor "bulwark_rules"  ← donde se cargan estas reglas (antes de block in all si necesario)
 
 set -e
 
 RULES_FILE="/var/bulwark/run/pf_custom_rules.txt"
-TMPFILE="/tmp/sentora_fw_rules.$$"
-DATA_FILE="/tmp/sentora_fw_rules_data.$$"
+TMPFILE="/tmp/bulwark_fw_rules.$$"
+DATA_FILE="/tmp/bulwark_fw_rules_data.$$"
 CNF="/usr/local/bulwark/cnf/db.php"
 
 [ -f "$CNF" ] || exit 1
@@ -114,7 +114,7 @@ rm -f "$DATA_FILE"
 
 # Aplicar al anchor si pf está activo
 if pfctl -si 2>/dev/null | grep -q "^Status: Enabled"; then
-    pfctl -a sentora_rules -f "$TMPFILE" 2>/dev/null || true
+    pfctl -a bulwark_rules -f "$TMPFILE" 2>/dev/null || true
 fi
 
 # Guardar copia legible para el visor del panel

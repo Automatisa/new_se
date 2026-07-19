@@ -16,7 +16,7 @@ cp "$KEYFILE"  "${KEYFILE}.bak"  2>/dev/null
     -out    "$CERTFILE" \
     -days   3650 \
     -nodes \
-    -subj   "/CN=${HOSTNAME}/O=Sentora FTP Server/C=ES" \
+    -subj   "/CN=${HOSTNAME}/O=Bulwark FTP Server/C=ES" \
     2>/dev/null
 
 if [ $? -ne 0 ]; then

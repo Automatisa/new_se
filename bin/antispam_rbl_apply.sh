@@ -12,8 +12,8 @@ else
     RAUTH=""
 fi
 
-enabled=$($REDIS $RAUTH HGET sentora:antispam:spamhaus enabled 2>/dev/null | tr -d '[:space:]')
-key=$($REDIS $RAUTH HGET sentora:antispam:spamhaus key 2>/dev/null | tr -d '[:space:]')
+enabled=$($REDIS $RAUTH HGET bulwark:antispam:spamhaus enabled 2>/dev/null | tr -d '[:space:]')
+key=$($REDIS $RAUTH HGET bulwark:antispam:spamhaus key 2>/dev/null | tr -d '[:space:]')
 
 if [ "$enabled" = "1" ] && [ -n "$key" ]; then
     # Validar formato: solo letras minúsculas y dígitos, 10-50 chars
@@ -22,7 +22,7 @@ if [ "$enabled" = "1" ] && [ -n "$key" ]; then
     fi
 
     cat > "$RBL_CONF" << CONFEOF
-# Sentora: Spamhaus DQS — generado automáticamente, no editar.
+# Bulwark: Spamhaus DQS — generado automáticamente, no editar.
 rbls {
   spamhaus {
     enabled = false;

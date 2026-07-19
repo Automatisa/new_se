@@ -175,7 +175,7 @@ class module_controller extends ctrl_module
             self::$error = TRUE;
             return FALSE;
         }
-        // Check to see if the domain already exists in Sentora somewhere and redirect if it does....
+        // Check to see if the domain already exists in Bulwark somewhere and redirect if it does....
         $sql = "SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:domain AND vh_deleted_ts IS NULL";
         $numrows = $zdbh->prepare($sql);
         $numrows->bindParam(':domain', $domain);
@@ -255,7 +255,7 @@ class module_controller extends ctrl_module
         if (!fs_director::CheckForEmptyValue($parkeddomains)) {
             foreach ($parkeddomains as $row) {
                 $status = self::getParkedDomainStatusHTML($row['active'], $row['id']);
-                $created = date(ctrl_Options::GetSystemOption('sentora_df'), $row['created']);
+                $created = date(ctrl_Options::GetSystemOption('bulwark_df'), $row['created']);
                 $res[] = array('name' => $row['name'],
                     'directory' => $row['directory'],
                     'active' => $row['active'],

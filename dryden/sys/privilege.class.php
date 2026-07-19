@@ -6,8 +6,8 @@
  *
  * Privilege-escalation helper — replaces the legacy `zsudo` setuid binary.
  *
- * Background (security fix, June 2026): Sentora historically used a custom
- * `zsudo` setuid-root binary (sentora-installers/preconf/bin/zsudo.c) to
+ * Background (security fix, June 2026): Bulwark historically used a custom
+ * `zsudo` setuid-root binary (bulwark-installers/preconf/bin/zsudo.c) to
  * escalate from the web server user (`apache`/`www`) to root for a handful
  * of well-defined operations (restart Apache, reload BIND, reload cron,
  * chmod the BIND log, etc.). The wrapper's `EscapeArgs()` only stripped
@@ -21,14 +21,14 @@
  *     internal "action" key to a fully-formed command line (no string
  *     concatenation from runtime variables).
  *   - Hand off to `sudo` on Linux (rules written to
- *     `/etc/sudoers.d/sentora`) or to `doas` on FreeBSD (rules written to
+ *     `/etc/sudoers.d/bulwark`) or to `doas` on FreeBSD (rules written to
  *     `/usr/local/etc/doas.conf`). Either way the wrapper itself enforces
  *     a fixed command list with exact-argument matching, so even if a
  *     caller passed a malicious argument, no shell interpolation occurs.
  *
  * The installer is responsible for generating the corresponding rules
  * file based on the action table below; see
- * sentora-installers/sentora_install.sh. The class exposes:
+ * bulwark-installers/bulwark_install.sh. The class exposes:
  *   - `sudoersRules($webUser)` for the Linux/sudo branch.
  *   - `doasRules($webUser)`    for the FreeBSD/doas branch.
  *   - `wrapperChoice()`        so the installer can pick the right branch
@@ -62,7 +62,7 @@ class privilege
      * path), it cannot break out of the argv.
      *
      * `sudo_rule` is a one-line `User Host=(Runas) Options: command` snippet
-     * for /etc/sudoers.d/sentora.
+     * for /etc/sudoers.d/bulwark.
      *
      * `doas_rule` is the trailing part of a doas.conf line — i.e. the
      * `identity [as target] cmd command [args ...]` portion, starting with
@@ -177,7 +177,7 @@ class privilege
             'doas_rule' => 'cmd /usr/local/bulwark/bin/ftp_cert_generate.sh',
         ),
 
-        // Validates and applies a new ProFTPD config written to /tmp/sentora_proftpd_new.conf.
+        // Validates and applies a new ProFTPD config written to /tmp/bulwark_proftpd_new.conf.
         'proftpd_config_update' => array(
             'argv' => array('/usr/local/bulwark/bin/ftp_config_update.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/ftp_config_update.sh',
@@ -185,7 +185,7 @@ class privilege
         ),
 
         // Updates TLSRSACertificateFile + TLSRSACertificateKeyFile in proftpd config.
-        // Reads paths from /tmp/sentora_ftp_cert and /tmp/sentora_ftp_key.
+        // Reads paths from /tmp/bulwark_ftp_cert and /tmp/bulwark_ftp_key.
         'proftpd_cert_paths_update' => array(
             'argv' => array('/usr/local/bulwark/bin/ftp_cert_paths_update.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/ftp_cert_paths_update.sh',
@@ -193,7 +193,7 @@ class privilege
         ),
 
         // Validates and installs an uploaded commercial SSL cert+key into the proftpd certs dir.
-        // Reads from /tmp/sentora_ftp_cert_upload and /tmp/sentora_ftp_key_upload.
+        // Reads from /tmp/bulwark_ftp_cert_upload and /tmp/bulwark_ftp_key_upload.
         'proftpd_cert_upload' => array(
             'argv' => array('/usr/local/bulwark/bin/ftp_cert_upload.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/ftp_cert_upload.sh',
@@ -249,14 +249,14 @@ class privilege
         // permisos root:zpanel 660, nunca directamente como argv. Los scripts wrapper
         // en /usr/local/bulwark/bin/ validan el contenido con regex antes de usarlo.
 
-        // Reconstruye tabla pf 'sentora_blocked' desde x_fw_blocked de la BD.
+        // Reconstruye tabla pf 'bulwark_blocked' desde x_fw_blocked de la BD.
         'fw_block_apply' => array(
             'argv'      => array('/usr/local/bulwark/bin/fw_block_apply.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/fw_block_apply.sh',
             'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_block_apply.sh',
         ),
 
-        // Reconstruye tabla pf 'sentora_whitelist' desde x_fw_whitelist de la BD.
+        // Reconstruye tabla pf 'bulwark_whitelist' desde x_fw_whitelist de la BD.
         'fw_whitelist_apply' => array(
             'argv'      => array('/usr/local/bulwark/bin/fw_whitelist_apply.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/fw_whitelist_apply.sh',
@@ -278,7 +278,7 @@ class privilege
             'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_status_dump.sh',
         ),
 
-        // Aplica reglas personalizadas de x_fw_rules al anchor pf "sentora_rules".
+        // Aplica reglas personalizadas de x_fw_rules al anchor pf "bulwark_rules".
         'fw_rules_apply' => array(
             'argv'      => array('/usr/local/bulwark/bin/fw_rules_apply.sh'),
             'sudo_rule' => '/usr/local/bulwark/bin/fw_rules_apply.sh',
@@ -592,7 +592,7 @@ class privilege
 
     /**
      * Return the sudoers rules that the installer must place under
-     * /etc/sudoers.d/sentora.
+     * /etc/sudoers.d/bulwark.
      *
      * @param string $webUser The user the web server runs as
      *                        (apache / www / www-data).
@@ -605,7 +605,7 @@ class privilege
             throw new RuntimeException("privilege::sudoersRules: invalid web user '$webUser'");
         }
         $lines = array(
-            '# Sentora privilege rules (security fix, June 2026).',
+            '# Bulwark privilege rules (security fix, June 2026).',
             '# Generated automatically — do not edit by hand; regenerate via',
             '#   php -r "require \"/usr/local/bulwark/panel/dryden/sys/privilege.class.php\"; echo privilege::sudoersRules(\"www\");\"',
             '# Each line below maps to a single action key in privilege::run().',
@@ -637,7 +637,7 @@ class privilege
             throw new RuntimeException("privilege::doasRules: invalid web user '$webUser'");
         }
         $lines = array(
-            '# Sentora privilege rules (security fix, June 2026).',
+            '# Bulwark privilege rules (security fix, June 2026).',
             '# Generated automatically — do not edit by hand; regenerate via',
             '#   php -r "require \"/usr/local/bulwark/panel/dryden/sys/privilege.class.php\"; echo privilege::doasRules(\"www\");\"',
             '# Each line below maps to a single action key in privilege::run().',
@@ -679,16 +679,16 @@ class privilege
      *
      * The installer calls this once, picks the matching rules generator
      * (sudoersRules / doasRules) and writes the result to the right path
-     * (/etc/sudoers.d/sentora vs /usr/local/etc/doas.conf).
+     * (/etc/sudoers.d/bulwark vs /usr/local/etc/doas.conf).
      *
-     * Override the choice by setting the SENTORA_PRIVILEGE_WRAPPER env var
+     * Override the choice by setting the BULWARK_PRIVILEGE_WRAPPER env var
      * to either "sudo" or "doas" (useful for Vagrant/port testing).
      *
      * @return string "sudo" or "doas"
      */
     public static function wrapperChoice()
     {
-        $override = getenv('SENTORA_PRIVILEGE_WRAPPER');
+        $override = getenv('BULWARK_PRIVILEGE_WRAPPER');
         if ($override === 'sudo' || $override === 'doas') {
             return $override;
         }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# panel_ssl_recover.sh — Recuperación de certificado SSL del panel Sentora
+# panel_ssl_recover.sh — Recuperación de certificado SSL del panel Bulwark
 #
 # Uso: ejecutar como root via SSH cuando el panel no es accesible por fallo del cert SSL.
 #
@@ -28,11 +28,11 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 ###############################################################################
-# Leer configuración de la BD de Sentora
+# Leer configuración de la BD de Bulwark
 ###############################################################################
 CNF="/usr/local/bulwark/cnf/db.php"
 if [ ! -f "$CNF" ]; then
-    err "No se encuentra $CNF — ¿está Sentora instalado en /usr/local/bulwark?"
+    err "No se encuentra $CNF — ¿está Bulwark instalado en /usr/local/bulwark?"
     exit 1
 fi
 
@@ -45,18 +45,18 @@ mysql_q() {
     mysql -u "$DB_USER" -p"$DB_PASS" -h "$DB_HOST" "$DB_NAME" -se "$1" 2>/dev/null
 }
 
-DOMAIN=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='sentora_domain';")
+DOMAIN=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='bulwark_domain';")
 SERVER_IP=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='server_ip';")
-SENTORA_ROOT=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='sentora_root';")
+BULWARK_ROOT=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='bulwark_root';")
 HOSTED_DIR=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='hosted_dir';")
-SENTORA_ROOT="${SENTORA_ROOT:-/usr/local/bulwark}"
+BULWARK_ROOT="${BULWARK_ROOT:-/usr/local/bulwark}"
 HOSTED_DIR="${HOSTED_DIR:-/var/bulwark/hostdata/}"
 RECOVERY_DIR="/usr/local/etc/bulwark/panel/recovery"
 # Ruta donde sencrypt muestra los certs del panel (pestaña third_party)
 SENCRYPT_PANEL_DIR="${HOSTED_DIR}zadmin/ssl/sencrypt/third_party/${DOMAIN}"
 
 if [ -z "$DOMAIN" ]; then
-    err "No se pudo leer sentora_domain de la BD. Verifica credenciales en $CNF"
+    err "No se pudo leer bulwark_domain de la BD. Verifica credenciales en $CNF"
     exit 1
 fi
 
@@ -65,7 +65,7 @@ ACME=$(which acme.sh 2>/dev/null || echo "")
 [ -z "$ACME" ] && [ -x "/usr/local/sbin/acme.sh" ] && ACME="/usr/local/sbin/acme.sh"
 [ -z "$ACME" ] && [ -x "/root/.acme.sh/acme.sh" ]   && ACME="/root/.acme.sh/acme.sh"
 
-printf "\n${BLD}=== Recuperación SSL del panel Sentora ===${NC}\n"
+printf "\n${BLD}=== Recuperación SSL del panel Bulwark ===${NC}\n"
 printf "  Dominio del panel : ${BLD}%s${NC}\n" "$DOMAIN"
 printf "  IP del servidor   : ${BLD}%s${NC}\n" "$SERVER_IP"
 printf "  acme.sh           : %s\n" "${ACME:-no encontrado}"
@@ -123,7 +123,7 @@ apply_cert() {
 
     # Regenerar vhosts via daemon
     inf "Regenerando configuración de Apache (daemon)..."
-    php "${SENTORA_ROOT}/bin/daemon.php" >/dev/null 2>&1 || true
+    php "${BULWARK_ROOT}/bin/daemon.php" >/dev/null 2>&1 || true
 
     # Validar config de Apache
     inf "Validando sintaxis de Apache..."
@@ -172,7 +172,7 @@ if [ "$MODE" = "selfsigned" ]; then
     openssl req -x509 -newkey rsa:2048 -days 365 -nodes \
         -keyout "$KEYFILE" \
         -out    "$CERTFILE" \
-        -subj   "/CN=${DOMAIN}/O=Sentora Panel Recovery/C=ES" \
+        -subj   "/CN=${DOMAIN}/O=Bulwark Panel Recovery/C=ES" \
         -addext "subjectAltName=${SAN}" \
         2>/dev/null
     ok "Certificado autofirmado generado."

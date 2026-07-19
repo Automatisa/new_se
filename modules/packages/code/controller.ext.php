@@ -102,7 +102,7 @@ class module_controller extends ctrl_module
                 $Column = $numrows->fetchColumn();
                 array_push($res, array(
 					'packageid' => $rowpackages['pk_id_pk'],
-                    'created' => date(ctrl_options::GetSystemOption('sentora_df'), $rowpackages['pk_created_ts']),
+                    'created' => date(ctrl_options::GetSystemOption('bulwark_df'), $rowpackages['pk_created_ts']),
                     'clients' => $Column[0],
                     'packagename' => ui_language::translate($rowpackages['pk_name_vc']),
 					# get package quotas - tgates

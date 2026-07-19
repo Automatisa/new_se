@@ -428,14 +428,14 @@ class module_controller extends ctrl_module
             return;
         }
         $module_folder = $raw_folder;
-        $module_dir    = ctrl_options::GetSystemOption('sentora_root') . 'modules/' . $module_folder;
+        $module_dir    = ctrl_options::GetSystemOption('bulwark_root') . 'modules/' . $module_folder;
 
         if (fs_director::CheckFolderExists($module_dir)) {
             self::$error_message = "The module " . htmlspecialchars($module_folder) . " is already installed on this server!";
             return;
         }
         if ($archive_ext != 'zpp') {
-            self::$error_message = "Package type was not detected as a .zpp (Sentora Package) archive.";
+            self::$error_message = "Package type was not detected as a .zpp (Bulwark Package) archive.";
             return;
         }
         if (!fs_director::CreateDirectory($module_dir)) {

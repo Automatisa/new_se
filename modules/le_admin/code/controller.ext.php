@@ -86,7 +86,7 @@ class module_controller extends ctrl_module
 
         // --- 4. Últimos mensajes del log ---
         $h .= '<div class="zgrid_wrapper"><h3>Últimos mensajes (sencrypt.log)</h3>';
-        $logf  = ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log';
+        $logf  = ctrl_options::GetSystemOption('bulwark_root') . 'modules/sencrypt/sencrypt.log';
         $lines = @file($logf, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($lines) {
             $h .= '<pre style="max-height:260px;overflow:auto;background:#111;color:#ddd;padding:8px;border-radius:4px;font-size:12px;">' . $esc(implode("\n", array_slice($lines, -25))) . '</pre>';

@@ -1,12 +1,12 @@
 <?php
 
 ###############################################
-# PHPMyAdmin Configuration for Sentora        #
+# PHPMyAdmin Configuration for Bulwark        #
 ###############################################
 
 /*
  * Secret used to encrypt cookies — must be a random string of 32+ chars.
- * Generated during Sentora install: openssl rand -base64 32
+ * Generated during Bulwark install: openssl rand -base64 32
  */
 $cfg['blowfish_secret'] = '!PHPMYADMIN_SECRET!';
 
@@ -32,7 +32,7 @@ $cfg['UploadDir'] = '/var/bulwark/temp/';
 $cfg['SaveDir'] = '/var/bulwark/temp/';
 
 /*
- * Sentora-specific restrictions
+ * Bulwark-specific restrictions
  */
 $cfg['ShowCreateDb'] = false;
 $cfg['ShowChgPassword'] = false;

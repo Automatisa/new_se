@@ -1,7 +1,7 @@
 #!/usr/local/bin/php
 <?php
 /**
- * update_server_ip.php — CLI tool: update Sentora server_ip and cascade to DNS A records.
+ * update_server_ip.php — CLI tool: update Bulwark server_ip and cascade to DNS A records.
  * Usage: php update_server_ip.php <ip-address>
  * Called by: /usr/local/bin/update_ip_server
  */
@@ -19,8 +19,8 @@ if ($newip === '' || !filter_var($newip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) 
     exit(1);
 }
 
-$sentora_root = '/usr/local/bulwark/';
-require $sentora_root . 'cnf/db.php';
+$bulwark_root = '/usr/local/bulwark/';
+require $bulwark_root . 'cnf/db.php';
 
 try {
     $pdo = new PDO(

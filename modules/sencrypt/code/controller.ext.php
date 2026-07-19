@@ -1,6 +1,6 @@
 <?php
 /**
-	* Controller for sencrypt module for sentora version 2.0.0
+	* Controller for sencrypt module for bulwark version 2.0.0
 	* Version : 3.0.1
 	* Author : TGates
 	* Additional work by Diablo925, Jettaman
@@ -236,7 +236,7 @@ class module_controller extends ctrl_module {
 		global $zdbh, $controller;
 		$currentuser = ctrl_users::GetUserDetail();
 		$panelCertPath = ctrl_options::GetSystemOption('hosted_dir');
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		
 		# Check if Panel ssl folder exists - This file should have been created during install.
 		# Check if cert exist or not
@@ -308,7 +308,7 @@ class module_controller extends ctrl_module {
 		global $zdbh, $controller;
 		$currentuser = ctrl_users::GetUserDetail();
 		$panelCertPath = ctrl_options::GetSystemOption('hosted_dir');
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		
 				
 		# Check if cert exist or not
@@ -549,7 +549,7 @@ class module_controller extends ctrl_module {
 	static function Show_list_of_active_domain_ssl() {
 		global $zdbh, $controller;
 	    $currentuser = ctrl_users::GetUserDetail();
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		
 		# Show Client SSL certs
 		$sql = "SELECT * FROM x_vhosts WHERE vh_acc_fk=:userid AND vh_enabled_in=1 AND vh_deleted_ts IS NULL ORDER BY vh_name_vc ASC";
@@ -677,7 +677,7 @@ class module_controller extends ctrl_module {
 
 		$rootdir = str_replace('.', '_', $domain);
 
-		$temp_dir = ctrl_options::GetSystemOption('sentora_root') . "etc/tmp/";
+		$temp_dir = ctrl_options::GetSystemOption('bulwark_root') . "etc/tmp/";
 		$homedir = ctrl_options::GetSystemOption('hosted_dir') . $username;
     	$backupname = $rootdir;
 		// Crear zip con ZipArchive (sin exec ni shell)
@@ -814,7 +814,7 @@ class module_controller extends ctrl_module {
 			return false;
 		}
 		// Ownership: domain must belong to this user, or be the panel domain for admins only
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		if ($domain === $panelDomain) {
 			if ((int)$currentuser['usergroupid'] !== ctrl_groups::GROUP_ADMIN) return false;
 		} else {
@@ -839,8 +839,8 @@ class module_controller extends ctrl_module {
 			
 		rmdir($dir);
 
-		# Sentora domain CERTS
-		if($domain == ctrl_options::GetSystemOption('sentora_domain')) {
+		# Bulwark domain CERTS
+		if($domain == ctrl_options::GetSystemOption('bulwark_domain')) {
 			
 			# For Letsencrypt or third-party NON Self signed (lecrypt)
 			$line = "# Made from Sencrypt - " . $sub_module . " - start" . fs_filehandler::NewLine();
@@ -867,7 +867,7 @@ class module_controller extends ctrl_module {
 				
 		# NEW CODE
 			if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-				# For older Sentora support
+				# For older Bulwark support
 				$new = '';
 				$name = 'global_zpcustom';
 				
@@ -878,7 +878,7 @@ class module_controller extends ctrl_module {
 				$sql->execute();
 	
 			} else {
-				# For Sentora 2.0
+				# For Bulwark 2.0
 				$new = NULL;
 				$name = 'panel_ssl_tx';
 					
@@ -912,7 +912,7 @@ class module_controller extends ctrl_module {
 			$sql->execute();
 			
 			# Update Port
-			//$portname = "sentora_port";
+			//$portname = "bulwark_port";
 			//$port = "80";
 			
 			//$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
@@ -950,7 +950,7 @@ class module_controller extends ctrl_module {
 			$line .= "# Made from Sencrypt - " . $sub_module . " - end" . fs_filehandler::NewLine();
 				
 			if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {	
-				# For older Sentora support
+				# For older Bulwark support
 				$new = '';
 				
 				$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx = replace(vh_custom_tx, :data, :new), vh_custom_port_in=:port WHERE vh_name_vc = :domain");
@@ -963,7 +963,7 @@ class module_controller extends ctrl_module {
 				$sql->execute();
 				
 			} else {
-				# For Sentora 2.0
+				# For Bulwark 2.0
 				$new = NULL;
 				
 				$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx = replace(vh_ssl_tx, :data, :new), vh_ssl_port_in=:port, vh_custom_port_in=:customport WHERE vh_name_vc = :domain");
@@ -991,7 +991,7 @@ class module_controller extends ctrl_module {
 				$ssline .= "# Made from Sencrypt - " . $sub_module . " - end" . fs_filehandler::NewLine();
 	
 				if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {	
-					# For older Sentora support
+					# For older Bulwark support
 					$new = '';
 					
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx = replace(vh_custom_tx, :data, :new), vh_custom_port_in=:port WHERE vh_name_vc = :domain");
@@ -1004,7 +1004,7 @@ class module_controller extends ctrl_module {
 					$sql->execute();
 					
 				} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 					$new = NULL;
 					
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx = replace(vh_ssl_tx, :data, :new), vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
@@ -1041,7 +1041,7 @@ class module_controller extends ctrl_module {
 			self::$error = true;
 			return false;
 		}
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		if ($domain !== $panelDomain) {
 			$chk = $zdbh->prepare("SELECT COUNT(*) FROM x_vhosts WHERE vh_name_vc=:d AND vh_acc_fk=:u AND vh_deleted_ts IS NULL");
 			$chk->execute([':d' => $domain, ':u' => $currentuser['userid']]);
@@ -1077,7 +1077,7 @@ class module_controller extends ctrl_module {
 			move_uploaded_file($_FILES["inWCA"]["tmp_name"], $uploadwcrt);
 			move_uploaded_file($_FILES["inICA"]["tmp_name"], $uploadicrt);
 			
-			if($domain == ctrl_options::GetSystemOption('sentora_domain')) {
+			if($domain == ctrl_options::GetSystemOption('bulwark_domain')) {
 			
 				$line = "# Made from Sencrypt - third_party - start" . fs_filehandler::NewLine();
 				$line  .= fs_filehandler::NewLine();
@@ -1091,7 +1091,7 @@ class module_controller extends ctrl_module {
 				$line .= "# Made from Sencrypt - third_party - end" . fs_filehandler::NewLine();
 
 				if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-					# For older Sentora support
+					# For older Bulwark support
 					$sql = $zdbh->prepare("SELECT * FROM x_settings WHERE so_name_vc  = :name");
 					$sql->bindParam(':name', $name);
 					$sql->execute();
@@ -1105,7 +1105,7 @@ class module_controller extends ctrl_module {
 						$updatesql->bindParam(':name', $name);
 						$updatesql->execute();
 							
-						$portname = "sentora_port";
+						$portname = "bulwark_port";
 						$port = "443";
 						$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
 						$updatesql->bindParam(':value', $port);
@@ -1113,7 +1113,7 @@ class module_controller extends ctrl_module {
 						$updatesql->execute();
 
 				} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 						$name = 'panel_ssl_tx';
 						
 						# update panel data
@@ -1123,7 +1123,7 @@ class module_controller extends ctrl_module {
 						$updatesql->execute();
 					
 						# Update panel port					
-						$portname = "sentora_port";
+						$portname = "bulwark_port";
 						$port = "443";
 						$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
 						$updatesql->bindParam(':value', $port);
@@ -1148,7 +1148,7 @@ class module_controller extends ctrl_module {
 				$port = "443";
 				
 				if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-					# For older Sentora support
+					# For older Bulwark support
 					$portforward 	= "1";
 					
 					$sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc = :domain AND vh_deleted_ts IS NULL");
@@ -1170,7 +1170,7 @@ class module_controller extends ctrl_module {
 						$sql->execute();
 					
 				} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:data, vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 					$sql->bindParam(':data', $line);
 					$sql->bindParam(':domain', $domain);
@@ -1241,7 +1241,7 @@ class module_controller extends ctrl_module {
 		openssl_x509_export_to_file($sscert, ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/" . $domain . "/cert.pem");
 		openssl_pkey_export_to_file($privkey, ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/third_party/" . $domain . "/private.pem");	
 		
-		if ( $domain == ctrl_options::GetSystemOption('sentora_domain') ) {
+		if ( $domain == ctrl_options::GetSystemOption('bulwark_domain') ) {
 					
 			$line = "# Made from Sencrypt - third_party - start" . fs_filehandler::NewLine();
 			$line .= fs_filehandler::NewLine();
@@ -1253,11 +1253,11 @@ class module_controller extends ctrl_module {
 			$line .= "SSLCertificateKeyFile " . ctrl_options::GetSystemOption('hosted_dir') . $currentuser['username'] . "/ssl/sencrypt/third_party/" . $domain . "/private.pem" . fs_filehandler::NewLine();
 			$line .= "# Made from Sencrypt - third_party - end" . fs_filehandler::NewLine();					
 
-			$portname = "sentora_port";
+			$portname = "bulwark_port";
 			$port = "443";
 				
 			if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-				# For older Sentora support
+				# For older Bulwark support
 				$name = 'global_zpcustom';
 				$sql = $zdbh->prepare("SELECT * FROM x_settings WHERE so_name_vc  = :name");
 				$sql->bindParam(':name', $name);
@@ -1282,7 +1282,7 @@ class module_controller extends ctrl_module {
 					//$updatesql->execute();
 								
 			} else {
-				# For Sentora 2.0
+				# For Bulwark 2.0
 					$name = 'panel_ssl_tx';
 					
 					# Update data
@@ -1314,7 +1314,7 @@ class module_controller extends ctrl_module {
 			$port = "443";
 	
 			if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-				# For older Sentora support
+				# For older Bulwark support
 				$portforward 	= "1";								
 
 				$sql = $zdbh->prepare("SELECT * FROM x_vhosts WHERE vh_name_vc = :domain AND vh_deleted_ts IS NULL");
@@ -1336,7 +1336,7 @@ class module_controller extends ctrl_module {
 					$sql->execute();
 	
 			} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:data, vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 					$sql->bindParam(':data', $line);
 					$sql->bindParam(':domain', $domain);
@@ -1368,7 +1368,7 @@ class module_controller extends ctrl_module {
             $sql->execute();
 
 			# Panel values
-			$panel_Domain = ctrl_options::GetSystemOption('sentora_domain');
+			$panel_Domain = ctrl_options::GetSystemOption('bulwark_domain');
 			
 			# Check if ssl exists else where
 			if ( !is_dir(ctrl_options::GetSystemOption('hosted_dir') . $currentuser["username"] . "/ssl/sencrypt/letsencrypt/" . $panel_Domain . "/") ) {
@@ -1602,7 +1602,7 @@ class module_controller extends ctrl_module {
 			$logger->error($e->getTraceAsString());
 			$logger->error($e->getMessage());
 			# Throw error and log to file
-			error_log( date('Y-m-d H:i:s') . " - DOMAIN: " . $domain . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
+			error_log( date('Y-m-d H:i:s') . " - DOMAIN: " . $domain . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('bulwark_root') . 'modules/sencrypt/sencrypt.log');
 			self::$certFailed = true;
 			return false;
 			exit(1);
@@ -1632,7 +1632,7 @@ class module_controller extends ctrl_module {
 				$data = $olddata. $line;
 				
 				if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-					# For older Sentora support
+					# For older Bulwark support
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx=:data, vh_custom_port_in=:port WHERE vh_name_vc = :domain");
 					//$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx=:data, vh_custom_port_in=:port, vh_portforward_in=:portforward WHERE vh_name_vc = :domain");
 					$sql->bindParam(':data', $data);
@@ -1642,7 +1642,7 @@ class module_controller extends ctrl_module {
 					$sql->execute();	
 					
 				} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:data, vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 					//$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:data, vh_ssl_port_in=:port, vh_portforward_in=:portforward, vh_custom_port_in=:customport WHERE vh_name_vc = :domain");
 					$sql->bindParam(':data', $data);
@@ -1669,8 +1669,8 @@ class module_controller extends ctrl_module {
 		$username = $currentuser["username"];
 		$userid = $currentuser["userid"];
 					
-		$domainRoot = ctrl_options::GetSystemOption('sentora_root');
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$domainRoot = ctrl_options::GetSystemOption('bulwark_root');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 		$accountDir = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/letsencrypt/";
 		$certlocation = $accountDir . $panelDomain . "/";
 		
@@ -1757,7 +1757,7 @@ class module_controller extends ctrl_module {
 			$logger->error($e->getTraceAsString());
 			$logger->error($e->getMessage());
 			# Throw error and log to file
-			error_log( date('Y-m-d H:i:s') . " - PANEL DOMAIN: " . $domain . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('sentora_root') . 'modules/sencrypt/sencrypt.log');
+			error_log( date('Y-m-d H:i:s') . " - PANEL DOMAIN: " . $domain . fs_filehandler::NewLine() . $errorCatahed . fs_filehandler::NewLine(), 3, ctrl_options::GetSystemOption('bulwark_root') . 'modules/sencrypt/sencrypt.log');
 			self::$certFailed = true;
 			return false;
 			exit(1);
@@ -1778,7 +1778,7 @@ class module_controller extends ctrl_module {
 			
 			# new code down below
 			# Update panel Port
-			//$portname = "sentora_port";
+			//$portname = "bulwark_port";
 			//$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
 			//$updatesql->bindParam(':value', $port);
 			//$updatesql->bindParam(':name', $portname);
@@ -1789,13 +1789,13 @@ class module_controller extends ctrl_module {
 			if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
 				
 				# Update panel Port
-				$portname = "sentora_port";
+				$portname = "bulwark_port";
 				$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
 				$updatesql->bindParam(':value', $port);
 				$updatesql->bindParam(':name', $portname);
 				$updatesql->execute();
 				
-				# For older Sentora support
+				# For older Bulwark support
 				# Update panel SSL data
 				$panel_so_name = "global_zpcustom";
 				$sql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :data WHERE so_name_vc = :panel_so_name");
@@ -1803,9 +1803,9 @@ class module_controller extends ctrl_module {
 				$sql->bindParam(':panel_so_name', $panel_so_name);
 				
 			} else {
-				# For Sentora 2.0
+				# For Bulwark 2.0
 				# Update panel Port
-				$portname = "sentora_port";
+				$portname = "bulwark_port";
 				$updatesql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = :value WHERE so_name_vc = :name");
 				$updatesql->bindParam(':value', $port);
 				$updatesql->bindParam(':name', $portname);
@@ -1874,14 +1874,14 @@ class module_controller extends ctrl_module {
 		
 		# NEW CODE
 		if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-			# For older Sentora support
+			# For older Bulwark support
 			//$portforward 	= 1;
 			
 			$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx = replace(vh_custom_tx, :data, :new), vh_custom_port_in=:port WHERE vh_name_vc = :domain");
 			//$sql->bindParam(':portforward', $portforward);
 			
 		} else {
-			# For Sentora 2.0
+			# For Bulwark 2.0
 			$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx = replace(vh_ssl_tx, :data, :new), vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 			
 		}
@@ -1905,7 +1905,7 @@ class module_controller extends ctrl_module {
 		$currentuser = ctrl_users::GetUserDetail();
 		$formvars = $controller->GetAllControllerRequests('FORM');
 		//if (self::ExecuteDeletePanelSSL($formvars['inDomain'], $currentuser["username"]))
-		if (self::ExecuteDeletePanelSSL(ctrl_options::GetSystemOption('sentora_domain'), $currentuser["username"]))
+		if (self::ExecuteDeletePanelSSL(ctrl_options::GetSystemOption('bulwark_domain'), $currentuser["username"]))
 		return true;
 	}
 	
@@ -1946,13 +1946,13 @@ class module_controller extends ctrl_module {
 # NEW CODE
 		
 		if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-			# For older Sentora support
+			# For older Bulwark support
 			$sql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = replace(so_value_tx, :data, :new) WHERE so_name_vc = :panel_ssl");
 			$panelssltxt = "global_zpcustom";
 			$sql->bindParam(':panel_ssl', $panelssltxt);
 			
 		} else {
-			# For Sentora 2.0
+			# For Bulwark 2.0
 			$sql = $zdbh->prepare("UPDATE x_settings SET so_value_tx = replace(so_value_tx, :data, :new) WHERE so_name_vc = :panel_ssl");
 			$panelssltxt = "panel_ssl_tx";
 			$sql->bindParam(':panel_ssl', $panelssltxt);
@@ -1965,12 +1965,12 @@ class module_controller extends ctrl_module {
 		$sql->execute();
 	
 		# change panel port back to 80
-		$sentora_port = 80;
-		$so_name_vc = "sentora_port";
+		$bulwark_port = 80;
+		$so_name_vc = "bulwark_port";
 		
-		$sql = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:sentora_port WHERE so_name_vc = :so_name_vc");
+		$sql = $zdbh->prepare("UPDATE x_settings SET so_value_tx=:bulwark_port WHERE so_name_vc = :so_name_vc");
 		$panelssltxt = "panel_ssl_tx";
-		$sql->bindParam(':sentora_port', $sentora_port);
+		$sql->bindParam(':bulwark_port', $bulwark_port);
 		$sql->bindParam(':so_name_vc', $so_name_vc);
 		$sql->execute();
 		
@@ -1989,7 +1989,7 @@ class module_controller extends ctrl_module {
 		runtime_csfr::Protect();
 		$currentuser = ctrl_users::GetUserDetail();
 		$username    = $currentuser["username"];
-		$panelDomain = ctrl_options::GetSystemOption('sentora_domain');
+		$panelDomain = ctrl_options::GetSystemOption('bulwark_domain');
 
 		// Cuenta ACME COMPARTIDA (igual que la emisión, FIX-212); el cert del panel sigue en su home.
 		$staging      = ctrl_options::GetSystemOption('le_staging') === 'true';
@@ -2124,7 +2124,7 @@ class module_controller extends ctrl_module {
 			
 				# NEW CODE
 				if ( ctrl_options::GetSystemOption('dbversion') <= "1.0.3") {
-					# For older Sentora support						
+					# For older Bulwark support						
 					//$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx=:data, vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 					
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_custom_tx= replace(vh_custom_tx, :data, :new), vh_custom_port_in=:port WHERE vh_name_vc = :domain");
@@ -2137,7 +2137,7 @@ class module_controller extends ctrl_module {
 					$sql->execute();	
 					
 				} else {
-					# For Sentora 2.0
+					# For Bulwark 2.0
 					$sql = $zdbh->prepare("UPDATE x_vhosts SET vh_ssl_tx= replace(vh_ssl_tx, :data, :new), vh_ssl_port_in=:port WHERE vh_name_vc = :domain");
 					$sql->bindParam(':data', $line);
 					$sql->bindParam(':new', $new);

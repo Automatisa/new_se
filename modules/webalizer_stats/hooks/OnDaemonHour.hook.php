@@ -25,12 +25,12 @@ function GenerateWebalizerStats()
     $sql->execute();
     echo "Generating webalizer stats html..." . fs_filehandler::NewLine();
     while ( $rowvhost = $sql->fetch() ) {
-      $basedir = ctrl_options::GetSystemOption( 'sentora_root' ) . "modules/webalizer_stats/stats/" . $rowvhost[ 'ac_user_vc' ] . "/" . $rowvhost[ 'vh_name_vc' ];
+      $basedir = ctrl_options::GetSystemOption( 'bulwark_root' ) . "modules/webalizer_stats/stats/" . $rowvhost[ 'ac_user_vc' ] . "/" . $rowvhost[ 'vh_name_vc' ];
       if ( !file_exists( $basedir ) ) {
           @mkdir( $basedir, 0755, TRUE );
         }
 
-        chmod( ctrl_options::GetSystemOption( 'sentora_root' ) . "modules/webalizer_stats/bin/webalizer", 4777 );
+        chmod( ctrl_options::GetSystemOption( 'bulwark_root' ) . "modules/webalizer_stats/bin/webalizer", 4777 );
         $command = "webalizer";
 
         /** all other args and flags are the same so keep them outsite to avoid duplication */
@@ -47,7 +47,7 @@ function GenerateWebalizerStats()
             $rowvhost[ 'vh_name_vc' ] .
             '-access.log' );
 
-        $statsPath = ctrl_options::GetSystemOption( 'sentora_root' ) .
+        $statsPath = ctrl_options::GetSystemOption( 'bulwark_root' ) .
             "modules/webalizer_stats/stats/" .
             $rowvhost[ 'ac_user_vc' ] .
             '/' .

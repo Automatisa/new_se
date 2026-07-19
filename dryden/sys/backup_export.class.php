@@ -27,7 +27,7 @@ class sys_backup_export
             'htaccess'        => array('x_htaccess',        'ht_acc_fk'),
         );
         $out = array(
-            'sentora_backup_format' => 1,
+            'bulwark_backup_format' => 1,
             'generated_ts'          => time(),
             'account_id'            => $userid,
         );

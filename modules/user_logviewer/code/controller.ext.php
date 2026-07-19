@@ -3,7 +3,7 @@
 *
 * @package user_logviewer
 * @version 102
-* @author Simon Mora - samt2497 / extended by new_sentora
+* @author Simon Mora - samt2497 / extended by new_bulwark
 *
 */
 

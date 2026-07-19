@@ -423,8 +423,8 @@ class sys_backup_remote
     /** Prueba de conexión/subida: sube un fichero diminuto de test y lo deja (o informa). */
     public static function testConnection($dest)
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'sentora_bktest');
-        file_put_contents($tmp, "sentora backup destination test " . date('c') . "\n");
+        $tmp = tempnam(sys_get_temp_dir(), 'bulwark_bktest');
+        file_put_contents($tmp, "bulwark backup destination test " . date('c') . "\n");
         // Timeout CORTO para el test (conectar 8s, total 12s): así "Probar conexión" no
         // cuelga la petición 20s y devuelve el error rápido en vez de que el proxy la corte.
         $r = self::upload($dest, $tmp, 8, 12);

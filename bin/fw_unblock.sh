@@ -10,8 +10,8 @@
 # Qué hace:
 #   1. Valida el formato de la IP/CIDR
 #   2. Elimina la entrada de x_fw_blocked en la BD (soft-delete)
-#   3. Reconstruye la tabla pf sentora_blocked desde la BD
-#   4. Elimina la IP de la tabla pf sentora_blocked directamente (inmediato)
+#   3. Reconstruye la tabla pf bulwark_blocked desde la BD
+#   4. Elimina la IP de la tabla pf bulwark_blocked directamente (inmediato)
 #   5. También intenta eliminarla de la tabla sshguard por si estaba baneada allí
 #
 # Este script es para uso de emergencia desde SSH.
@@ -100,11 +100,11 @@ else
 fi
 
 ###############################################################################
-# Reconstruir tabla pf sentora_blocked desde la BD
+# Reconstruir tabla pf bulwark_blocked desde la BD
 ###############################################################################
-inf "Reconstruyendo tabla pf sentora_blocked desde la BD..."
+inf "Reconstruyendo tabla pf bulwark_blocked desde la BD..."
 if sh /usr/local/bulwark/bin/fw_block_apply.sh 2>/dev/null; then
-    ok "Tabla pf sentora_blocked actualizada."
+    ok "Tabla pf bulwark_blocked actualizada."
 else
     printf "${YLW}[AVISO]${NC} fw_block_apply.sh devolvió error (puede que pf no esté activo).\n"
 fi
@@ -112,11 +112,11 @@ fi
 ###############################################################################
 # Eliminar directamente de las tablas pf (efecto inmediato)
 ###############################################################################
-inf "Eliminando de la tabla pf sentora_blocked..."
+inf "Eliminando de la tabla pf bulwark_blocked..."
 if pfctl -si 2>/dev/null | grep -q "^Status: Enabled"; then
-    pfctl -t sentora_blocked -T delete "$IP" 2>/dev/null \
-        && ok "Eliminada de pf sentora_blocked." \
-        || printf "${YLW}[AVISO]${NC} La IP no estaba en la tabla pf sentora_blocked.\n"
+    pfctl -t bulwark_blocked -T delete "$IP" 2>/dev/null \
+        && ok "Eliminada de pf bulwark_blocked." \
+        || printf "${YLW}[AVISO]${NC} La IP no estaba en la tabla pf bulwark_blocked.\n"
 
     inf "Comprobando tabla pf sshguard..."
     if pfctl -t sshguard -T show 2>/dev/null | grep -qF "$IP"; then
@@ -145,5 +145,5 @@ printf "\n${GRN}${BLD}Operación completada.${NC}\n"
 printf "  IP desbloqueada : ${BLD}%s${NC}\n" "$IP"
 
 # Mostrar tabla pf actual
-COUNT=$(pfctl -t sentora_blocked -T show 2>/dev/null | grep -E '[0-9a-fA-F]' | wc -l | tr -d ' \t')
+COUNT=$(pfctl -t bulwark_blocked -T show 2>/dev/null | grep -E '[0-9a-fA-F]' | wc -l | tr -d ' \t')
 printf "  IPs bloqueadas en pf ahora: ${BLD}%s${NC}\n\n" "$COUNT"

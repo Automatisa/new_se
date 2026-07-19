@@ -7,8 +7,8 @@
 
 set -u
 MASTER=/usr/local/etc/postfix/master.cf
-BEGIN="# BEGIN sentora-mailip"
-END="# END sentora-mailip"
+BEGIN="# BEGIN bulwark-mailip"
+END="# END bulwark-mailip"
 DBPHP=/usr/local/bulwark/cnf/db.php
 
 [ -f "$MASTER" ] || { echo "mail_ip_transports: no existe $MASTER" >&2; exit 1; }
@@ -55,12 +55,12 @@ IFS=$OLDIFS
 BLOCK="$BLOCK
 $END"
 
-cp -p "$MASTER" "$MASTER.sentorabak"
+cp -p "$MASTER" "$MASTER.bulwarkbak"
 awk -v b="$BEGIN" -v e="$END" '
   $0==b {skip=1}
   skip && $0==e {skip=0; next}
   !skip {print}
-' "$MASTER.sentorabak" > "$MASTER.tmp"
+' "$MASTER.bulwarkbak" > "$MASTER.tmp"
 printf '%s\n' "$BLOCK" >> "$MASTER.tmp"
 mv "$MASTER.tmp" "$MASTER"
 
@@ -69,7 +69,7 @@ if postfix check >/dev/null 2>&1; then
     echo "mail_ip_transports: OK ($N transporte(s) de dominio con IP dedicada)"
     exit 0
 else
-    cp -p "$MASTER.sentorabak" "$MASTER"
+    cp -p "$MASTER.bulwarkbak" "$MASTER"
     echo "mail_ip_transports: 'postfix check' FALLÓ — master.cf restaurado, sin recargar" >&2
     exit 1
 fi

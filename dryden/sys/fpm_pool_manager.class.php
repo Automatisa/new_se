@@ -13,7 +13,7 @@ class fpm_pool_manager
 {
     const POOL_DIR   = '/usr/local/etc/php-fpm.d/';   // pools de la versión del sistema (por defecto)
     const SOCKET_DIR = '/var/run/php-fpm/';
-    const PREFIX     = 'sentora_';
+    const PREFIX     = 'bulwark_';
 
     /**
      * Versiones de PHP disponibles para asignar por dominio.
@@ -196,7 +196,7 @@ class fpm_pool_manager
         }
 
         // Recargar los masters FPM cuyos pools cambiaron, EN DOS RONDAS. La ruta del socket es
-        // COMPARTIDA entre versiones (sentora_<dir>.sock), así que al mover un dominio de master hay
+        // COMPARTIDA entre versiones (bulwark_<dir>.sock), así que al mover un dominio de master hay
         // que ordenar: primero el master que PIERDE el pool (libera/cierra el socket compartido) y
         // AL FINAL el que lo GANA (crea el socket) -> sin carrera y sin doble restart.
         //   - php_fpm del SISTEMA: reload graceful (USR2) añade pools sin cortar los ya servidos.
