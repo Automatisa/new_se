@@ -60,7 +60,13 @@ done
 
 # 4. Runtime que ESCRIBE el panel -> PANEL_USER (grupo www para compartir lectura).
 info "Runtime del panel -> ${PANEL_USER}"
-[ -d "$PANEL_DATA/sessions" ]        && chown "${PANEL_USER}:www" "$PANEL_DATA/sessions"
+if [ -d "$PANEL_DATA/sessions" ]; then
+    chown "${PANEL_USER}:www" "$PANEL_DATA/sessions"
+    # Purgar sesiones existentes: tras cambiar el usuario del panel, las sesiones viejas pueden
+    # quedar indecodificables ("Failed to decode session object") -> el login da "Sesión expirada".
+    # Borrarlas fuerza un re-login limpio (aceptable en una migración). Ver incidencia login 2026-07-19.
+    rm -f "$PANEL_DATA"/sessions/sess_* 2>/dev/null || true
+fi
 [ -d "$PANEL_PATH/etc/tmp" ]         && chown -R "${PANEL_USER}:www" "$PANEL_PATH/etc/tmp"
 if [ -f "$PANEL_DATA/logs/sentora.log" ]; then
     chown "${PANEL_USER}:www" "$PANEL_DATA/logs/sentora.log"; chmod 660 "$PANEL_DATA/logs/sentora.log"
