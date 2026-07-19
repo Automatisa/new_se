@@ -1729,6 +1729,20 @@ chown root:wheel /usr/local/etc/doas.conf
 chmod 600 /usr/local/etc/doas.conf
 ok "doas configurado"
 
+###############################################################################
+# 15b. AISLAR EL PANEL EN SU PROPIO USUARIO (separado del genérico 'www')
+###############################################################################
+# El panel deja de correr como 'www' (Apache/estáticos): usuario propio (PANEL_USER, miembro de
+# www para leer lo compartido), SECRETOS a root:PANEL_USER 640 (www ya no los lee) y doas SOLO para
+# PANEL_USER. El daemon sigue como root. Fuente única: bin/migrate_panel_user.sh (idempotente).
+# PENDIENTE: renombrar PANEL_USER 'zpanel' por el nombre definitivo (ver el propio script).
+info "Aislando el panel en su propio usuario del sistema..."
+if [ -x "$PANEL_PATH/bin/migrate_panel_user.sh" ]; then
+    PANEL_USER=zpanel PANEL_PATH="$PANEL_PATH" PANEL_DATA="$PANEL_DATA" \
+        sh "$PANEL_PATH/bin/migrate_panel_user.sh" && ok "Panel aislado en usuario propio" \
+        || echo "AVISO: no se pudo aislar el panel; sigue corriendo como www"
+fi
+
 # Pinning de paquetes críticos: bloquea (pkg lock) los paquetes de nombre SIN versión que pueden
 # saltar de MAYOR con un 'pkg upgrade' (dovecot-mysql, redis...) y rompernos el servicio. Las
 # subversiones (parches) se aplican solas desde el panel/daemon; los saltos de mayor esperan

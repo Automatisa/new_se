@@ -61,6 +61,9 @@ fi
 
 # 3. php-fpm.conf: pid propio + incluye los pools por dominio que escribe el panel.
 mkdir -p "$POOL_DIR" "$SOCKDIR" /var/log/php-fpm
+# Quitar el pool 'www' por defecto del paquete (escucha en 127.0.0.1:9000 como www; nadie lo usa,
+# el panel enruta por sockets unix). Dejarlo sería un listener FastCGI sobrante.
+rm -f "${POOL_DIR}/www.conf" "${POOL_DIR}/www.conf.default"
 cat > "$FPM_CONF" <<CONF
 [global]
 pid = ${PIDFILE}

@@ -18,9 +18,13 @@ printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
     git -C "$REPO" pull --ff-only >> "$LOG" 2>&1; RC=$?
     if [ "$RC" -eq 0 ]; then
         echo "== regenerar doas.conf desde privilege.class.php ==" >> "$LOG"
-        php -r 'require "'"$REPO"'/dryden/sys/privilege.class.php"; echo privilege::doasRules("www");' > "$OUT_DIR/doas.conf.new" 2>>"$LOG"
+        # Usuario real del panel: se lee del pool FPM (no se hardcodea), así un rename del usuario
+        # del panel se propaga solo a las reglas doas.
+        PANEL_USER=$(awk -F= '/^[[:space:]]*user[[:space:]]*=/{gsub(/[[:space:]]/,"",$2);print $2;exit}' /usr/local/etc/php-fpm.d/www.conf 2>/dev/null)
+        [ -n "$PANEL_USER" ] || PANEL_USER=www
+        php -r 'require "'"$REPO"'/dryden/sys/privilege.class.php"; echo privilege::doasRules("'"$PANEL_USER"'");' > "$OUT_DIR/doas.conf.new" 2>>"$LOG"
         # Guarda de sanidad: solo reemplazar si la generación tiene un nº razonable de reglas.
-        if [ "$(grep -c '^permit nopass www' "$OUT_DIR/doas.conf.new" 2>/dev/null)" -ge 40 ]; then
+        if [ "$(grep -c "^permit nopass $PANEL_USER " "$OUT_DIR/doas.conf.new" 2>/dev/null)" -ge 40 ]; then
             install -o root -g wheel -m 600 "$OUT_DIR/doas.conf.new" /usr/local/etc/doas.conf
             echo "doas.conf regenerado" >> "$LOG"
         else
