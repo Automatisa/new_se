@@ -5,7 +5,7 @@
  *
  * Lógica (analizada con el consumo de disco de la cuenta):
  *  - Las copias locales viven en home/backups/ → YA cuentan en el disco de la cuenta
- *    (zpx_core_module suma todo el home). Por eso una copia puede empujar a la cuenta por
+ *    (bulwark_core_module suma todo el home). Por eso una copia puede empujar a la cuenta por
  *    encima de su cuota y hacer que apache_admin desactive sus dominios.
  *  - Esta clase impone (a) un MÁXIMO de copias locales por paquete (qt_backups_in; 0 =
  *    ilimitado) con rotación de las más antiguas, y (b) un chequeo de cuota para no crear

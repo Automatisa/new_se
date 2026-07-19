@@ -29,7 +29,7 @@
  * Change P.Peyremorte:
  * - cleaned WriteCronFile() (removed duplicate parts).
  * - reformated header inserted in crontab file (heading spaces and wrong EOL encoding)
- * - removed daemon task that is handled by independant crontab /etc/cron.d/zdaemon (linux)
+ * - removed daemon task that is handled by independant crontab /etc/cron.d/bulwark-daemon (linux)
  */
     if (!class_exists('privilege')) {
         require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';

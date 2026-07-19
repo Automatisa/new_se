@@ -1758,7 +1758,7 @@ fi
 info "Instalando cron del daemon de Bulwark..."
 
 mkdir -p /etc/cron.d
-cat > /etc/cron.d/zdaemon <<CRONEOF
+cat > /etc/cron.d/bulwark-daemon <<CRONEOF
 SHELL=/usr/local/bin/bash
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 MAILTO=root
@@ -1766,8 +1766,8 @@ HOME=/
 */5 * * * * root nice -2 /usr/local/bin/php -q $PANEL_PATH/bin/daemon.php > $PANEL_DATA/logs/daemon-last-run.log 2>&1
 CRONEOF
 
-chmod 644 /etc/cron.d/zdaemon
-chown root:wheel /etc/cron.d/zdaemon
+chmod 644 /etc/cron.d/bulwark-daemon
+chown root:wheel /etc/cron.d/bulwark-daemon
 ok "Cron daemon instalado"
 
 ###############################################################################

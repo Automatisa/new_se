@@ -66,7 +66,7 @@ class module_controller extends ctrl_module
         $modsql = "SELECT COUNT(*) FROM x_modules";
         if ($nummodsql = $zdbh->query($modsql)) {
             if ($nummodsql->fetchColumn() > 0) {
-                $modsql = $zdbh->prepare("SELECT * FROM x_modules WHERE mo_folder_vc <> 'zpx_core_module' ORDER BY mo_name_vc ASC");
+                $modsql = $zdbh->prepare("SELECT * FROM x_modules WHERE mo_folder_vc <> 'bulwark_core_module' ORDER BY mo_name_vc ASC");
                 $modsql->execute();
                 $line .= "<form action=\"./?module=moduleadmin&action=EditModule\" method=\"post\">";
                 $line .= runtime_csfr::Token();
