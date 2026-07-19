@@ -3,7 +3,7 @@
 # Usage: update_ip_server <ip-address>
 # Example: update_ip_server 188.92.252.250
 
-SENTORA_ROOT="/usr/local/sentora"
+SENTORA_ROOT="/usr/local/bulwark"
 PHP_SCRIPT="${SENTORA_ROOT}/modules/autoip/update_server_ip.php"
 PHP_BIN="/usr/local/bin/php"
 

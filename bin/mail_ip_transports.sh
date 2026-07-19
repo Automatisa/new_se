@@ -9,7 +9,7 @@ set -u
 MASTER=/usr/local/etc/postfix/master.cf
 BEGIN="# BEGIN sentora-mailip"
 END="# END sentora-mailip"
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 
 [ -f "$MASTER" ] || { echo "mail_ip_transports: no existe $MASTER" >&2; exit 1; }
 
@@ -20,7 +20,7 @@ H=$(php -r "include \"$DBPHP\"; echo \$host;" 2>/dev/null)
 # Dominios con IPv4 y/o IPv6 dedicada: "vhostid<TAB>v4<TAB>v6"
 ROWS=$(mysql -u"$U" -p"$P" -h"$H" -N -e \
     "SELECT vh_id_pk, IFNULL(vh_custom_ip_vc,''), IFNULL(vh_custom_ip6_vc,'')
-     FROM sentora_core.x_vhosts
+     FROM bulwark_core.x_vhosts
      WHERE (vh_custom_ip_vc IS NOT NULL AND vh_custom_ip_vc<>'')
         OR (vh_custom_ip6_vc IS NOT NULL AND vh_custom_ip6_vc<>'')
        AND vh_deleted_ts IS NULL" 2>/dev/null)

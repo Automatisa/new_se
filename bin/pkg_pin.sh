@@ -24,12 +24,12 @@
 set -u
 umask 022
 
-OUT_DIR="/var/sentora/updates"
+OUT_DIR="/var/bulwark/updates"
 PINS="$OUT_DIR/pkgpins.json"
 RUN="$OUT_DIR/running"
 RES="$OUT_DIR/last_result"
 LOG="$OUT_DIR/last_action.log"
-MIGRATE="/usr/local/sentora/bin/preconf_migrate.sh"
+MIGRATE="/usr/local/bulwark/bin/preconf_migrate.sh"
 mkdir -p "$OUT_DIR"; chown root:www "$OUT_DIR" 2>/dev/null || true; chmod 755 "$OUT_DIR"
 
 # Paquetes gestionados: "nombre:profundidad_de_mayor" (nº de componentes dotted que definen la

@@ -4,8 +4,8 @@
 # cambios locales o no es fast-forward, aborta sin dejar estado parcial y se reporta el error.
 # NOTA: las migraciones de BD NO son automáticas (el fork no tiene migraciones incrementales);
 # si una versión requiere cambios de esquema, hay que aplicarlos aparte.
-OUT_DIR="/var/sentora/updates"; RUN="$OUT_DIR/running"; LOG="$OUT_DIR/last_action.log"; RES="$OUT_DIR/last_result"; PREV="$OUT_DIR/panel_prev_head"
-REPO="/usr/local/sentora"
+OUT_DIR="/var/bulwark/updates"; RUN="$OUT_DIR/running"; LOG="$OUT_DIR/last_action.log"; RES="$OUT_DIR/last_result"; PREV="$OUT_DIR/panel_prev_head"
+REPO="/usr/local/bulwark"
 mkdir -p "$OUT_DIR"
 [ -d "$REPO/.git" ] || exit 0
 printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$RUN"
@@ -42,7 +42,7 @@ printf 'panel' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
     fi
     logger -t sentora-updates "panel update terminado (rc=$RC)"
     printf 'panel|%s|%s|' "$RC" "$(date +%s)" > "$RES"; chown root:www "$RES" "$LOG" 2>/dev/null || true; chmod 644 "$RES" "$LOG"
-    /usr/local/sentora/bin/sys_update_check.sh >/dev/null 2>&1
+    /usr/local/bulwark/bin/sys_update_check.sh >/dev/null 2>&1
     rm -f "$RUN"
 } >/dev/null 2>&1 &
 exit 0

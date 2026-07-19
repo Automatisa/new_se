@@ -1,7 +1,7 @@
 # NOTE: FreeBSD uses newsyslog(8), not logrotate.
 # Install logrotate from ports (sysutils/logrotate) or adapt to newsyslog.conf.d/
 
-/var/sentora/logs/dovecot/*.log {
+/var/bulwark/logs/dovecot/*.log {
        su vmail mail
        weekly
        missingok

@@ -4,7 +4,7 @@
 # El usuario del panel tiene permiso de CREATE/INSERT en sentora_postfix (patrón de los módulos
 # de correo). En instalaciones nuevas la tabla ya viene en sentora_postfix.sql.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

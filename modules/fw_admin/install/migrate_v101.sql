@@ -1,6 +1,6 @@
 -- fw_admin v101 — Migración: servicio/puerto en bans SSHGuard + reglas personalizadas pf
 -- Ejecutar como root de MariaDB:
---   mysql -u root -pFCzOZMkpm2ZHu2US sentora_core < migrate_v101.sql
+--   mysql -u root -pFCzOZMkpm2ZHu2US bulwark_core < migrate_v101.sql
 
 -- Añadir columnas de servicio y puerto a x_fw_auto_banned
 ALTER TABLE x_fw_auto_banned

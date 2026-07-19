@@ -28,8 +28,8 @@ $cfg['Servers'][$i]['AllowNoPassword'] = false;
 /*
  * Directories for saving/loading files from server
  */
-$cfg['UploadDir'] = '/var/sentora/temp/';
-$cfg['SaveDir'] = '/var/sentora/temp/';
+$cfg['UploadDir'] = '/var/bulwark/temp/';
+$cfg['SaveDir'] = '/var/bulwark/temp/';
 
 /*
  * Sentora-specific restrictions

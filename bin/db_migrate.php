@@ -11,13 +11,13 @@
  * Uso:
  *   php db_migrate.php              -> aplica las pendientes (lo llama panel_update.sh tras git pull).
  *   php db_migrate.php --baseline   -> marca TODAS como aplicadas SIN ejecutarlas (instalación nueva:
- *                                      sentora_core.sql ya trae el esquema al día).
+ *                                      bulwark_core.sql ya trae el esquema al día).
  *
  * Debe ejecutarse como root (las migraciones .sh tocan configs del sistema). Sin exec(): las .sh se
  * lanzan con proc_open (array + bypass de shell).
  */
 
-$PANEL = '/usr/local/sentora';
+$PANEL = '/usr/local/bulwark';
 chdir($PANEL);
 $baseline = in_array('--baseline', $argv, true);
 

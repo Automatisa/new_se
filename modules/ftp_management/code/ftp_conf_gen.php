@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Generates /usr/local/etc/sentora/proftpd/ftp-access.conf with server-level
+ * Generates /usr/local/etc/bulwark/proftpd/ftp-access.conf with server-level
  * <Limit> blocks using DenyUser to enforce per-user RO/WO/RW access types.
  *
  * Does not require mod_ifsession — DenyUser/AllowAll within <Limit> is core ProFTPD.
@@ -9,7 +9,7 @@
  */
 function generateFTPAccessConf($host, $dbUser, $dbPass) {
     try {
-        $coreDb = new db_driver("mysql:host=$host;dbname=sentora_core", $dbUser, $dbPass);
+        $coreDb = new db_driver("mysql:host=$host;dbname=bulwark_core", $dbUser, $dbPass);
         $stmt = $coreDb->prepare(
             "SELECT ft_user_vc, ft_access_vc FROM x_ftpaccounts WHERE ft_deleted_ts IS NULL"
         );
@@ -54,12 +54,12 @@ function generateFTPAccessConf($host, $dbUser, $dbPass) {
         $lines[] = "";
     }
 
-    $confPath = '/usr/local/etc/sentora/proftpd/ftp-access.conf';
+    $confPath = '/usr/local/etc/bulwark/proftpd/ftp-access.conf';
     if (@file_put_contents($confPath, implode("\n", $lines) . "\n") === false) {
         return false;
     }
 
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
     privilege::run('proftpd_reload');
     return true;
 }

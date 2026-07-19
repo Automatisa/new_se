@@ -3,7 +3,7 @@
 # Si se define, el panel escucha además en [IPv6]:puerto (hook Apache). Vacío = panel solo IPv4.
 # Idempotente (INSERT solo si no existe).
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

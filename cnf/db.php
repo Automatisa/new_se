@@ -14,6 +14,6 @@
  * @license GPL (http://www.gnu.org/licenses/gpl.html)
  */
 $host = '127.0.0.1';
-$dbname = 'sentora_core';
+$dbname = 'bulwark_core';
 $user = 'root';
 $pass = 'YOUR_ROOT_MYSQL_PASSWORD';

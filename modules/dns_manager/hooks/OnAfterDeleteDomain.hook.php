@@ -1,6 +1,6 @@
 <?php
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 DeleteDNSRecordsForDeletedDomain();

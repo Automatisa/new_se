@@ -1,5 +1,5 @@
 /* Update Sentora Version */
-USE `sentora_core`;
+USE `bulwark_core`;
 
 /* Update the sentora database version number */
 UPDATE `x_settings` SET `so_value_tx` = '1.0.0' WHERE `so_name_vc` = 'dbversion';
@@ -72,6 +72,6 @@ ALTER TABLE `x_ftpaccounts` MODIFY `ft_password_vc` varchar(50);
 USE `sentora_proftpd`; /* We need to make some changes to the ProFTPD DB schema also..*/
 ALTER TABLE `ftpuser` MODIFY `userid` varchar(50);
 ALTER TABLE `ftpuser` MODIFY `passwd` varchar(50);
-USE `sentora_core`; /* Now switch back for other updates... */
+USE `bulwark_core`; /* Now switch back for other updates... */
 
 /* Next update goes here... */

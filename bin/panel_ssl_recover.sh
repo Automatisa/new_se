@@ -3,7 +3,7 @@
 #
 # Uso: ejecutar como root via SSH cuando el panel no es accesible por fallo del cert SSL.
 #
-#   sh /usr/local/sentora/bin/panel_ssl_recover.sh
+#   sh /usr/local/bulwark/bin/panel_ssl_recover.sh
 #
 # Opciones:
 #   1) Certificado autofirmado (inmediato, sin red, SAN correcto con IP y dominio)
@@ -30,9 +30,9 @@ fi
 ###############################################################################
 # Leer configuración de la BD de Sentora
 ###############################################################################
-CNF="/usr/local/sentora/cnf/db.php"
+CNF="/usr/local/bulwark/cnf/db.php"
 if [ ! -f "$CNF" ]; then
-    err "No se encuentra $CNF — ¿está Sentora instalado en /usr/local/sentora?"
+    err "No se encuentra $CNF — ¿está Sentora instalado en /usr/local/bulwark?"
     exit 1
 fi
 
@@ -49,9 +49,9 @@ DOMAIN=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='sentora_d
 SERVER_IP=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='server_ip';")
 SENTORA_ROOT=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='sentora_root';")
 HOSTED_DIR=$(mysql_q "SELECT so_value_tx FROM x_settings WHERE so_name_vc='hosted_dir';")
-SENTORA_ROOT="${SENTORA_ROOT:-/usr/local/sentora}"
-HOSTED_DIR="${HOSTED_DIR:-/var/sentora/hostdata/}"
-RECOVERY_DIR="/usr/local/etc/sentora/panel/recovery"
+SENTORA_ROOT="${SENTORA_ROOT:-/usr/local/bulwark}"
+HOSTED_DIR="${HOSTED_DIR:-/var/bulwark/hostdata/}"
+RECOVERY_DIR="/usr/local/etc/bulwark/panel/recovery"
 # Ruta donde sencrypt muestra los certs del panel (pestaña third_party)
 SENCRYPT_PANEL_DIR="${HOSTED_DIR}zadmin/ssl/sencrypt/third_party/${DOMAIN}"
 
@@ -128,7 +128,7 @@ apply_cert() {
     # Validar config de Apache
     inf "Validando sintaxis de Apache..."
     if ! apachectl -t 2>/dev/null; then
-        err "La configuración de Apache tiene errores. Revisa /usr/local/etc/sentora/apache/httpd-vhosts.conf"
+        err "La configuración de Apache tiene errores. Revisa /usr/local/etc/bulwark/apache/httpd-vhosts.conf"
         exit 1
     fi
     ok "Sintaxis correcta."

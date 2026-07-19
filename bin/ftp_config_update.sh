@@ -4,7 +4,7 @@
 # El panel (zpanel) escribe el contenido nuevo en TMPFILE antes de llamar a este script.
 
 TMPFILE="/tmp/sentora_proftpd_new.conf"
-REAL_CONFIG="/usr/local/etc/sentora/proftpd/proftpd-mysql.conf"
+REAL_CONFIG="/usr/local/etc/bulwark/proftpd/proftpd-mysql.conf"
 BACKUP="/tmp/sentora_proftpd_backup.conf"
 
 if [ ! -f "$TMPFILE" ]; then

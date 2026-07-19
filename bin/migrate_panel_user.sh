@@ -17,8 +17,8 @@ set -eu
 #     con el nuevo nombre y luego 'pw userdel' el anterior).
 PANEL_USER="${PANEL_USER:-bulwark}"
 
-PANEL_PATH="${PANEL_PATH:-/usr/local/sentora}"
-PANEL_DATA="${PANEL_DATA:-/var/sentora}"
+PANEL_PATH="${PANEL_PATH:-/usr/local/bulwark}"
+PANEL_DATA="${PANEL_DATA:-/var/bulwark}"
 FPM_POOL="/usr/local/etc/php-fpm.d/www.conf"
 
 info() { printf '\033[36m[panel-user]\033[0m %s\n' "$*"; }

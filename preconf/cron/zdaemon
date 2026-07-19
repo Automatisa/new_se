@@ -2,4 +2,4 @@ SHELL=/usr/local/bin/bash
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 MAILTO=root
 HOME=/
-*/5 * * * * root nice -2 /usr/local/bin/php -q /usr/local/sentora/bin/daemon.php > /var/sentora/logs/daemon-last-run.log 2>&1
+*/5 * * * * root nice -2 /usr/local/bin/php -q /usr/local/bulwark/bin/daemon.php > /var/bulwark/logs/daemon-last-run.log 2>&1

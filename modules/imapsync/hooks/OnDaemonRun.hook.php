@@ -4,7 +4,7 @@
 // tope de concurrencia. El límite por cuenta/día se aplica al encolar (doLaunch); aquí solo concurrencia.
 if (ui_module::CheckModuleEnabled('IMAP Migration (imapsync)')) {
     global $zdbh;
-    $rundir = '/var/sentora/run/imapsync/';
+    $rundir = '/var/bulwark/run/imapsync/';
     $maxc = (int)ctrl_options::GetSystemOption('imapsync_max_concurrent');
     if ($maxc <= 0) { $maxc = 2; }
 
@@ -27,7 +27,7 @@ if (ui_module::CheckModuleEnabled('IMAP Migration (imapsync)')) {
     $slots = $maxc - $running;
     if ($slots > 0) {
         foreach ($zdbh->query("SELECT ij_id_pk FROM x_imapsync_jobs WHERE ij_status_vc='queued' AND ij_deleted_ts IS NULL ORDER BY ij_id_pk ASC LIMIT " . (int)$slots)->fetchAll(PDO::FETCH_COLUMN) as $id) {
-            @exec('nohup /usr/local/bin/php -q /usr/local/sentora/bin/imapsync_run.php ' . (int)$id . ' >/dev/null 2>&1 &');
+            @exec('nohup /usr/local/bin/php -q /usr/local/bulwark/bin/imapsync_run.php ' . (int)$id . ' >/dev/null 2>&1 &');
             echo "imapsync: lanzado trabajo #" . (int)$id . fs_filehandler::NewLine();
         }
     }

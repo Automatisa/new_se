@@ -2,7 +2,7 @@
 # account_restore.sh — Restaura los FICHEROS del home de una cuenta desde un backup .zip.
 #
 # Invocado ÚNICAMENTE por privilege::run('account_restore'). Sin argumentos: lee la orden de
-# /var/sentora/run/account_restore_req (root:zpanel 660), una sola línea:
+# /var/bulwark/run/account_restore_req (root:zpanel 660), una sola línea:
 #     USERNAME|/ruta/al/backup.zip
 #
 # Hace, como root:
@@ -14,8 +14,8 @@
 #
 # NO toca la base de datos ni la config del panel: eso lo hace el motor PHP por separado.
 
-REQ=/var/sentora/run/account_restore_req
-HOSTED_DIR=/var/sentora/hostdata
+REQ=/var/bulwark/run/account_restore_req
+HOSTED_DIR=/var/bulwark/hostdata
 
 [ -f "$REQ" ] || exit 1
 LINE=$(head -1 "$REQ" 2>/dev/null | tr -d '\r\n')
@@ -29,8 +29,8 @@ echo "$USERNAME" | grep -Eq '^[a-zA-Z0-9_-]+$' || exit 2
 [ -n "$ZIP" ] && [ "$ZIP" != "$USERNAME" ] || exit 3
 
 # El zip debe existir, ser fichero regular y estar en una ubicación permitida:
-#   - copias locales del usuario:   /var/sentora/hostdata/<user>/backups/
-#   - staging de restauración:       /var/sentora/hostdata/<user>/restore/
+#   - copias locales del usuario:   /var/bulwark/hostdata/<user>/backups/
+#   - staging de restauración:       /var/bulwark/hostdata/<user>/restore/
 [ -f "$ZIP" ] || exit 4
 case "$ZIP" in
     "$HOSTED_DIR/$USERNAME/backups/"*.zip) ;;

@@ -38,6 +38,6 @@ function SuspendFTPAccounts() {
         $upd->execute();
     }
 
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
     privilege::run('proftpd_reload');
 }

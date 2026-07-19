@@ -6,7 +6,7 @@
 # bloqueo de IP; los certs de staging son de una raíz NO confiada y NO se cablean al panel/vhosts.
 # Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

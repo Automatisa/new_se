@@ -4,7 +4,7 @@
  * Se ejecuta cada ~5 minutos con el daemon de Sentora.
  *
  * Responsabilidades:
- *  1. Genera /var/sentora/logs/fw_status.json (vía privilege::run)
+ *  1. Genera /var/bulwark/logs/fw_status.json (vía privilege::run)
  *  2. Sincroniza x_fw_auto_banned con los bans activos de SSHGuard (tabla pf <sshguard>)
  *  3. Re-aplica x_fw_blocked a pf por si hay discrepancias (ej: tras reboot)
  */
@@ -14,7 +14,7 @@
 global $zdbh;
 
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 echo fs_filehandler::NewLine() . "START fw_admin Firewall Sync Hook." . fs_filehandler::NewLine();
@@ -43,7 +43,7 @@ try {
 
 // ---- 2. Leer JSON y sincronizar x_fw_auto_banned ----
 $jsonPath = ctrl_options::GetSystemOption('fw_status_json_path')
-                ?: '/var/sentora/logs/fw_status.json';
+                ?: '/var/bulwark/logs/fw_status.json';
 
 $status = [];
 if (file_exists($jsonPath)) {

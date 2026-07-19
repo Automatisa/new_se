@@ -19,7 +19,7 @@ if ($newip === '' || !filter_var($newip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) 
     exit(1);
 }
 
-$sentora_root = '/usr/local/sentora/';
+$sentora_root = '/usr/local/bulwark/';
 require $sentora_root . 'cnf/db.php';
 
 try {

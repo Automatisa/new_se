@@ -1,6 +1,6 @@
 -- fw_admin v102 — Esquema de base de datos completo
 -- Ejecutar como root de MariaDB:
---   mysql -u root -pPASS -h 127.0.0.1 sentora_core < install.sql
+--   mysql -u root -pPASS -h 127.0.0.1 bulwark_core < install.sql
 
 -- IPs bloqueadas manualmente por el administrador (IPv4, IPv6, CIDR)
 CREATE TABLE IF NOT EXISTS x_fw_blocked (
@@ -71,7 +71,7 @@ INSERT IGNORE INTO x_settings (so_name_vc, so_cleanname_vc, so_value_tx, so_desc
     VALUES ('fw_find_time',        'Find Time',        '600',
             'Ventana de detección en segundos (DETECTION_TIME)', 'fw_admin');
 INSERT IGNORE INTO x_settings (so_name_vc, so_cleanname_vc, so_value_tx, so_desc_tx, so_module_vc)
-    VALUES ('fw_status_json_path', 'Status JSON Path', '/var/sentora/logs/fw_status.json',
+    VALUES ('fw_status_json_path', 'Status JSON Path', '/var/bulwark/logs/fw_status.json',
             'Ruta del JSON de estado del cortafuegos', 'fw_admin');
 
 -- Registrar módulo (categoría 2 = Server Admin) y asignar al grupo Administradores

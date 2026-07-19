@@ -185,8 +185,8 @@ class module_controller extends ctrl_module
     /** Crea el esqueleto de directorios del vhost por doas como root (h_USERNAME:www). Igual que en
      *  el módulo domains: web/ es 2750 y el panel (www) no puede crear ahí. Idempotente. */
     private static function provisionVhostDirs($username, $vhdir) {
-        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
-        $req = '/var/sentora/run/vhost_diradd_req';
+        if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
+        $req = '/var/bulwark/run/vhost_diradd_req';
         if (@file_put_contents($req, $username . '|' . $vhdir) === false) {
             error_log("sub_domains: no se pudo escribir $req");
             return false;
@@ -594,7 +594,7 @@ class module_controller extends ctrl_module
 
     static function getPhpVersionOptions()
     {
-        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php'; }
+        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php'; }
         $s = self::loadPhpSettings(); $cur = $s ? (string)$s['php_version'] : ''; $out = '';
         foreach (array_keys(fpm_pool_manager::InstalledVersions()) as $v) {
             $sel = ($v === $cur) ? ' selected' : '';
@@ -606,7 +606,7 @@ class module_controller extends ctrl_module
 
     static function getHasMultiplePhpVersions()
     {
-        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php'; }
+        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php'; }
         return count(fpm_pool_manager::InstalledVersions()) > 1;
     }
 
@@ -639,7 +639,7 @@ class module_controller extends ctrl_module
             // Diferir el reload de FPM a después de responder (evita 503 por execvp del worker).
             register_shutdown_function(function() {
                 if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
-                if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+                if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
                 try { privilege::run('fpm_regenerate'); }
                 catch (\Throwable $e) { error_log('sub_domains: fpm_regenerate (shutdown) failed: ' . $e->getMessage()); }
             });
@@ -682,7 +682,7 @@ class module_controller extends ctrl_module
         $max_input   = min(max(1, (int)($formvars['inMaxInput'] ?? 60)),  (int)$pkg['pkg_maxinput']);
         $display_err = isset($formvars['inDisplayErrors']) ? 1 : 0;
 
-        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php'; }
+        if (!class_exists('fpm_pool_manager')) { require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php'; }
         $php_version = (string)($formvars['inPhpVersion'] ?? '');
         if (!array_key_exists($php_version, fpm_pool_manager::InstalledVersions())) { $php_version = ''; }
 

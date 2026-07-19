@@ -1,12 +1,12 @@
 #!/bin/sh
 # hosting_user_del.sh — Elimina el usuario de sistema h_USERNAME de una cuenta borrada.
 #
-# Lee el nombre de cuenta desde /var/sentora/run/hosting_userdel_req (root:zpanel 660).
+# Lee el nombre de cuenta desde /var/bulwark/run/hosting_userdel_req (root:zpanel 660).
 # Validación estricta: solo letras minúsculas, dígitos y guión bajo, 1-32 caracteres.
 # Es idempotente: si el usuario no existe simplemente sale con éxito.
 # Llamado via privilege::run('hosting_user_del') desde contexto www (doas).
 
-REQ_FILE="/var/sentora/run/hosting_userdel_req"
+REQ_FILE="/var/bulwark/run/hosting_userdel_req"
 
 [ -f "$REQ_FILE" ] || exit 1
 

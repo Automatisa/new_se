@@ -6,9 +6,9 @@
 # la tabla sshguard (pf.conf: pass quick from <sentora_whitelist> antes que block).
 
 TABLE="sentora_whitelist"
-DESTFILE="/var/sentora/run/pf_whitelist.txt"
+DESTFILE="/var/bulwark/run/pf_whitelist.txt"
 TMPFILE="/tmp/sentora_pf_whitelist.$$"
-CNF="/usr/local/sentora/cnf/db.php"
+CNF="/usr/local/bulwark/cnf/db.php"
 
 VALID_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[02]))?$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(/([0-9]{1,2}|1[01][0-9]|12[0-8]))?$'
 
@@ -29,7 +29,7 @@ mysql -u "$DB_USER" -p"$DB_PASS" -h "$DB_HOST" "$DB_NAME" \
   | grep -E "$VALID_RE" \
   > "$TMPFILE"
 
-mkdir -p /var/sentora/run
+mkdir -p /var/bulwark/run
 mv "$TMPFILE" "$DESTFILE"
 chmod 644 "$DESTFILE"
 

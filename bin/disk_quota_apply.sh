@@ -2,14 +2,14 @@
 # disk_quota_apply.sh — Aplica cuotas de disco UFS por cuenta (uid h_USERNAME).
 #
 # Invocado ÚNICAMENTE por privilege::run('disk_quota_apply'). Sin argumentos: lee
-# /var/sentora/run/disk_quota_req (root:zpanel 660), una línea por cuenta:
+# /var/bulwark/run/disk_quota_req (root:zpanel 660), una línea por cuenta:
 #     USERNAME|HARD_KB
 # donde HARD_KB es el límite duro en bloques de 1 KB (0 = sin límite). El límite blando se
 # fija igual al duro (enforcement estricto). El uid afectado es h_USERNAME.
 #
 # Requiere cuotas UFS activas en / (userquota en fstab + quota_enable=YES + reboot).
 
-REQ=/var/sentora/run/disk_quota_req
+REQ=/var/bulwark/run/disk_quota_req
 [ -f "$REQ" ] || exit 1
 
 # ¿están activas las cuotas en / ?

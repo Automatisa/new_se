@@ -4,7 +4,7 @@
 # carpetas se copian. Columnas nuevas en x_imapsync_jobs (por defecto NO incluir spam/papelera).
 # Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

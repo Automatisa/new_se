@@ -4,7 +4,7 @@
 # ya lo tenía. La migración de correo es de cada usuario (con scope por cuenta); solo los AJUSTES son
 # de admin (se ocultan en la plantilla con <% if Admin %>). Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

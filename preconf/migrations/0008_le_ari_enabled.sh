@@ -4,7 +4,7 @@
 # exención de rate-limit) queda implementada pero INACTIVA hasta validarla con un dominio público.
 # Con 'false' el comportamiento es el de siempre (renovación a los 30 días). Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

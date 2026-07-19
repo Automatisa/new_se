@@ -16,7 +16,7 @@
  */
 class ctrl_groups {
 
-    // IDs FIJOS de los grupos de rol por defecto (seed sentora_core.sql). El nivel de privilegio se
+    // IDs FIJOS de los grupos de rol por defecto (seed bulwark_core.sql). El nivel de privilegio se
     // decide SIEMPRE por estos ids, nunca por el nombre del grupo (ug_name_vc), que es solo un texto
     // para mostrar y podría renombrarse/localizarse/falsificarse.
     const GROUP_ADMIN    = 1;

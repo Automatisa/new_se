@@ -82,7 +82,7 @@ class sys_account_restore
     public static function restoreFiles($username, $zipPath)
     {
         if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $username)) { self::log('Usuario inválido.'); return false; }
-        $reqFile = '/var/sentora/run/account_restore_req';
+        $reqFile = '/var/bulwark/run/account_restore_req';
         if (@file_put_contents($reqFile, $username . '|' . $zipPath . "\n") === false) {
             self::log('No se pudo escribir la orden de restore.'); return false;
         }

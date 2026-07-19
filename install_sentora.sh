@@ -5,9 +5,9 @@
 # Instala y configura Sentora en FreeBSD 14.x
 #
 # Rutas:
-#   /usr/local/sentora       -> código del panel
-#   /usr/local/etc/sentora   -> configuración (apache, bind, dovecot, postfix...)
-#   /var/sentora             -> datos variables (logs, sesiones, vmail, etc.)
+#   /usr/local/bulwark       -> código del panel
+#   /usr/local/etc/bulwark   -> configuración (apache, bind, dovecot, postfix...)
+#   /var/bulwark             -> datos variables (logs, sesiones, vmail, etc.)
 #
 # Uso: sh install_sentora.sh
 #
@@ -17,9 +17,9 @@ set -e
 ###############################################################################
 # CONSTANTES
 ###############################################################################
-PANEL_PATH="/usr/local/sentora"
-PANEL_DATA="/var/sentora"
-PANEL_CONF="/usr/local/etc/sentora"
+PANEL_PATH="/usr/local/bulwark"
+PANEL_DATA="/var/bulwark"
+PANEL_CONF="/usr/local/etc/bulwark"
 VMAIL_UID=2000
 VMAIL_GID=2000
 GIT_REPO="https://github.com/Automatisa/new_se.git"
@@ -195,15 +195,15 @@ done
 # y escalar por SUID desde directorios donde escriben los clientes. nullfs self-mount porque
 # están en el mismo UFS que /. No afecta a PHP (interpretado) ni a sockets (p.ej. mysql.sock).
 grep -q 'hostdata[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
-    printf '/var/sentora/hostdata\t/var/sentora/hostdata\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
+    printf '/var/bulwark/hostdata\t/var/bulwark/hostdata\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
 grep -q '^/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
     printf '/tmp\t/tmp\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
 # /var/tmp también es world-writable (1777): sin noexec, un inquilino podría subir un binario
 # ahí y ejecutarlo (staging de exploits). Cerrarlo igual que /tmp.
 grep -q '^/var/tmp[[:space:]].*nullfs' /etc/fstab 2>/dev/null || \
     printf '/var/tmp\t/var/tmp\tnullfs\trw,noexec,nosuid,nodev\t0\t0\n' >> /etc/fstab
-[ -d /var/sentora/hostdata ] && ! mount | grep -q 'hostdata.*noexec' && \
-    mount -t nullfs -o noexec,nosuid,nodev /var/sentora/hostdata /var/sentora/hostdata 2>/dev/null
+[ -d /var/bulwark/hostdata ] && ! mount | grep -q 'hostdata.*noexec' && \
+    mount -t nullfs -o noexec,nosuid,nodev /var/bulwark/hostdata /var/bulwark/hostdata 2>/dev/null
 mount | grep -q ' /tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /tmp /tmp 2>/dev/null
 mount | grep -q ' /var/tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /var/tmp /var/tmp 2>/dev/null
 
@@ -444,7 +444,7 @@ MYSQL="mysql -h127.0.0.1 -uroot -p${MYSQL_ROOT_PASS}"
 
 # Importar esquemas
 info "Importando esquemas de base de datos..."
-$MYSQL < "$PANEL_CONF/sentora-install/sql/sentora_core.sql"
+$MYSQL < "$PANEL_CONF/sentora-install/sql/bulwark_core.sql"
 $MYSQL < "$PANEL_CONF/sentora-install/sql/sentora_postfix.sql"
 $MYSQL < "$PANEL_CONF/sentora-install/sql/sentora_proftpd.sql"
 $MYSQL < "$PANEL_CONF/sentora-install/sql/sentora_roundcube.sql"
@@ -474,7 +474,7 @@ ok "Usuarios de DB creados"
 # que genera hash+salt coherentes con runtime_hash, la crypto key y la API key.
 
 # Configurar x_settings clave
-$MYSQL sentora_core -e "
+$MYSQL bulwark_core -e "
 UPDATE x_settings SET so_value_tx='postfix.php'     WHERE so_name_vc='mailserver_php';
 UPDATE x_settings SET so_value_tx='sentora_postfix' WHERE so_name_vc='mailserver_db';
 UPDATE x_settings SET so_value_tx='$PANEL_FQDN'     WHERE so_name_vc='sentora_domain';
@@ -488,7 +488,7 @@ UPDATE x_settings SET so_value_tx='$SERVER_IP'          WHERE so_name_vc='server
 "
 
 # La plantilla de zona por defecto (x_dns_create, con :NS1:/:NS2:/:IP:/:DOMAIN:) ya
-# viene completa en sentora_core.sql; aquí no se toca.
+# viene completa en bulwark_core.sql; aquí no se toca.
 ok "x_settings configurados"
 
 # db.php del panel
@@ -496,7 +496,7 @@ mkdir -p "$PANEL_PATH/cnf"
 cat > "$PANEL_PATH/cnf/db.php" <<DBPHP
 <?php
 \$host   = '127.0.0.1';
-\$dbname = 'sentora_core';
+\$dbname = 'bulwark_core';
 \$user   = 'sentora_panel';
 \$pass   = '$SENTORA_DB_PASS';
 ?>
@@ -521,7 +521,7 @@ chown root:www "$PANEL_PATH/cnf/security.php"
 chmod 640 "$PANEL_PATH/cnf/security.php"
 ok "Contraseña de zadmin fijada (setzadmin)"
 
-# Baseline de migraciones: sentora_core.sql ya trae el esquema al día, así que marcamos todas las
+# Baseline de migraciones: bulwark_core.sql ya trae el esquema al día, así que marcamos todas las
 # migraciones existentes como aplicadas (sin ejecutarlas). Las futuras (git pull) se aplicarán solas.
 php "$PANEL_PATH/bin/db_migrate.php" --baseline > /dev/null 2>&1 || true
 ok "Migraciones marcadas (baseline)"
@@ -717,7 +717,7 @@ userdb {
   args = $PANEL_CONF/dovecot2/dovecot-mysql.conf
 }
 
-mail_location = maildir:/var/sentora/vmail/%d/%n
+mail_location = maildir:/var/bulwark/vmail/%d/%n
 mailbox_idle_check_interval = 30 secs
 maildir_copy_with_hardlinks = yes
 first_valid_uid = $VMAIL_UID
@@ -970,17 +970,17 @@ chown root:redis /usr/local/etc/redis.conf
 chmod 640 /usr/local/etc/redis.conf
 
 # Fichero de credencial del panel (PHP www + scripts root)
-printf '%s\n' "$REDIS_PANEL_PASS" > /usr/local/sentora/cnf/redis.pass
-chown root:www /usr/local/sentora/cnf/redis.pass
-chmod 640 /usr/local/sentora/cnf/redis.pass
+printf '%s\n' "$REDIS_PANEL_PASS" > /usr/local/bulwark/cnf/redis.pass
+chown root:www /usr/local/bulwark/cnf/redis.pass
+chmod 640 /usr/local/bulwark/cnf/redis.pass
 
 # Credencial 'maillimit' de Redis: la lee SOLO el ayudante setgid (grupo maillimit), no las
 # cuentas de hosting. Así el inquilino no tiene credencial y no puede falsear/sabotear contadores.
 pw groupadd maillimit 2>/dev/null || true
-mkdir -p /var/sentora/mail_limits
-printf '%s\n' "$REDIS_ML_PASS" > /var/sentora/mail_limits/redis_pass
-chown root:maillimit /var/sentora/mail_limits/redis_pass
-chmod 640 /var/sentora/mail_limits/redis_pass
+mkdir -p /var/bulwark/mail_limits
+printf '%s\n' "$REDIS_ML_PASS" > /var/bulwark/mail_limits/redis_pass
+chown root:maillimit /var/bulwark/mail_limits/redis_pass
+chmod 640 /var/bulwark/mail_limits/redis_pass
 
 mkdir -p /var/log/redis
 chown redis:redis /var/log/redis 2>/dev/null || chown nobody:nobody /var/log/redis
@@ -1027,10 +1027,10 @@ servers = "127.0.0.1:6379";
 RSGREYLIST
 
 # Anti-abuso de SALIDA: rate-limit editable DESDE EL PANEL (Antispam -> Límite de envío).
-# El fichero real lo escribe el panel (www) en /var/sentora/rspamd/ratelimit.conf; local.d solo
+# El fichero real lo escribe el panel (www) en /var/bulwark/rspamd/ratelimit.conf; local.d solo
 # lo incluye. Se siembra con valores por defecto.
-mkdir -p /var/sentora/rspamd
-cat > /var/sentora/rspamd/ratelimit.conf <<RSRATE
+mkdir -p /var/bulwark/rspamd
+cat > /var/bulwark/rspamd/ratelimit.conf <<RSRATE
 # Generado por el panel (Antispam -> Límite de envío). NO editar a mano.
 max_rcpt = 100;
 rates {
@@ -1042,9 +1042,9 @@ rates {
     }
 }
 RSRATE
-chown www:www /var/sentora/rspamd/ratelimit.conf
+chown www:www /var/bulwark/rspamd/ratelimit.conf
 cat > /usr/local/etc/rspamd/local.d/ratelimit.conf <<RSRATEINC
-.include(try=true,priority=10) "/var/sentora/rspamd/ratelimit.conf"
+.include(try=true,priority=10) "/var/bulwark/rspamd/ratelimit.conf"
 RSRATEINC
 
 # Correo SALIENTE (clientes autenticados): no greylistear; sí ratelimit y firma DKIM.
@@ -1067,8 +1067,8 @@ RSSET
 # DNS: rspamd usa resolver externo con recursión para consultas RBL/DQS.
 # El BIND local es autoritativo (recursion no) y no puede resolver zonas externas.
 # El fichero dinámico lo gestiona el panel desde antispam_admin → Global Settings.
-mkdir -p /var/sentora/rspamd
-cat > /var/sentora/rspamd/options.inc << EOF
+mkdir -p /var/bulwark/rspamd
+cat > /var/bulwark/rspamd/options.inc << EOF
 dns {
     nameserver = ["8.8.8.8:53:1", "8.8.4.4:53:1"];
     timeout = 2s;
@@ -1077,12 +1077,12 @@ dns {
     connections = 4;
 }
 EOF
-chown www:www /var/sentora/rspamd/options.inc
+chown www:www /var/bulwark/rspamd/options.inc
 
 # local.d/options.inc es estático: solo incluye el fichero dinámico
 cat > /usr/local/etc/rspamd/local.d/options.inc <<RSOPTS
 # Sentora: configuración DNS gestionada desde el panel antispam_admin → Global Settings.
-.include(try=true,priority=10) "/var/sentora/rspamd/options.inc"
+.include(try=true,priority=10) "/var/bulwark/rspamd/options.inc"
 RSOPTS
 
 # Guardar DNS por defecto en Redis para que el panel los muestre
@@ -1140,40 +1140,40 @@ upstream "local" {
 RSPRXY
 
 # Directorio writable por www para configuración dinámica (Spamhaus DQS, etc.)
-mkdir -p /var/sentora/rspamd
-chown www:www /var/sentora/rspamd
-chmod 750 /var/sentora/rspamd
+mkdir -p /var/bulwark/rspamd
+chown www:www /var/bulwark/rspamd
+chmod 750 /var/bulwark/rspamd
 
 # local.d/rbl.conf — incluye el fichero dinámico generado por el panel
 # (cuando no existe el fichero dinámico, try=true lo ignora silenciosamente)
 cat > /usr/local/etc/rspamd/local.d/rbl.conf <<RSRBL
 # Sentora: include dinámico para configuración RBL gestionada desde el panel.
 # No editar — gestionar desde antispam_admin → Spamhaus DQS.
-.include(try=true,priority=10) "/var/sentora/rspamd/rbl.conf"
+.include(try=true,priority=10) "/var/bulwark/rspamd/rbl.conf"
 RSRBL
 
 # local.d/phishing.conf — include dinámico para configuración phishing del panel
 cat > /usr/local/etc/rspamd/local.d/phishing.conf <<RSPHISH
 # Sentora: include dinámico para phishing gestionado desde el panel.
-.include(try=true,priority=10) "/var/sentora/rspamd/phishing.conf"
+.include(try=true,priority=10) "/var/bulwark/rspamd/phishing.conf"
 RSPHISH
 
 # Ficheros dinámicos phishing (www:www)
-cat > /var/sentora/rspamd/phishing.conf << 'PHCONF'
+cat > /var/bulwark/rspamd/phishing.conf << 'PHCONF'
 # Generado por Sentora antispam_admin — no editar manualmente
 openphish_enabled = false;
 openphish_map = "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt";
 
 exceptions {
-    REDIRECTOR_FALSE = ["/var/sentora/rspamd/phishing_redirectors.map"];
+    REDIRECTOR_FALSE = ["/var/bulwark/rspamd/phishing_redirectors.map"];
 }
 
 strict_domains {
-    PHISHED_STRICT = ["/var/sentora/rspamd/phishing_strict_domains.map"];
+    PHISHED_STRICT = ["/var/bulwark/rspamd/phishing_strict_domains.map"];
 }
 PHCONF
 
-cat > /var/sentora/rspamd/phishing_redirectors.map << 'PHREDIRS'
+cat > /var/bulwark/rspamd/phishing_redirectors.map << 'PHREDIRS'
 t.co
 bit.ly
 goo.gl
@@ -1185,14 +1185,14 @@ ift.tt
 feedburner.com
 PHREDIRS
 
-touch /var/sentora/rspamd/phishing_strict_domains.map
+touch /var/bulwark/rspamd/phishing_strict_domains.map
 
-chown www:www /var/sentora/rspamd/phishing.conf \
-              /var/sentora/rspamd/phishing_redirectors.map \
-              /var/sentora/rspamd/phishing_strict_domains.map
-chmod 640 /var/sentora/rspamd/phishing.conf \
-          /var/sentora/rspamd/phishing_redirectors.map \
-          /var/sentora/rspamd/phishing_strict_domains.map
+chown www:www /var/bulwark/rspamd/phishing.conf \
+              /var/bulwark/rspamd/phishing_redirectors.map \
+              /var/bulwark/rspamd/phishing_strict_domains.map
+chmod 640 /var/bulwark/rspamd/phishing.conf \
+          /var/bulwark/rspamd/phishing_redirectors.map \
+          /var/bulwark/rspamd/phishing_strict_domains.map
 
 redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning HSET sentora:antispam:phishing openphish_enabled 0
 
@@ -1219,52 +1219,52 @@ grep -q '^Checks ' "$FC_CONF" && \
     echo "Checks 4" >> "$FC_CONF"
 
 # Directorio Sentora para ClamAV (www:www)
-mkdir -p /var/sentora/cron
-chown www:www /var/sentora/cron
-chmod 755 /var/sentora/cron
-mkdir -p /var/sentora/clamav/quarantine
-chown -R www:www /var/sentora/clamav
-chmod 750 /var/sentora/clamav
-chmod 700 /var/sentora/clamav/quarantine
+mkdir -p /var/bulwark/cron
+chown www:www /var/bulwark/cron
+chmod 755 /var/bulwark/cron
+mkdir -p /var/bulwark/clamav/quarantine
+chown -R www:www /var/bulwark/clamav
+chmod 750 /var/bulwark/clamav
+chmod 700 /var/bulwark/clamav/quarantine
 
 # Fichero dinámico antivirus.conf — vacío (desactivado por defecto)
-touch /var/sentora/clamav/antivirus.conf
-echo "4"       > /var/sentora/clamav/freshclam_checks.conf
-echo "disable" > /var/sentora/clamav/scan_schedule.conf
-chown www:www /var/sentora/clamav/antivirus.conf \
-              /var/sentora/clamav/freshclam_checks.conf \
-              /var/sentora/clamav/scan_schedule.conf
-chmod 640 /var/sentora/clamav/antivirus.conf \
-          /var/sentora/clamav/freshclam_checks.conf \
-          /var/sentora/clamav/scan_schedule.conf
+touch /var/bulwark/clamav/antivirus.conf
+echo "4"       > /var/bulwark/clamav/freshclam_checks.conf
+echo "disable" > /var/bulwark/clamav/scan_schedule.conf
+chown www:www /var/bulwark/clamav/antivirus.conf \
+              /var/bulwark/clamav/freshclam_checks.conf \
+              /var/bulwark/clamav/scan_schedule.conf
+chmod 640 /var/bulwark/clamav/antivirus.conf \
+          /var/bulwark/clamav/freshclam_checks.conf \
+          /var/bulwark/clamav/scan_schedule.conf
 
 # Fichero estático rspamd (root): include dinámico
 cat > /usr/local/etc/rspamd/local.d/antivirus.conf << 'RSAV'
 # Sentora: ClamAV vía rspamd — gestionado desde clamav_admin.
-.include(try=true,priority=10) "/var/sentora/rspamd/antivirus.conf"
+.include(try=true,priority=10) "/var/bulwark/rspamd/antivirus.conf"
 RSAV
-# Nota: el dinámico está en /var/sentora/clamav/antivirus.conf
-# pero el include lo referenciaremos en /var/sentora/rspamd/ para consistencia
+# Nota: el dinámico está en /var/bulwark/clamav/antivirus.conf
+# pero el include lo referenciaremos en /var/bulwark/rspamd/ para consistencia
 # Crear symlink o copiar — usamos el path directo en el include:
 cat > /usr/local/etc/rspamd/local.d/antivirus.conf << 'RSAV'
-.include(try=true,priority=10) "/var/sentora/clamav/antivirus.conf"
+.include(try=true,priority=10) "/var/bulwark/clamav/antivirus.conf"
 RSAV
 
 # Scripts privilegiados de ClamAV: vienen del git clone (bin/clamav_*.sh),
 # ya no se generan aquí (así están versionados y no se pisan versiones nuevas
 # como la avanzada de clamav_scan_mailboxes.sh). Solo se ajustan permisos.
-chmod 500 /usr/local/sentora/bin/clamav_freshclam_update.sh \
-          /usr/local/sentora/bin/clamav_scan_mailboxes.sh \
-          /usr/local/sentora/bin/clamav_scan_launch.sh \
-          /usr/local/sentora/bin/clamav_freshclam_launch.sh \
-          /usr/local/sentora/bin/clamav_cron_update.sh
+chmod 500 /usr/local/bulwark/bin/clamav_freshclam_update.sh \
+          /usr/local/bulwark/bin/clamav_scan_mailboxes.sh \
+          /usr/local/bulwark/bin/clamav_scan_launch.sh \
+          /usr/local/bulwark/bin/clamav_freshclam_launch.sh \
+          /usr/local/bulwark/bin/clamav_cron_update.sh
 
 # Redis — estado inicial
 redis-cli --user panel -a "$REDIS_PANEL_PASS" --no-auth-warning HSET sentora:clamav email_enabled 0 email_action reject \
                scan_freq disable scan_hour 3 freshclam_checks 4
 
 # Nota: el registro BD de clamav_admin (y clamav_user/antispam/…) está en
-# sentora_core.sql — se importa con el resto del esquema, no aquí.
+# bulwark_core.sql — se importa con el resto del esquema, no aquí.
 
 # Descargar firmas (en background para no bloquear el instalador)
 freshclam --quiet &
@@ -1278,7 +1278,7 @@ ok "ClamAV configurado (firmas descargándose en background)"
 ###############################################################################
 info "Configurando ProFTPD..."
 
-PROFTPD_CONF_DIR="/usr/local/etc/sentora/proftpd"
+PROFTPD_CONF_DIR="/usr/local/etc/bulwark/proftpd"
 mkdir -p "$PROFTPD_CONF_DIR"
 
 # Config principal (desde preconf, reemplazando placeholders)
@@ -1291,7 +1291,7 @@ sed \
 
 # Incluir TLS y apuntar al config Sentora desde el config global de FreeBSD
 cat > /usr/local/etc/proftpd.conf << 'PFEOF'
-Include /usr/local/etc/sentora/proftpd/proftpd-mysql.conf
+Include /usr/local/etc/bulwark/proftpd/proftpd-mysql.conf
 PFEOF
 
 # Generar certificado TLS autofirmado para FTPS
@@ -1546,15 +1546,15 @@ chown root:maillimit "$PANEL_PATH/bin/sentora_maillimit_helper"
 chmod 2755 "$PANEL_PATH/bin/sentora_maillimit_helper"
 
 # Config del panel (limit/whitelist www-writable; redis_pass es solo del grupo maillimit).
-mkdir -p /var/sentora/mail_limits
-[ -f /var/sentora/mail_limits/limit ]     || printf '200\n' > /var/sentora/mail_limits/limit
-[ -f /var/sentora/mail_limits/whitelist ] || : > /var/sentora/mail_limits/whitelist
-chmod 755 /var/sentora/mail_limits
-chown www:www /var/sentora/mail_limits /var/sentora/mail_limits/limit /var/sentora/mail_limits/whitelist
-chmod 644 /var/sentora/mail_limits/limit /var/sentora/mail_limits/whitelist
+mkdir -p /var/bulwark/mail_limits
+[ -f /var/bulwark/mail_limits/limit ]     || printf '200\n' > /var/bulwark/mail_limits/limit
+[ -f /var/bulwark/mail_limits/whitelist ] || : > /var/bulwark/mail_limits/whitelist
+chmod 755 /var/bulwark/mail_limits
+chown www:www /var/bulwark/mail_limits /var/bulwark/mail_limits/limit /var/bulwark/mail_limits/whitelist
+chmod 644 /var/bulwark/mail_limits/limit /var/bulwark/mail_limits/whitelist
 # Reafirmar la credencial (no debe quedar en www:www).
-chown root:maillimit /var/sentora/mail_limits/redis_pass
-chmod 640 /var/sentora/mail_limits/redis_pass
+chown root:maillimit /var/bulwark/mail_limits/redis_pass
+chmod 640 /var/bulwark/mail_limits/redis_pass
 
 # Apuntar sendmail_path de PHP al wrapper (-t lee destinatarios de cabeceras, -i no corta en ".").
 if grep -qE '^;?[[:space:]]*sendmail_path[[:space:]]*=' "$PHP_INI"; then
@@ -1846,7 +1846,7 @@ if [ "$POSTMASTER_EMAIL" != "$PM_DOMAIN" ] && [ "$PM_DOMAIN" != "$PANEL_FQDN" ];
 fi
 # Reflejar el destino en el panel (mail_admin -> ajuste system_mail_to), para que quede editable
 # y sincronizado tras la instalación.
-$MYSQL sentora_core -e "UPDATE x_settings SET so_value_tx='$SYSMAIL_VAL' WHERE so_name_vc='system_mail_to';" 2>/dev/null || true
+$MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='$SYSMAIL_VAL' WHERE so_name_vc='system_mail_to';" 2>/dev/null || true
 
 # Construir la base de datos de alias local de Postfix (/etc/mail/aliases.db); sin esto el
 # correo a cuentas de sistema se difiere con "alias database unavailable".
@@ -1907,7 +1907,7 @@ if [ "$NODE_ROLE" = "S" ]; then
         | php -r '$j=json_decode(stream_get_contents(STDIN),true); echo isset($j["tsig"])?$j["tsig"]:"";' 2>/dev/null)
     [ -n "$CLUSTER_TSIG" ] || warn "No se pudo obtener la clave TSIG del primario (revisa URL/token del cluster)."
     # 2. Guardar TSIG + token de cluster + activar el cluster; registrar self + primario
-    $MYSQL sentora_core -e "
+    $MYSQL bulwark_core -e "
         UPDATE x_settings SET so_value_tx='$CLUSTER_TSIG'  WHERE so_name_vc='dns_tsig_key';
         UPDATE x_settings SET so_value_tx='$CLUSTER_TOKEN' WHERE so_name_vc='dns_cluster_token';
         UPDATE x_settings SET so_value_tx='true'           WHERE so_name_vc='dns_cluster_enabled';
@@ -1929,7 +1929,7 @@ else
     _TNAME=$(printf '%s' "$_TSIG_OUT" | grep -oE 'key "[^"]+"' | head -1 | sed 's/key "//;s/"//')
     _TSECRET=$(printf '%s' "$_TSIG_OUT" | grep -oE 'secret "[^"]+"' | head -1 | sed 's/secret "//;s/"//')
     CLUSTER_TOKEN=$(openssl rand -hex 32)
-    $MYSQL sentora_core -e "
+    $MYSQL bulwark_core -e "
         UPDATE x_settings SET so_value_tx='$_TNAME $_TSECRET' WHERE so_name_vc='dns_tsig_key';
         UPDATE x_settings SET so_value_tx='$CLUSTER_TOKEN'    WHERE so_name_vc='dns_cluster_token';
         UPDATE x_settings SET so_value_tx='true'              WHERE so_name_vc='dns_cluster_enabled';
@@ -1944,7 +1944,7 @@ fi
 # vhost del panel con SSL (Listen 443, fallback y :443) lo produce apache_admin, y las
 # zonas de BIND las escribe dns_manager, pero solo cuando apache_changed/dns_hasupdates
 # = 'true'. Sin esto, hasta el primer cron (5 min) solo estaria el :80 y sin zonas DNS.
-mysql -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASS" sentora_core \
+mysql -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASS" bulwark_core \
     -e "UPDATE x_settings SET so_value_tx='true' WHERE so_name_vc='apache_changed';" 2>/dev/null
 php "$PANEL_PATH/bin/daemon.php" > "$PANEL_DATA/logs/daemon-install.log" 2>&1 || true
 service apache24 reload 2>/dev/null || true

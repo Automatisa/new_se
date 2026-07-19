@@ -190,14 +190,14 @@ class module_controller extends ctrl_module
 
         // Copias de seguridad locales (nº de .zip en home/backups vs límite del paquete).
         if (!class_exists('sys_backup_retention')) {
-            require_once '/usr/local/sentora/dryden/sys/backup_retention.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/backup_retention.class.php';
         }
         self::$backups = count(sys_backup_retention::listLocal($currentuser['username']));
         self::$backupsquota = ((int)$qrow['b'] === 0) ? -1 : (int)$qrow['b'];
 
         // Tamaño de bases de datos (MB usados vs límite del paquete en MB).
         if (!class_exists('mysql_quota_manager')) {
-            require_once '/usr/local/sentora/dryden/sys/mysql_quota_manager.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/mysql_quota_manager.class.php';
         }
         self::$dbsize = (int)round(mysql_quota_manager::accountDbSize($currentuser['userid']) / 1048576);
         self::$dbsizequota = ((int)$qrow['d'] === 0) ? -1 : (int)$qrow['d'];

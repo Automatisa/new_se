@@ -3,17 +3,17 @@
 # Invocado ÚNICAMENTE por privilege::run('fw_block_apply'). Sin argumentos.
 #
 # Flujo de datos seguro:
-#   1. Lee credenciales de BD de /usr/local/sentora/cnf/db.php
+#   1. Lee credenciales de BD de /usr/local/bulwark/cnf/db.php
 #   2. Consulta x_fw_blocked (IPs activas, sin borrar)
 #   3. Valida cada línea con regex (IPv4, IPv6, CIDR) — rechaza cualquier dato inválido
 #   4. Escribe a fichero temporal, mueve atómicamente a destino
 #   5. Reemplaza la tabla pf en caliente (sin recargar pf.conf completo)
 
 TABLE="sentora_blocked"
-DESTFILE="/var/sentora/run/pf_blocked.txt"
-CNF="/usr/local/sentora/cnf/db.php"
-mkdir -p /var/sentora/run
-TMPFILE=$(mktemp /var/sentora/run/.pf_blocked.XXXXXX) || exit 1
+DESTFILE="/var/bulwark/run/pf_blocked.txt"
+CNF="/usr/local/bulwark/cnf/db.php"
+mkdir -p /var/bulwark/run
+TMPFILE=$(mktemp /var/bulwark/run/.pf_blocked.XXXXXX) || exit 1
 
 # Regex: IPv4 opcional CIDR /0-32, IPv6 (simplificada) opcional CIDR /0-128
 VALID_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[02]))?$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(/([0-9]{1,2}|1[01][0-9]|12[0-8]))?$'
@@ -30,7 +30,7 @@ DB_PASS=$(grep "pass"   "$CNF" | sed "s/.*= '//;s/'.*//")
 
 # Credenciales por fichero temporal 0600 (--defaults-extra-file): NO en la línea de
 # comandos, donde la contraseña sería visible por `ps` para cualquier usuario local.
-DEFAULTS=$(mktemp /var/sentora/run/.pf_db.XXXXXX) || { rm -f "$TMPFILE"; exit 1; }
+DEFAULTS=$(mktemp /var/bulwark/run/.pf_db.XXXXXX) || { rm -f "$TMPFILE"; exit 1; }
 chmod 600 "$DEFAULTS"
 printf '[client]\nhost=%s\nuser=%s\npassword=%s\n' "$DB_HOST" "$DB_USER" "$DB_PASS" > "$DEFAULTS"
 

@@ -90,14 +90,14 @@ class module_controller extends ctrl_module
     // ---------------------------------------------------------- estado JSON
 
     /**
-     * Lee /var/sentora/logs/fw_status.json (escrito por fw_status_dump.sh como root,
+     * Lee /var/bulwark/logs/fw_status.json (escrito por fw_status_dump.sh como root,
      * propietario www:www 640 → el proceso PHP puede leerlo sin privilegios).
      * Si no existe, intenta generarlo primero.
      */
     private static function readStatusJson(): array
     {
         $path = ctrl_options::GetSystemOption('fw_status_json_path')
-                    ?: '/var/sentora/logs/fw_status.json';
+                    ?: '/var/bulwark/logs/fw_status.json';
 
         if (!file_exists($path)) {
             try {
@@ -371,7 +371,7 @@ class module_controller extends ctrl_module
 
         // Escribir IP en archivo de solicitud (root:zpanel 660)
         // El script wrapper lee y borra este archivo, valida formato y llama a pfctl
-        $reqFile = '/var/sentora/run/fw_unban_request';
+        $reqFile = '/var/bulwark/run/fw_unban_request';
 
         if (@file_put_contents($reqFile, $ip) === false) {
             self::$error  = true;
@@ -474,7 +474,7 @@ class module_controller extends ctrl_module
      */
     private static function applyServiceToggle(string $svc, string $act): void
     {
-        $reqFile = '/var/sentora/run/fw_service_toggle_req';
+        $reqFile = '/var/bulwark/run/fw_service_toggle_req';
         try {
             if (@file_put_contents($reqFile, $svc . ' ' . $act . "\n") === false) {
                 throw new \RuntimeException("no se pudo escribir la orden en $reqFile");
@@ -562,8 +562,8 @@ class module_controller extends ctrl_module
         $html .= '<div class="alert alert-info" style="max-width:600px;font-size:12px;margin-top:10px;">'
                . '<strong>Fragmento requerido en <code>/etc/pf.conf</code></strong> (ejecutar <code>service pf reload</code> tras añadirlo):<br>'
                . '<pre style="margin:6px 0;font-size:11px;">'
-               . "table &lt;sentora_whitelist&gt; persist file \"/var/sentora/run/pf_whitelist.txt\"\n"
-               . "table &lt;sentora_blocked&gt;   persist file \"/var/sentora/run/pf_blocked.txt\"\n"
+               . "table &lt;sentora_whitelist&gt; persist file \"/var/bulwark/run/pf_whitelist.txt\"\n"
+               . "table &lt;sentora_blocked&gt;   persist file \"/var/bulwark/run/pf_blocked.txt\"\n"
                . "table &lt;sshguard&gt;           persist\n\n"
                . "pass  quick from &lt;sentora_whitelist&gt;\n"
                . "block drop quick from &lt;sentora_blocked&gt;\n"

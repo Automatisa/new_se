@@ -4,7 +4,7 @@
 # pasada (emitido/caduca/estado/último error). La vista admin lee de aquí (rápido, sin recorrer los
 # homes de otros usuarios). Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

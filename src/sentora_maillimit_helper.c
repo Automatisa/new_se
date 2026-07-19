@@ -8,7 +8,7 @@
  * setgid (grupo 'maillimit'):
  *
  *   - Se instala 2755 root:maillimit. Al ejecutarlo, el proceso adquiere egid=maillimit y
- *     puede leer la credencial (/var/sentora/mail_limits/redis_pass, 640 root:maillimit).
+ *     puede leer la credencial (/var/bulwark/mail_limits/redis_pass, 640 root:maillimit).
  *     La cuenta de hosting, con su propio gid, NO puede leer esa credencial.
  *   - La cuenta que se cuenta se deduce del uid REAL (getuid → h_<cuenta>), infalsificable.
  *     El caller no puede indicar otra cuenta => no hay griefing.
@@ -31,7 +31,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define CRED_FILE "/var/sentora/mail_limits/redis_pass"
+#define CRED_FILE "/var/bulwark/mail_limits/redis_pass"
 #define RUSER     "maillimit"
 #define TTL       "3700"
 

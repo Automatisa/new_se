@@ -3,7 +3,7 @@
 # por paquete; -1=ilimitado, 0=ninguna). Multi-IP Fase 1c. Idempotente (comprueba SHOW COLUMNS;
 # su MySQL no soporta ADD COLUMN IF NOT EXISTS). El paquete de administración (id 1) queda a -1.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

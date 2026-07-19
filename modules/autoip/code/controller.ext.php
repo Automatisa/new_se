@@ -1,6 +1,6 @@
 <?php
 
-require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 
 class module_controller extends ctrl_module {
 

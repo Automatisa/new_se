@@ -2,13 +2,13 @@
 # fw_status_dump.sh — Vuelca el estado de pf y SSHGuard a JSON legible por www.
 # Invocado ÚNICAMENTE por privilege::run('fw_status_dump'). Sin argumentos.
 #
-# Salida: /var/sentora/logs/fw_status.json (propietario www:www, modo 640)
+# Salida: /var/bulwark/logs/fw_status.json (propietario www:www, modo 640)
 # El JSON es leído por el controller PHP y por OnDaemonRun.hook.php.
 
-OUTPUT="/var/sentora/logs/fw_status.json"
+OUTPUT="/var/bulwark/logs/fw_status.json"
 TMPFILE="/tmp/sentora_fw_status.$$"
 
-mkdir -p /var/sentora/logs
+mkdir -p /var/bulwark/logs
 
 # ---- Estado de pf ----
 PF_ON=false

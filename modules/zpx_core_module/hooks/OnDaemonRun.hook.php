@@ -72,7 +72,7 @@ if ($checksql['total'] > 0) {
     $domainssql = $zdbh->query("SELECT vh_acc_fk, vh_name_vc, vh_directory_vc FROM x_vhosts WHERE vh_deleted_ts IS NULL");
     while ($domain = $domainssql->fetch()) {
         $domainowner = ctrl_users::GetUserDetail($domain['vh_acc_fk']);
-        $bwlogdir     = '/var/sentora/logs/bandwidth/' . $domainowner['username'] . '/' . $domain['vh_directory_vc'];
+        $bwlogdir     = '/var/bulwark/logs/bandwidth/' . $domainowner['username'] . '/' . $domain['vh_directory_vc'];
         $bandwidthlog = $bwlogdir . '/' . $domain['vh_name_vc'] . '-bandwidth.log';
         $snapshotfile = $bwlogdir . '/' . $domain['vh_name_vc'] . '-snapshot.bw';
         $bandwidth = 0;

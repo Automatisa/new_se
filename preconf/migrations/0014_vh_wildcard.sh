@@ -4,7 +4,7 @@
 # cert cubre todos los subdominios -> esquiva el límite de LE de 50 certs/dominio registrado/7 días.
 # Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

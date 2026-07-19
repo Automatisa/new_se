@@ -1,5 +1,5 @@
 -- 0001_recent_settings.sql — Asegura, en instalaciones EXISTENTES, los ajustes añadidos
--- recientemente a x_settings (que una instalación nueva ya recibe vía sentora_core.sql).
+-- recientemente a x_settings (que una instalación nueva ya recibe vía bulwark_core.sql).
 -- Idempotente: patrón INSERT ... WHERE NOT EXISTS (no duplica ni falla si ya existen).
 
 INSERT INTO x_settings (so_name_vc, so_cleanname_vc, so_value_tx, so_desc_tx, so_module_vc, so_usereditable_en)

@@ -1,6 +1,6 @@
 <?php
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 echo fs_filehandler::NewLine() . "START DNS Manager Hook" . fs_filehandler::NewLine();
@@ -16,7 +16,7 @@ if (ui_module::CheckModuleEnabled('DNS Config')) {
     // Cluster DNS (Fase 2): sincronizar la lista de zonas de los peers; si cambia,
     // marca dns_hasupdates para regenerar named.conf con los bloques `type secondary`.
     if (!class_exists('dns_cluster')) {
-        require_once '/usr/local/sentora/dryden/sys/dns_cluster.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/dns_cluster.class.php';
     }
     dns_cluster::SyncClusterNodes();
     dns_cluster::SyncRemoteZones();
@@ -404,7 +404,7 @@ function WriteDNSNamedHook()
                 $lineExternal .= "\talso-notify { $notifyInner };" . fs_filehandler::NewLine();
             }
             if ($dnssec) {
-                $keyDir = '/var/sentora/named/keys/' . $domain;
+                $keyDir = '/var/bulwark/named/keys/' . $domain;
                 if (!is_dir($keyDir)) {
                     mkdir($keyDir, 0750, true);
                     chown($keyDir, 'bind');
@@ -541,7 +541,7 @@ function ExtractDSRecordsHook()
     foreach ($zones as $zone) {
         $domain = $zone['vh_name_vc'];
         $ddId   = $zone['dd_id_pk'];
-        $keyDir = '/var/sentora/named/keys/' . $domain;
+        $keyDir = '/var/bulwark/named/keys/' . $domain;
 
         if (!is_dir($keyDir)) continue;
 

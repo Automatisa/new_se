@@ -18,7 +18,7 @@ class ctrl_options {
 
     /**
      * Subcarpeta contenedora de los directorios de dominio dentro del home del
-     * usuario: /var/sentora/hostdata/<usuario>/<DOMAINS_SUBDIR>/<dominio>/
+     * usuario: /var/bulwark/hostdata/<usuario>/<DOMAINS_SUBDIR>/<dominio>/
      * Agrupa los dominios y los separa de las carpetas de sistema (mail, ssl,
      * backups, tmp, quarantine). Fuente única del nombre "web".
      */

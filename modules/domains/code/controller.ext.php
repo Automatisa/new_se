@@ -163,8 +163,8 @@ class module_controller extends ctrl_module
      *  el panel (www) no puede crear ahí. Idempotente. $vhdir = nombre de carpeta (dominio con '.'
      *  convertido a '_'). Devuelve true si el doas se ejecutó (no garantiza éxito del script). */
     private static function provisionVhostDirs($username, $vhdir) {
-        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
-        $req = '/var/sentora/run/vhost_diradd_req';
+        if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
+        $req = '/var/bulwark/run/vhost_diradd_req';
         if (@file_put_contents($req, $username . '|' . $vhdir) === false) {
             error_log("domains: no se pudo escribir $req");
             return false;
@@ -708,7 +708,7 @@ class module_controller extends ctrl_module
     static function getPhpVersionOptions()
     {
         if (!class_exists('fpm_pool_manager')) {
-            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php';
         }
         $s   = self::loadPhpSettings();
         $cur = $s ? (string)$s['php_version'] : '';
@@ -725,7 +725,7 @@ class module_controller extends ctrl_module
     static function getHasMultiplePhpVersions()
     {
         if (!class_exists('fpm_pool_manager')) {
-            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php';
         }
         return count(fpm_pool_manager::InstalledVersions()) > 1;
     }
@@ -748,7 +748,7 @@ class module_controller extends ctrl_module
                     fastcgi_finish_request();
                 }
                 if (!class_exists('privilege')) {
-                    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+                    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
                 }
                 try {
                     privilege::run('fpm_regenerate');
@@ -797,7 +797,7 @@ class module_controller extends ctrl_module
         // Versión de PHP: solo se acepta si está INSTALADA (autodetección). Cualquier otro valor
         // (incluida una versión desinstalada) cae a '' = versión del sistema.
         if (!class_exists('fpm_pool_manager')) {
-            require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php';
         }
         $php_version = (string)($formvars['inPhpVersion'] ?? '');
         if (!array_key_exists($php_version, fpm_pool_manager::InstalledVersions())) {
@@ -1019,7 +1019,7 @@ class module_controller extends ctrl_module
 
     static function ExecuteAssignDomainIP($vhostid, $uid, $ipchoice) {
         global $zdbh;
-        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+        if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
 
         $chk = $zdbh->prepare("SELECT vh_name_vc, vh_custom_ip_vc FROM x_vhosts
                                 WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");
@@ -1091,7 +1091,7 @@ class module_controller extends ctrl_module
     /** Asigna (o quita, '__shared__') la IPv6 dedicada de un dominio. IPv6 es abundante -> sin cuota. */
     static function ExecuteAssignDomainIP6($vhostid, $uid, $ipchoice) {
         global $zdbh;
-        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+        if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
 
         $chk = $zdbh->prepare("SELECT vh_name_vc, vh_custom_ip6_vc FROM x_vhosts
                                 WHERE vh_id_pk=:id AND vh_acc_fk=:uid AND vh_deleted_ts IS NULL");

@@ -7,7 +7,7 @@
 // dryden/privilege.class.php, así que hay que requerirla explícitamente (igual
 // que clamav_admin, dns_admin, etc.). Sin esto, privilege::run() lanza
 // "Error: Class privilege not found" (no lo captura catch(Exception)) -> 500.
-require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 
 class module_controller extends ctrl_module
 {
@@ -15,9 +15,9 @@ class module_controller extends ctrl_module
     const REDIS_PORT = 6379;
     const RSPAMD_API = 'http://127.0.0.1:11334';
 
-    const PHISHING_CONF   = '/var/sentora/rspamd/phishing.conf';
-    const PHISHING_REDIRS = '/var/sentora/rspamd/phishing_redirectors.map';
-    const PHISHING_STRICT = '/var/sentora/rspamd/phishing_strict_domains.map';
+    const PHISHING_CONF   = '/var/bulwark/rspamd/phishing.conf';
+    const PHISHING_REDIRS = '/var/bulwark/rspamd/phishing_redirectors.map';
+    const PHISHING_STRICT = '/var/bulwark/rspamd/phishing_strict_domains.map';
 
     static $ok_msg;
     static $err_msg;
@@ -32,7 +32,7 @@ class module_controller extends ctrl_module
                 $r = null;
                 throw new RuntimeException('Cannot connect to Redis');
             }
-            $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+            $rp = @file_get_contents('/usr/local/bulwark/cnf/redis.pass');
             if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
         }
         return $r;
@@ -98,9 +98,9 @@ class module_controller extends ctrl_module
     }
 
     // ---- Rate-limit de SALIDA (editable desde el panel) --------------------------------------
-    const RATELIMIT_CONF = '/var/sentora/rspamd/ratelimit.conf';
+    const RATELIMIT_CONF = '/var/bulwark/rspamd/ratelimit.conf';
 
-    /** Escribe /var/sentora/rspamd/ratelimit.conf (www-writable, incluido por rspamd) desde los
+    /** Escribe /var/bulwark/rspamd/ratelimit.conf (www-writable, incluido por rspamd) desde los
      *  ajustes guardados. Devuelve true si se escribió. */
     private static function writeRatelimitConf()
     {
@@ -146,7 +146,7 @@ class module_controller extends ctrl_module
             self::$err_msg = 'No se pudo escribir la configuración del rate-limit.';
             return;
         }
-        if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+        if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
         try {
             privilege::run('rspamd_restart', [], true);
             self::$ok_msg = 'Límite de envío guardado y aplicado (rspamd recargado).';
@@ -163,11 +163,11 @@ class module_controller extends ctrl_module
 
     // ---- Límite DURO de mail() por cuenta (wrapper sendmail_path) --------------------------------
     // Complementa el rate-limit de rspamd: aquí PHP-FPM corre cada dominio como h_<cuenta>, así que
-    // el emisor es INFALSIFICABLE. El wrapper /usr/local/sentora/bin/sentora_mail_limit.sh lee estos
+    // el emisor es INFALSIFICABLE. El wrapper /usr/local/bulwark/bin/sentora_mail_limit.sh lee estos
     // dos ficheros (www-writable) y descarta el correo de una cuenta que supere el límite/hora.
-    const MAILLIMIT_DIR   = '/var/sentora/mail_limits';
-    const MAILLIMIT_LIMIT = '/var/sentora/mail_limits/limit';
-    const MAILLIMIT_WL    = '/var/sentora/mail_limits/whitelist';
+    const MAILLIMIT_DIR   = '/var/bulwark/mail_limits';
+    const MAILLIMIT_LIMIT = '/var/bulwark/mail_limits/limit';
+    const MAILLIMIT_WL    = '/var/bulwark/mail_limits/whitelist';
 
     static function doSaveMailLimit()
     {
@@ -331,7 +331,7 @@ class module_controller extends ctrl_module
     {
         runtime_csfr::Protect();
         if (!class_exists('privilege')) {
-            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         }
         try {
             privilege::run('rspamd_restart', [], true);
@@ -354,7 +354,7 @@ class module_controller extends ctrl_module
             error_log('antispam_admin: Redis error on toggle: ' . $e->getMessage());
         }
         if (!class_exists('privilege')) {
-            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         }
         try {
             privilege::run($enabling ? 'rspamd_start' : 'rspamd_stop', [], true);
@@ -873,7 +873,7 @@ class module_controller extends ctrl_module
 
     // ---- Spamhaus DQS ------------------------------------------------
 
-    const SPAMHAUS_RBL_FILE = '/var/sentora/rspamd/rbl.conf';
+    const SPAMHAUS_RBL_FILE = '/var/bulwark/rspamd/rbl.conf';
 
     private static function writeSpamhausRbl(string $key): bool
     {
@@ -941,7 +941,7 @@ class module_controller extends ctrl_module
                 return;
             }
             if (!self::writeSpamhausRbl($key)) {
-                self::$err_msg = 'No se pudo escribir la configuración RBL. Comprueba permisos de /var/sentora/rspamd/.';
+                self::$err_msg = 'No se pudo escribir la configuración RBL. Comprueba permisos de /var/bulwark/rspamd/.';
                 return;
             }
         } else {
@@ -957,7 +957,7 @@ class module_controller extends ctrl_module
         }
 
         if (!class_exists('privilege')) {
-            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         }
         try {
             privilege::run('rspamd_restart', [], true);
@@ -1066,7 +1066,7 @@ class module_controller extends ctrl_module
         } catch (Exception $e) { return false; }
     }
 
-    const RSPAMD_OPTIONS_FILE = '/var/sentora/rspamd/options.inc';
+    const RSPAMD_OPTIONS_FILE = '/var/bulwark/rspamd/options.inc';
 
     private static function writeRspamdOptions(string $primary, string $secondary): bool
     {
@@ -1100,7 +1100,7 @@ class module_controller extends ctrl_module
         }
 
         if (!self::writeRspamdOptions($primary, $secondary)) {
-            self::$err_msg = 'No se pudo escribir la configuración DNS. Comprueba permisos de /var/sentora/rspamd/.';
+            self::$err_msg = 'No se pudo escribir la configuración DNS. Comprueba permisos de /var/bulwark/rspamd/.';
             return;
         }
 
@@ -1112,7 +1112,7 @@ class module_controller extends ctrl_module
         }
 
         if (!class_exists('privilege')) {
-            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         }
         try {
             privilege::run('rspamd_restart', [], true);

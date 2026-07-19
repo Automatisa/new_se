@@ -13,7 +13,7 @@ if (!isset($_POST['csfr_token']) || !isset($_SESSION['zpcsfr']) || !hash_equals(
     
 		
 		// Set Setnora DNS named/bind9 log file static to patch secerity issue. Will set to Database setting soon.
-		$bindlog = "/var/sentora/logs/bind/bind.log";
+		$bindlog = "/var/bulwark/logs/bind/bind.log";
 		
 		
         $bindlog = str_replace('..', '__', $bindlog); 

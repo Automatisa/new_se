@@ -2,8 +2,8 @@
 # Genera un certificado TLS autofirmado para ProFTPD.
 # Llamado por privilege::run('proftpd_cert_generate') como root via doas.
 
-CERTFILE="/usr/local/etc/sentora/proftpd/proftpd.crt"
-KEYFILE="/usr/local/etc/sentora/proftpd/proftpd.key"
+CERTFILE="/usr/local/etc/bulwark/proftpd/proftpd.crt"
+KEYFILE="/usr/local/etc/bulwark/proftpd/proftpd.key"
 HOSTNAME=$(hostname)
 
 # Backup de los certificados actuales

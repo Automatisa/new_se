@@ -1,7 +1,7 @@
 # NOTE: FreeBSD uses newsyslog(8), not logrotate.
 # Install logrotate from ports (sysutils/logrotate) or adapt to newsyslog.conf.d/
 
-/var/sentora/logs/proftpd/access.log /var/sentora/logs/proftpd/auth.log /var/sentora/logs/proftpd/xferlog.www {
+/var/bulwark/logs/proftpd/access.log /var/bulwark/logs/proftpd/auth.log /var/bulwark/logs/proftpd/xferlog.www {
        su root wheel
        weekly
        missingok

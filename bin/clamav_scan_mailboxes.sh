@@ -2,11 +2,11 @@
 # Escanea las rutas configuradas con clamdscan y delega el procesamiento
 # de archivos infectados al post-procesador PHP (cuarentena por usuario,
 # email, Redis). Ejecutado como root por daemon(8) vía clamav_scan_launch.sh.
-LOG=/var/sentora/clamav/scan_results.log
-QUARANTINE=/var/sentora/clamav/quarantine
-PATHS_CONF=/var/sentora/clamav/scan_paths.conf
-INFECTED_TMP=/var/sentora/run/clamav_infected_$$.tmp
-POST_SCAN=/usr/local/sentora/bin/clamav_post_scan.php
+LOG=/var/bulwark/clamav/scan_results.log
+QUARANTINE=/var/bulwark/clamav/quarantine
+PATHS_CONF=/var/bulwark/clamav/scan_paths.conf
+INFECTED_TMP=/var/bulwark/run/clamav_infected_$$.tmp
+POST_SCAN=/usr/local/bulwark/bin/clamav_post_scan.php
 
 mkdir -p "$QUARANTINE"
 chmod 700 "$QUARANTINE"
@@ -18,7 +18,7 @@ if [ -f "$PATHS_CONF" ]; then
         line=$(echo "$line" | tr -d '\r')
         [ -z "$line" ] && continue
         case "$line" in
-            /var/mail|/var/sentora/hostdata|/var/sentora/vmail|/var/sentora/temp|/var/sentora/backups)
+            /var/mail|/var/bulwark/hostdata|/var/bulwark/vmail|/var/bulwark/temp|/var/bulwark/backups)
                 [ -d "$line" ] && SCAN_PATHS="$SCAN_PATHS $line" ;;
         esac
     done < "$PATHS_CONF"

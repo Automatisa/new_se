@@ -4,7 +4,7 @@
 // para que el pool FPM tenga configuración al primer ciclo del daemon.
 
 if (!class_exists('fpm_pool_manager')) {
-    require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php';
 }
 
 fpm_pool_manager::InsertDefaults();

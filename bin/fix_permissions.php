@@ -3,15 +3,15 @@
  * fix_permissions.php
  * Verifica y corrige permisos, propietarios y estructura de directorios de Sentora.
  * Uso:
- *   php /usr/local/sentora/bin/fix_permissions.php          # verifica y corrige
- *   php /usr/local/sentora/bin/fix_permissions.php --check  # solo informa, no cambia nada
+ *   php /usr/local/bulwark/bin/fix_permissions.php          # verifica y corrige
+ *   php /usr/local/bulwark/bin/fix_permissions.php --check  # solo informa, no cambia nada
  */
 
 $DRY_RUN = in_array('--check', $argv ?? []);
 
-$PANEL_PATH = '/usr/local/sentora';
-$PANEL_DATA = '/var/sentora';
-$PANEL_CONF = '/usr/local/etc/sentora';
+$PANEL_PATH = '/usr/local/bulwark';
+$PANEL_DATA = '/var/bulwark';
+$PANEL_CONF = '/usr/local/etc/bulwark';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ echo $DRY_RUN
     : "\n=== fix_permissions.php [MODO CORRECCIÓN] ===\n";
 
 // ── 1. Raíz del mailstore ────────────────────────────────────────────────────
-section("1. Mailstore /var/sentora/vmail/");
+section("1. Mailstore /var/bulwark/vmail/");
 
 check_path("$PANEL_DATA/vmail", 02770, 'vmail', 'vmail');
 
@@ -141,7 +141,7 @@ foreach (glob("$PANEL_DATA/vmail/*/") ?: [] as $userdir) {
 }
 
 // ── 2. Logs ──────────────────────────────────────────────────────────────────
-section("2. Logs /var/sentora/logs/");
+section("2. Logs /var/bulwark/logs/");
 
 check_path("$PANEL_DATA/logs",                0755, 'root',  'wheel');
 check_path("$PANEL_DATA/logs/dovecot",        0750, 'vmail', 'vmail');
@@ -157,7 +157,7 @@ foreach (['sentora.log','sentora-access.log','sentora-error.log',
 }
 
 // ── 3. Datos variables ───────────────────────────────────────────────────────
-section("3. Datos variables /var/sentora/");
+section("3. Datos variables /var/bulwark/");
 
 check_path("$PANEL_DATA/sessions", 01733, 'www',  'www');
 check_path("$PANEL_DATA/temp",     01777, 'root', 'wheel');

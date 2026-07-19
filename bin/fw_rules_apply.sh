@@ -11,10 +11,10 @@
 
 set -e
 
-RULES_FILE="/var/sentora/run/pf_custom_rules.txt"
+RULES_FILE="/var/bulwark/run/pf_custom_rules.txt"
 TMPFILE="/tmp/sentora_fw_rules.$$"
 DATA_FILE="/tmp/sentora_fw_rules_data.$$"
-CNF="/usr/local/sentora/cnf/db.php"
+CNF="/usr/local/bulwark/cnf/db.php"
 
 [ -f "$CNF" ] || exit 1
 

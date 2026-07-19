@@ -14,7 +14,7 @@
  */
 class sys_backup_scheduler
 {
-    const LOCKFILE = '/var/sentora/run/backup_scheduler.lock';
+    const LOCKFILE = '/var/bulwark/run/backup_scheduler.lock';
 
     /** Calcula el epoch de la próxima ejecución según frecuencia/hora/día. */
     public static function computeNextRun($freq, $hour, $dow, $dom, $from = null)

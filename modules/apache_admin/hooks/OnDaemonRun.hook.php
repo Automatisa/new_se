@@ -1,9 +1,9 @@
 <?php
 if (!class_exists('privilege')) {
-        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
     }
 if (!class_exists('fpm_pool_manager')) {
-        require_once '/usr/local/sentora/dryden/sys/fpm_pool_manager.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/fpm_pool_manager.class.php';
     }
 echo fs_filehandler::NewLine() . "START Apache Config Hook." . fs_filehandler::NewLine();
 if (ui_module::CheckModuleEnabled('Apache Config')) {
@@ -15,14 +15,14 @@ if (ui_module::CheckModuleEnabled('Apache Config')) {
     // Aplicar límites de recursos por usuario (RACCT/RCTL) desde el paquete: contiene DoS
     // (fork-bombs, RAM/CPU) de un inquilino. No-op si RACCT no está activo en el kernel.
     if (!class_exists('rctl_manager')) {
-        require_once '/usr/local/sentora/dryden/sys/rctl_manager.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/rctl_manager.class.php';
     }
     $rctlCount = rctl_manager::ApplyAll();
     echo "rctl: limites aplicados a " . $rctlCount . " usuarios." . fs_filehandler::NewLine();
     // Aplicar cuotas de disco UFS por usuario desde el paquete: sobre cuota = no puede
     // escribir (EDQUOT) pero la web sigue sirviendo. No-op si las cuotas UFS no están activas.
     if (!class_exists('disk_quota_manager')) {
-        require_once '/usr/local/sentora/dryden/sys/disk_quota_manager.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/disk_quota_manager.class.php';
     }
     $dqCount = disk_quota_manager::ApplyAll();
     echo "disk-quota: aplicadas a " . $dqCount . " usuarios." . fs_filehandler::NewLine();
@@ -245,11 +245,11 @@ function WriteVhostConfigFile() {
 		
 		# Vhost PHP settings
 		$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-		$line .= "#php_admin_value open_basedir " . '"' . "/etc/sentora/" . ctrl_options::GetSystemOption('openbase_seperator') 
-				. "/var/sentora/" . ctrl_options::GetSystemOption('openbase_seperator')
+		$line .= "#php_admin_value open_basedir " . '"' . "/etc/bulwark/" . ctrl_options::GetSystemOption('openbase_seperator') 
+				. "/var/bulwark/" . ctrl_options::GetSystemOption('openbase_seperator')
 				. "/var/spool/" . '"' . fs_filehandler::NewLine(); 
 				
-		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/bulwark/sessions\"" . fs_filehandler::NewLine();
 		
 		$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-error.log" ' . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
@@ -308,7 +308,7 @@ function WriteVhostConfigFile() {
 			$line .= "<VirtualHost " . $panelAddrs . ">" . fs_filehandler::NewLine();
 			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/bulwark/sessions\"" . fs_filehandler::NewLine();
 			$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
 			$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
 			$line .= "    AllowOverride All" . fs_filehandler::NewLine();
@@ -350,7 +350,7 @@ function WriteVhostConfigFile() {
 			$line .= 'DocumentRoot "' . ctrl_options::GetSystemOption('sentora_root') . '"' . fs_filehandler::NewLine();
 			$line .= "ServerName " . ctrl_options::GetSystemOption('sentora_domain') . fs_filehandler::NewLine();
 			$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+			$line .= "SetEnv PHP_VALUE \"session.save_path=/var/bulwark/sessions\"" . fs_filehandler::NewLine();
 			$line .= '<Directory "' . ctrl_options::GetSystemOption('sentora_root') . '">' . fs_filehandler::NewLine();
 			$line .= "    Options +FollowSymLinks -Indexes" . fs_filehandler::NewLine();
 			$line .= "    AllowOverride All" . fs_filehandler::NewLine();
@@ -367,14 +367,14 @@ function WriteVhostConfigFile() {
 		
 		# Vhost PHP settings
 		$line .= ctrl_options::GetSystemOption('php_handler') . fs_filehandler::NewLine();
-		$line .= "#php_admin_value open_basedir " . '"' . "/etc/sentora/" . ctrl_options::GetSystemOption('openbase_seperator') 
-				. "/var/sentora/" . ctrl_options::GetSystemOption('openbase_seperator')
+		$line .= "#php_admin_value open_basedir " . '"' . "/etc/bulwark/" . ctrl_options::GetSystemOption('openbase_seperator') 
+				. "/var/bulwark/" . ctrl_options::GetSystemOption('openbase_seperator')
 				. "/var/spool/" . '"' . fs_filehandler::NewLine(); 
 				
 		# Set Function Blacklist 
 		// php_admin_value sp.configuration_file not supported with PHP-FPM
 		
-		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/sentora/sessions\"" . fs_filehandler::NewLine();
+		$line .= "SetEnv PHP_VALUE \"session.save_path=/var/bulwark/sessions\"" . fs_filehandler::NewLine();
 	
 		$line .= 'ErrorLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-error.log" ' . fs_filehandler::NewLine();
 		$line .= 'CustomLog "' . ctrl_options::GetSystemOption('log_dir') . 'sentora-access.log" ' . ctrl_options::GetSystemOption('access_log_format') . fs_filehandler::NewLine();
@@ -457,7 +457,7 @@ function WriteVhostConfigFile() {
 	# Nueva estructura: hosted_dir/username/vh_directory_vc/public_html/
 	$_vhpaths  = ctrl_options::GetVhostPaths($vhostuser['username'], $rowvhost['vh_directory_vc']);
 	$RootDir   = $_vhpaths['public_html'];
-	$_bwlogdir = '/var/sentora/logs/bandwidth/' . $vhostuser['username'] . '/' . $rowvhost['vh_directory_vc'];
+	$_bwlogdir = '/var/bulwark/logs/bandwidth/' . $vhostuser['username'] . '/' . $rowvhost['vh_directory_vc'];
 	if (!is_dir($_bwlogdir)) {
 		mkdir($_bwlogdir, 0750, true);
 		chgrp($_bwlogdir, 'www');

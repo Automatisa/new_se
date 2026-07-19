@@ -18,14 +18,14 @@ El orden lo da el nombre; SQL y SH se intercalan por número.
   en éxito (rc≠0 detiene la migración y no se marca como aplicada).
 
 ## Cómo se aplican
-- **Instalación nueva**: `sentora_core.sql` ya trae el esquema al día, así que el instalador ejecuta
+- **Instalación nueva**: `bulwark_core.sql` ya trae el esquema al día, así que el instalador ejecuta
   `php bin/db_migrate.php --baseline` → marca TODAS las migraciones como aplicadas **sin ejecutarlas**.
 - **Actualización** (`git pull` desde el módulo updates): `panel_update.sh` ejecuta
   `php bin/db_migrate.php` → aplica solo las que falten.
 
 ## Reglas
 1. **Nunca** edites una migración ya publicada (podría estar aplicada en algún sitio). Crea una nueva.
-2. Todo cambio de esquema en `sentora_core.sql` que afecte a instalaciones existentes necesita su
+2. Todo cambio de esquema en `bulwark_core.sql` que afecte a instalaciones existentes necesita su
    migración equivalente aquí.
 3. Las configuraciones **dinámicas** (zonas DNS, vhosts Apache, pools FPM) las regenera el daemon
    solo; NO necesitan migración. Solo migran los configs **estáticos** colocados por el instalador.
@@ -34,7 +34,7 @@ El orden lo da el nombre; SQL y SH se intercalan por número.
 ```sh
 #!/bin/sh
 # 0007_bind_listenon_v2.sh — ejemplo: adaptar named.conf a un cambio de estructura de BIND.
-CONF="/usr/local/etc/sentora/bind/named.conf"
+CONF="/usr/local/etc/bulwark/bind/named.conf"
 [ -f "$CONF" ] || exit 0
 # Idempotente: solo actúa si el patrón viejo está presente.
 if grep -q 'PATRON_VIEJO' "$CONF"; then

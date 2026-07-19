@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `vacation_notification` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Postfix - Virtual Vacation Notifications LOG';
 
 /* Update Sentora Version */
-USE `sentora_core`;
+USE `bulwark_core`;
 
 /* Update the sentora database version number */
 UPDATE `x_settings` SET `so_value_tx` = '1.0.3' WHERE `so_name_vc` = 'dbversion';

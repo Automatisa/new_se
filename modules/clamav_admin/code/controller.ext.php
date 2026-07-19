@@ -2,7 +2,7 @@
 /**
  * ClamAV Admin module — antivirus para email y buzones
  */
-require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 
 class module_controller extends ctrl_module
 {
@@ -12,21 +12,21 @@ class module_controller extends ctrl_module
     const CLAMD_PORT = 3310;
 
     // Ficheros dinámicos (www:www 640)
-    const CLAMAV_DIR          = '/var/sentora/clamav';
-    const ANTIVIRUS_CONF      = '/var/sentora/clamav/antivirus.conf';
-    const SCAN_LOG            = '/var/sentora/clamav/scan_results.log';
-    const FRESHCLAM_CHECKS    = '/var/sentora/clamav/freshclam_checks.conf';
-    const SCAN_SCHEDULE       = '/var/sentora/clamav/scan_schedule.conf';
-    const SCAN_PATHS_CONF     = '/var/sentora/clamav/scan_paths.conf';
-    const QUARANTINE_DIR      = '/var/sentora/clamav/quarantine';
+    const CLAMAV_DIR          = '/var/bulwark/clamav';
+    const ANTIVIRUS_CONF      = '/var/bulwark/clamav/antivirus.conf';
+    const SCAN_LOG            = '/var/bulwark/clamav/scan_results.log';
+    const FRESHCLAM_CHECKS    = '/var/bulwark/clamav/freshclam_checks.conf';
+    const SCAN_SCHEDULE       = '/var/bulwark/clamav/scan_schedule.conf';
+    const SCAN_PATHS_CONF     = '/var/bulwark/clamav/scan_paths.conf';
+    const QUARANTINE_DIR      = '/var/bulwark/clamav/quarantine';
 
     // Rutas predefinidas que el admin puede activar/desactivar
     const SCAN_PATH_OPTIONS   = [
         '/var/mail'                  => 'Correo del sistema (<code>/var/mail/</code>) — buzones mbox de cuentas locales',
-        '/var/sentora/hostdata'      => 'Archivos web (<code>/var/sentora/hostdata/</code>) — <code>public_html</code> de todos los dominios',
-        '/var/sentora/vmail'         => 'Buzones virtuales (<code>/var/sentora/vmail/</code>) — correo Dovecot en formato Maildir',
-        '/var/sentora/temp'          => 'Temporales del panel (<code>/var/sentora/temp/</code>) — archivos subidos pendientes',
-        '/var/sentora/backups'       => 'Copias de seguridad (<code>/var/sentora/backups/</code>)',
+        '/var/bulwark/hostdata'      => 'Archivos web (<code>/var/bulwark/hostdata/</code>) — <code>public_html</code> de todos los dominios',
+        '/var/bulwark/vmail'         => 'Buzones virtuales (<code>/var/bulwark/vmail/</code>) — correo Dovecot en formato Maildir',
+        '/var/bulwark/temp'          => 'Temporales del panel (<code>/var/bulwark/temp/</code>) — archivos subidos pendientes',
+        '/var/bulwark/backups'       => 'Copias de seguridad (<code>/var/bulwark/backups/</code>)',
     ];
 
     // Fichero estático rspamd (root)
@@ -48,7 +48,7 @@ class module_controller extends ctrl_module
                 $r = null;
                 throw new RuntimeException('Cannot connect to Redis');
             }
-            $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+            $rp = @file_get_contents('/usr/local/bulwark/cnf/redis.pass');
             if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
         }
         return $r;
@@ -498,7 +498,7 @@ class module_controller extends ctrl_module
             return;
         }
 
-        $reqFile = '/var/sentora/run/clamav_restore_request';
+        $reqFile = '/var/bulwark/run/clamav_restore_request';
         if (@file_put_contents($reqFile, $f) === false) {
             self::$err_msg = 'No se pudo escribir la solicitud de restauración en ' . $reqFile;
             return;
@@ -543,7 +543,7 @@ class module_controller extends ctrl_module
     // Solicitudes de restauración de usuarios
     // ----------------------------------------------------------------
 
-    const RESTORE_REQUESTS = '/var/sentora/run/restore_requests';
+    const RESTORE_REQUESTS = '/var/bulwark/run/restore_requests';
 
     static function doApproveRestoreRequest()
     {
@@ -565,7 +565,7 @@ class module_controller extends ctrl_module
         }
         $qfile = $req['qfile'];
         $username = basename($req['user']);
-        $qDir = '/var/sentora/hostdata/' . $username . '/quarantine';
+        $qDir = '/var/bulwark/hostdata/' . $username . '/quarantine';
         if (!file_exists($qfile)) {
             self::$err_msg = 'El archivo ya no existe en cuarentena.';
             @unlink($reqPath);

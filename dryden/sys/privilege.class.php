@@ -41,7 +41,7 @@
  * else is rejected at the boundary.
  */
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 class privilege
@@ -69,7 +69,7 @@ class privilege
      * `cmd …`. The caller prepends `permit nopass` and the identity.
      *
      * For `bind_log_chmod`/`bind_log_chown` the doas rule pins the EXACT args
-     * (`args 0664 /var/sentora/logs/bind/bind.log`). This is critical: a bare
+     * (`args 0664 /var/bulwark/logs/bind/bind.log`). This is critical: a bare
      * `cmd /bin/chmod` (no args) would let www run `doas chmod 4755 /bin/sh`
      * or `doas chown` on any file = trivial root escalation. Since the log
      * path is a fixed constant, pinning the args closes that hole entirely.
@@ -106,9 +106,9 @@ class privilege
         // La usa el reto DNS-01 de Let's Encrypt para provisionar/limpiar el TXT _acme-challenge al
         // momento (sin esperar al ciclo del daemon). Sin args variables -> sin superficie de inyección.
         'dns_rebuild' => array(
-            'argv' => array('/usr/local/bin/php', '-q', '/usr/local/sentora/bin/dns_rebuild.php'),
-            'sudo_rule' => '/usr/local/bin/php -q /usr/local/sentora/bin/dns_rebuild.php',
-            'doas_rule' => 'cmd /usr/local/bin/php args -q /usr/local/sentora/bin/dns_rebuild.php',
+            'argv' => array('/usr/local/bin/php', '-q', '/usr/local/bulwark/bin/dns_rebuild.php'),
+            'sudo_rule' => '/usr/local/bin/php -q /usr/local/bulwark/bin/dns_rebuild.php',
+            'doas_rule' => 'cmd /usr/local/bin/php args -q /usr/local/bulwark/bin/dns_rebuild.php',
         ),
 
         // Cron reload (used by cron module after writing the crontab).
@@ -117,12 +117,12 @@ class privilege
         // the service wrapper is needed; `service cron reload` already
         // reloads every user's crontab including the panel-managed file.
         // FreeBSD cron NO soporta `service cron reload`. La crontab del panel se instala con
-        // `crontab -u www <staging>` (el staging lo escribe el panel en /var/sentora/cron/www.cron,
+        // `crontab -u www <staging>` (el staging lo escribe el panel en /var/bulwark/cron/www.cron,
         // www-writable; crontab lo coloca en /var/cron/tabs/www y avisa a cron). Sin argumentos.
         'cron_install' => array(
-            'argv' => array('/usr/local/sentora/bin/cron_install.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/cron_install.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/cron_install.sh',
+            'argv' => array('/usr/local/bulwark/bin/cron_install.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/cron_install.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/cron_install.sh',
         ),
 
         // chmod the BIND log file (was `chmod 0777 <bindlog>` in dns_admin).
@@ -132,11 +132,11 @@ class privilege
             // The actual log path is filled in at call time from the
             // validated option, not from this fixed table.
             'argv_template' => array('/bin/chmod', '0664', '__BIND_LOG__'),
-            'sudo_rule' => '/bin/chmod 0664 /var/sentora/logs/bind/bind.log',
+            'sudo_rule' => '/bin/chmod 0664 /var/bulwark/logs/bind/bind.log',
             // doas.conf: command-only (no `args` clause), since the BIND
             // log path is dynamic. The argument whitelist is enforced on
             // the PHP side via realpath + basename regex.
-            'doas_rule' => 'cmd /bin/chmod args 0664 /var/sentora/logs/bind/bind.log',
+            'doas_rule' => 'cmd /bin/chmod args 0664 /var/bulwark/logs/bind/bind.log',
         ),
 
         // chown the BIND log file so the group becomes `www`, allowing the
@@ -144,8 +144,8 @@ class privilege
         // bind:www 0664 means: bind daemon writes as owner, www writes as group.
         'bind_log_chown' => array(
             'argv_template' => array('/usr/sbin/chown', 'bind:www', '__BIND_LOG__'),
-            'sudo_rule' => '/usr/sbin/chown bind:www /var/sentora/logs/bind/bind.log',
-            'doas_rule' => 'cmd /usr/sbin/chown args bind:www /var/sentora/logs/bind/bind.log',
+            'sudo_rule' => '/usr/sbin/chown bind:www /var/bulwark/logs/bind/bind.log',
+            'doas_rule' => 'cmd /usr/sbin/chown args bind:www /var/bulwark/logs/bind/bind.log',
         ),
 
         // OpenDKIM reload (used by dns_manager daemon hook after writing KeyTable/SigningTable).
@@ -172,32 +172,32 @@ class privilege
 
         // Generates a new self-signed TLS certificate for ProFTPD.
         'proftpd_cert_generate' => array(
-            'argv' => array('/usr/local/sentora/bin/ftp_cert_generate.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_generate.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_generate.sh',
+            'argv' => array('/usr/local/bulwark/bin/ftp_cert_generate.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ftp_cert_generate.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ftp_cert_generate.sh',
         ),
 
         // Validates and applies a new ProFTPD config written to /tmp/sentora_proftpd_new.conf.
         'proftpd_config_update' => array(
-            'argv' => array('/usr/local/sentora/bin/ftp_config_update.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/ftp_config_update.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_config_update.sh',
+            'argv' => array('/usr/local/bulwark/bin/ftp_config_update.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ftp_config_update.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ftp_config_update.sh',
         ),
 
         // Updates TLSRSACertificateFile + TLSRSACertificateKeyFile in proftpd config.
         // Reads paths from /tmp/sentora_ftp_cert and /tmp/sentora_ftp_key.
         'proftpd_cert_paths_update' => array(
-            'argv' => array('/usr/local/sentora/bin/ftp_cert_paths_update.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_paths_update.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_paths_update.sh',
+            'argv' => array('/usr/local/bulwark/bin/ftp_cert_paths_update.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ftp_cert_paths_update.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ftp_cert_paths_update.sh',
         ),
 
         // Validates and installs an uploaded commercial SSL cert+key into the proftpd certs dir.
         // Reads from /tmp/sentora_ftp_cert_upload and /tmp/sentora_ftp_key_upload.
         'proftpd_cert_upload' => array(
-            'argv' => array('/usr/local/sentora/bin/ftp_cert_upload.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/ftp_cert_upload.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ftp_cert_upload.sh',
+            'argv' => array('/usr/local/bulwark/bin/ftp_cert_upload.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ftp_cert_upload.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ftp_cert_upload.sh',
         ),
 
         // PHP-FPM graceful reload (used by API system reload endpoint).
@@ -238,51 +238,51 @@ class privilege
         // El script necesita root para escribir en /usr/local/etc/php-fpm.d/.
         'fpm_regenerate' => array(
             'argv' => array('/usr/local/bin/php', '-d', 'display_errors=Off',
-                            '/usr/local/sentora/bin/fpm_regen.php'),
-            'sudo_rule' => '/usr/local/bin/php -d display_errors=Off /usr/local/sentora/bin/fpm_regen.php',
-            'doas_rule' => 'cmd /usr/local/bin/php args -d display_errors=Off /usr/local/sentora/bin/fpm_regen.php',
+                            '/usr/local/bulwark/bin/fpm_regen.php'),
+            'sudo_rule' => '/usr/local/bin/php -d display_errors=Off /usr/local/bulwark/bin/fpm_regen.php',
+            'doas_rule' => 'cmd /usr/local/bin/php args -d display_errors=Off /usr/local/bulwark/bin/fpm_regen.php',
         ),
 
         // ---- fw_admin: cortafuegos pf + SSHGuard --------------------------------
         //
         // Argumentos dinámicos (IPs) se pasan a través de archivos temporales con
         // permisos root:zpanel 660, nunca directamente como argv. Los scripts wrapper
-        // en /usr/local/sentora/bin/ validan el contenido con regex antes de usarlo.
+        // en /usr/local/bulwark/bin/ validan el contenido con regex antes de usarlo.
 
         // Reconstruye tabla pf 'sentora_blocked' desde x_fw_blocked de la BD.
         'fw_block_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_block_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_block_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_block_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_block_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_block_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_block_apply.sh',
         ),
 
         // Reconstruye tabla pf 'sentora_whitelist' desde x_fw_whitelist de la BD.
         'fw_whitelist_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_whitelist_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_whitelist_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_whitelist_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_whitelist_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_whitelist_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_whitelist_apply.sh',
         ),
 
-        // Desbanea la IP escrita en /var/sentora/run/fw_unban_request (root:zpanel 660).
+        // Desbanea la IP escrita en /var/bulwark/run/fw_unban_request (root:zpanel 660).
         // El script valida el contenido con regex antes de llamar a pfctl.
         'fw_sshguard_unban' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_sshguard_unban.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_sshguard_unban.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_sshguard_unban.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_sshguard_unban.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_sshguard_unban.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_sshguard_unban.sh',
         ),
 
-        // Vuelca estado de pf + SSHGuard a /var/sentora/logs/fw_status.json (www:www 640).
+        // Vuelca estado de pf + SSHGuard a /var/bulwark/logs/fw_status.json (www:www 640).
         'fw_status_dump' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_status_dump.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_status_dump.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_status_dump.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_status_dump.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_status_dump.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_status_dump.sh',
         ),
 
         // Aplica reglas personalizadas de x_fw_rules al anchor pf "sentora_rules".
         'fw_rules_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_rules_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_rules_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_rules_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_rules_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_rules_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_rules_apply.sh',
         ),
 
         // Recarga el servicio pf (tras cambios manuales en pf.conf).
@@ -299,60 +299,60 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args sshguard restart',
         ),
 
-        // Activa/desactiva pf o SSHGuard según /var/sentora/run/fw_service_toggle_req
+        // Activa/desactiva pf o SSHGuard según /var/bulwark/run/fw_service_toggle_req
         // ("pf|sshguard on|off"). El script valida el contenido y hace service + sysrc.
         'fw_service_toggle' => array(
-            'argv'      => array('/usr/local/sentora/bin/fw_service_toggle.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/fw_service_toggle.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/fw_service_toggle.sh',
+            'argv'      => array('/usr/local/bulwark/bin/fw_service_toggle.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/fw_service_toggle.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_service_toggle.sh',
         ),
 
         // ---- hosting_users: usuarios de sistema por cuenta de hosting ----------
         //
         // El nombre de usuario a procesar se pasa mediante un fichero de petición
-        // en /var/sentora/run/ (root:zpanel 660), nunca como argumento directo.
+        // en /var/bulwark/run/ (root:zpanel 660), nunca como argumento directo.
         // El script valida el contenido con regex antes de actuar.
 
         // Crea el usuario de sistema h_USERNAME y corrige la propiedad de hostdata.
         'hosting_user_add' => array(
-            'argv'      => array('/usr/local/sentora/bin/hosting_user_add.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/hosting_user_add.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_add.sh',
+            'argv'      => array('/usr/local/bulwark/bin/hosting_user_add.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/hosting_user_add.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/hosting_user_add.sh',
         ),
 
         // Crea el esqueleto de directorios de un dominio/subdominio (web/<dir>/{public_html,tmp,
         // logs,_errorpages,_cgi-bin}) con ownership h_USERNAME:www y permisos de aislamiento. La
-        // orden "USERNAME|VH_DIRECTORY" se pasa por /var/sentora/run/vhost_diradd_req; el script
+        // orden "USERNAME|VH_DIRECTORY" se pasa por /var/bulwark/run/vhost_diradd_req; el script
         // valida ambos campos (anti path-traversal). Necesario porque web/ es 2750 y www no puede
         // crear ahí -> sin esto los dominios quedaban sin public_html (Apache 403).
         'vhost_dir_add' => array(
-            'argv'      => array('/usr/local/sentora/bin/vhost_dir_add.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/vhost_dir_add.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/vhost_dir_add.sh',
+            'argv'      => array('/usr/local/bulwark/bin/vhost_dir_add.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/vhost_dir_add.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/vhost_dir_add.sh',
         ),
 
         // Elimina el usuario de sistema h_USERNAME y su grupo.
         'hosting_user_del' => array(
-            'argv'      => array('/usr/local/sentora/bin/hosting_user_del.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/hosting_user_del.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/hosting_user_del.sh',
+            'argv'      => array('/usr/local/bulwark/bin/hosting_user_del.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/hosting_user_del.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/hosting_user_del.sh',
         ),
 
         // Restaura los FICHEROS del home de una cuenta desde un .zip de backup. La orden
-        // ("USERNAME|/ruta/backup.zip") se pasa por /var/sentora/run/account_restore_req;
+        // ("USERNAME|/ruta/backup.zip") se pasa por /var/bulwark/run/account_restore_req;
         // el script valida el usuario y que el zip esté en backups/ o restore/ del propio home.
         'account_restore' => array(
-            'argv'      => array('/usr/local/sentora/bin/account_restore.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/account_restore.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/account_restore.sh',
+            'argv'      => array('/usr/local/bulwark/bin/account_restore.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/account_restore.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/account_restore.sh',
         ),
 
         // Aplica cuotas de disco UFS por cuenta (uid h_USER). Orden ("USERNAME|HARD_KB" por
-        // línea) en /var/sentora/run/disk_quota_req; el script valida y llama a edquota.
+        // línea) en /var/bulwark/run/disk_quota_req; el script valida y llama a edquota.
         'disk_quota_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/disk_quota_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/disk_quota_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/disk_quota_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/disk_quota_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/disk_quota_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/disk_quota_apply.sh',
         ),
 
         // rspamd start / stop / restart. Usados por antispam_admin.
@@ -377,37 +377,37 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args rspamd reload',
         ),
         'antispam_rbl_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/antispam_rbl_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/antispam_rbl_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/antispam_rbl_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/antispam_rbl_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/antispam_rbl_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/antispam_rbl_apply.sh',
         ),
         // Correo del sistema (root/postmaster) — usado por mail_admin. Sin args: el destino se
         // lee del ajuste system_mail_to en la BD.
         'sysmail_alias_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/sysmail_alias_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/sysmail_alias_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/sysmail_alias_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/sysmail_alias_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/sysmail_alias_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/sysmail_alias_apply.sh',
         ),
         // Actualizaciones del sistema — usadas por el módulo updates (solo admin).
         'sys_update_check' => array(
-            'argv'      => array('/usr/local/sentora/bin/sys_update_check.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/sys_update_check.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/sys_update_check.sh',
+            'argv'      => array('/usr/local/bulwark/bin/sys_update_check.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/sys_update_check.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/sys_update_check.sh',
         ),
         'pkg_upgrade' => array(
-            'argv'      => array('/usr/local/sentora/bin/pkg_upgrade.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/pkg_upgrade.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/pkg_upgrade.sh',
+            'argv'      => array('/usr/local/bulwark/bin/pkg_upgrade.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/pkg_upgrade.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/pkg_upgrade.sh',
         ),
         'freebsd_update_apply' => array(
-            'argv'      => array('/usr/local/sentora/bin/freebsd_update_apply.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/freebsd_update_apply.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/freebsd_update_apply.sh',
+            'argv'      => array('/usr/local/bulwark/bin/freebsd_update_apply.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/freebsd_update_apply.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/freebsd_update_apply.sh',
         ),
         'panel_update' => array(
-            'argv'      => array('/usr/local/sentora/bin/panel_update.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/panel_update.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/panel_update.sh',
+            'argv'      => array('/usr/local/bulwark/bin/panel_update.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/panel_update.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/panel_update.sh',
         ),
         // Pinning de paquetes: salto de MAYOR de un paquete gestionado, confirmado por el admin.
         // El nombre del paquete es dinámico (__PKG_NAME__): se valida con regex en PHP y, sobre
@@ -416,28 +416,28 @@ class privilege
         // check/auto-sub/lock-all NO necesitan regla: los llama el daemon/instalador ya como root,
         // y 'check' va dentro de sys_update_check.sh.
         'pkg_pin_verify' => array(
-            'argv_template' => array('/usr/local/sentora/bin/pkg_pin.sh', 'verify-major', '__PKG_NAME__'),
-            'sudo_rule' => '/usr/local/sentora/bin/pkg_pin.sh verify-major',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/pkg_pin.sh',
+            'argv_template' => array('/usr/local/bulwark/bin/pkg_pin.sh', 'verify-major', '__PKG_NAME__'),
+            'sudo_rule' => '/usr/local/bulwark/bin/pkg_pin.sh verify-major',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/pkg_pin.sh',
         ),
         // Multi-IP: añadir/quitar un alias de IP en la interfaz principal. La IP es dinámica
         // (__IP_ADDR__, validada en PHP como IPv4/IPv6); el script re-valida y nunca toca la primaria.
         'ip_alias_add' => array(
-            'argv_template' => array('/usr/local/sentora/bin/ip_alias.sh', 'add', '__IP_ADDR__'),
-            'sudo_rule' => '/usr/local/sentora/bin/ip_alias.sh add',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ip_alias.sh',
+            'argv_template' => array('/usr/local/bulwark/bin/ip_alias.sh', 'add', '__IP_ADDR__'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ip_alias.sh add',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ip_alias.sh',
         ),
         'ip_alias_del' => array(
-            'argv_template' => array('/usr/local/sentora/bin/ip_alias.sh', 'del', '__IP_ADDR__'),
-            'sudo_rule' => '/usr/local/sentora/bin/ip_alias.sh del',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/ip_alias.sh',
+            'argv_template' => array('/usr/local/bulwark/bin/ip_alias.sh', 'del', '__IP_ADDR__'),
+            'sudo_rule' => '/usr/local/bulwark/bin/ip_alias.sh del',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/ip_alias.sh',
         ),
         // Multi-IP Fase 3b: regenera los transportes de Postfix por IP dedicada (envío saliente).
         // Sin args; el script hace 'postfix check' antes de recargar (no rompe el correo).
         'mail_ip_sync' => array(
-            'argv'      => array('/usr/local/sentora/bin/mail_ip_transports.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/mail_ip_transports.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/mail_ip_transports.sh',
+            'argv'      => array('/usr/local/bulwark/bin/mail_ip_transports.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/mail_ip_transports.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/mail_ip_transports.sh',
         ),
 
         // ClamAV — usados por clamav_admin
@@ -467,25 +467,25 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/service args clamav_freshclam restart',
         ),
         'freshclam_update' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_freshclam_update.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_freshclam_update.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_freshclam_update.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_freshclam_update.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_freshclam_update.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_freshclam_update.sh',
         ),
         'clamd_scan_mailboxes' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_scan_mailboxes.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_scan_mailboxes.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_scan_mailboxes.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_scan_mailboxes.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_scan_mailboxes.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_scan_mailboxes.sh',
         ),
         // Lanzadores daemon(8) — retornan inmediatamente sin bloquear PHP-FPM
         'clamd_scan_launch' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_scan_launch.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_scan_launch.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_scan_launch.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_scan_launch.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_scan_launch.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_scan_launch.sh',
         ),
         'freshclam_launch' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_freshclam_launch.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_freshclam_launch.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_freshclam_launch.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_freshclam_launch.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_freshclam_launch.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_freshclam_launch.sh',
         ),
         // Parar clamd EN 2º PLANO (daemon -f): 'service clamav_clamd stop' puede tardar/colgar, así
         // que se detacha para no bloquear la petición. argv fijo -> sin script wrapper (FIX-182).
@@ -495,23 +495,23 @@ class privilege
             'doas_rule' => 'cmd /usr/sbin/daemon args -f /usr/sbin/service clamav_clamd stop',
         ),
         'clamav_cron_update' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_cron_update.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_cron_update.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_cron_update.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_cron_update.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_cron_update.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_cron_update.sh',
         ),
         // Restaura un archivo de cuarentena a /var/mail/.
-        // El nombre del archivo se pasa en /var/sentora/run/clamav_restore_request
+        // El nombre del archivo se pasa en /var/bulwark/run/clamav_restore_request
         // (www:www 600), nunca como argumento directo, para evitar inyección de rutas.
         'clamd_quarantine_restore' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_quarantine_restore.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_quarantine_restore.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_quarantine_restore.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_quarantine_restore.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_quarantine_restore.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_quarantine_restore.sh',
         ),
 
         'clamav_user_scan' => array(
-            'argv'      => array('/usr/local/sentora/bin/clamav_user_scan.sh'),
-            'sudo_rule' => '/usr/local/sentora/bin/clamav_user_scan.sh',
-            'doas_rule' => 'cmd /usr/local/sentora/bin/clamav_user_scan.sh',
+            'argv'      => array('/usr/local/bulwark/bin/clamav_user_scan.sh'),
+            'sudo_rule' => '/usr/local/bulwark/bin/clamav_user_scan.sh',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/clamav_user_scan.sh',
         ),
 
     );
@@ -607,7 +607,7 @@ class privilege
         $lines = array(
             '# Sentora privilege rules (security fix, June 2026).',
             '# Generated automatically — do not edit by hand; regenerate via',
-            '#   php -r "require \"/usr/local/sentora/panel/dryden/sys/privilege.class.php\"; echo privilege::sudoersRules(\"www\");\"',
+            '#   php -r "require \"/usr/local/bulwark/panel/dryden/sys/privilege.class.php\"; echo privilege::sudoersRules(\"www\");\"',
             '# Each line below maps to a single action key in privilege::run().',
             '',
         );
@@ -639,7 +639,7 @@ class privilege
         $lines = array(
             '# Sentora privilege rules (security fix, June 2026).',
             '# Generated automatically — do not edit by hand; regenerate via',
-            '#   php -r "require \"/usr/local/sentora/panel/dryden/sys/privilege.class.php\"; echo privilege::doasRules(\"www\");\"',
+            '#   php -r "require \"/usr/local/bulwark/panel/dryden/sys/privilege.class.php\"; echo privilege::doasRules(\"www\");\"',
             '# Each line below maps to a single action key in privilege::run().',
             '# Lines take effect after installing to /usr/local/etc/doas.conf',
             '# with mode 0600 owner root:wheel.',
@@ -770,12 +770,12 @@ class privilege
                 $value = (string)$args[$argIdx];
                 switch ($slot) {
                     case '__BIND_LOG__':
-                        // Must be an absolute path under /var/sentora,
+                        // Must be an absolute path under /var/bulwark,
                         // no shell metacharacters, no traversal.
                         $real = realpath($value);
                         $base = basename($real);
                         if ($real === false
-                            || strpos($real, '/var/sentora/logs/bind/') !== 0
+                            || strpos($real, '/var/bulwark/logs/bind/') !== 0
                             || !preg_match('/^[A-Za-z0-9._\-]+$/', $base)
                             || $base === '' || $base === '.' || $base === '..'
                         ) {

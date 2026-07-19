@@ -18,7 +18,7 @@ set -u
 
 PKG="${1:-}"
 MAJ="${2:-}"
-DIR="/usr/local/sentora/preconf/pkg-migrations"
+DIR="/usr/local/bulwark/preconf/pkg-migrations"
 
 if [ -z "$PKG" ] || [ -z "$MAJ" ]; then
     echo "preconf_migrate: uso: $0 <pkg> <mayor>" >&2

@@ -2,10 +2,10 @@
 # fw_unblock.sh — Elimina una IP de la lista de bloqueos del cortafuegos.
 #
 # Uso (como root):
-#   sh /usr/local/sentora/bin/fw_unblock.sh <IP>
-#   sh /usr/local/sentora/bin/fw_unblock.sh 1.2.3.4
-#   sh /usr/local/sentora/bin/fw_unblock.sh 2001:db8::1
-#   sh /usr/local/sentora/bin/fw_unblock.sh 10.0.0.0/8
+#   sh /usr/local/bulwark/bin/fw_unblock.sh <IP>
+#   sh /usr/local/bulwark/bin/fw_unblock.sh 1.2.3.4
+#   sh /usr/local/bulwark/bin/fw_unblock.sh 2001:db8::1
+#   sh /usr/local/bulwark/bin/fw_unblock.sh 10.0.0.0/8
 #
 # Qué hace:
 #   1. Valida el formato de la IP/CIDR
@@ -66,7 +66,7 @@ printf "\n${BLD}=== Eliminar bloqueo: %s ===${NC}\n\n" "$IP"
 ###############################################################################
 # Leer credenciales de la BD
 ###############################################################################
-CNF="/usr/local/sentora/cnf/db.php"
+CNF="/usr/local/bulwark/cnf/db.php"
 if [ ! -f "$CNF" ]; then
     err "No se encuentra $CNF"
     exit 1
@@ -103,7 +103,7 @@ fi
 # Reconstruir tabla pf sentora_blocked desde la BD
 ###############################################################################
 inf "Reconstruyendo tabla pf sentora_blocked desde la BD..."
-if sh /usr/local/sentora/bin/fw_block_apply.sh 2>/dev/null; then
+if sh /usr/local/bulwark/bin/fw_block_apply.sh 2>/dev/null; then
     ok "Tabla pf sentora_blocked actualizada."
 else
     printf "${YLW}[AVISO]${NC} fw_block_apply.sh devolvió error (puede que pf no esté activo).\n"

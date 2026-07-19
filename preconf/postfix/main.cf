@@ -24,7 +24,7 @@ mydomain = !PANEL_FQDN!
 myhostname = !PANEL_FQDN!
 mynetworks = 127.0.0.0/8, !SERVER_IP!/32
 mydestination = localhost.$mydomain, localhost
-relay_domains = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-relay_domains_maps.cf
+relay_domains = proxy:mysql:/usr/local/etc/bulwark/configs/postfix/mysql-relay_domains_maps.cf
 
 # mail delivery
 recipient_delimiter = +
@@ -34,12 +34,12 @@ alias_maps = hash:/etc/aliases
 alias_database = hash:/etc/aliases
 
 # virtual setup
-virtual_alias_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_alias_maps.cf,
-                     regexp:/usr/local/etc/sentora/configs/postfix/virtual_regexp
-virtual_mailbox_base = /var/sentora/vmail
-virtual_mailbox_domains = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_domains_maps.cf
-virtual_mailbox_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_mailbox_maps.cf
-virtual_mailbox_limit_maps = proxy:mysql:/usr/local/etc/sentora/configs/postfix/mysql-virtual_mailbox_limit_maps.cf
+virtual_alias_maps = proxy:mysql:/usr/local/etc/bulwark/configs/postfix/mysql-virtual_alias_maps.cf,
+                     regexp:/usr/local/etc/bulwark/configs/postfix/virtual_regexp
+virtual_mailbox_base = /var/bulwark/vmail
+virtual_mailbox_domains = proxy:mysql:/usr/local/etc/bulwark/configs/postfix/mysql-virtual_domains_maps.cf
+virtual_mailbox_maps = proxy:mysql:/usr/local/etc/bulwark/configs/postfix/mysql-virtual_mailbox_maps.cf
+virtual_mailbox_limit_maps = proxy:mysql:/usr/local/etc/bulwark/configs/postfix/mysql-virtual_mailbox_limit_maps.cf
 virtual_minimum_uid = !POS_UID!
 virtual_uid_maps = static:!POS_UID!
 virtual_gid_maps = static:!POS_GID!
@@ -50,7 +50,7 @@ dovecot_destination_recipient_limit = 1
 # Devuelve el transporte smtpip-<ip> (definido en master.cf con smtp_bind_address) para
 # los dominios con IP dedicada; el resto usa el transporte por defecto.
 # mysql: directo (NO proxy:): el mapa no está en proxy_read_maps y proxymap fallaría.
-sender_dependent_default_transport_maps = mysql:/usr/local/etc/sentora/postfix/mysql-sender_transport.cf
+sender_dependent_default_transport_maps = mysql:/usr/local/etc/bulwark/postfix/mysql-sender_transport.cf
 
 # authentication
 smtpd_sasl_auth_enable = yes

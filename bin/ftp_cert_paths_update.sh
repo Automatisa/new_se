@@ -6,7 +6,7 @@
 TMPDIR="/tmp"
 CERTPATH_FILE="$TMPDIR/sentora_ftp_cert"
 KEYPATH_FILE="$TMPDIR/sentora_ftp_key"
-REAL_CONFIG="/usr/local/etc/sentora/proftpd/proftpd-mysql.conf"
+REAL_CONFIG="/usr/local/etc/bulwark/proftpd/proftpd-mysql.conf"
 
 if [ ! -f "$CERTPATH_FILE" ] || [ ! -f "$KEYPATH_FILE" ]; then
     echo "ERROR: ficheros temporales no encontrados" >&2

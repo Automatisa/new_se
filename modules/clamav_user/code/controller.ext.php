@@ -1,5 +1,5 @@
 <?php
-require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 
 /**
  * Módulo Antivirus — vista de usuario
@@ -10,8 +10,8 @@ require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
 class module_controller extends ctrl_module
 {
     const QUARANTINE_SUBDIR  = 'quarantine';
-    const RESTORE_REQUESTS   = '/var/sentora/run/restore_requests';
-    const SCAN_REQUESTS      = '/var/sentora/run/scan_requests';
+    const RESTORE_REQUESTS   = '/var/bulwark/run/restore_requests';
+    const SCAN_REQUESTS      = '/var/bulwark/run/scan_requests';
     const SCAN_COOLDOWN      = 7200; // 2 horas en segundos
     const REDIS_HOST         = '127.0.0.1';
     const REDIS_PORT         = 6379;
@@ -159,7 +159,7 @@ class module_controller extends ctrl_module
         }
 
         // Validar que el directorio del usuario existe
-        $userDir = '/var/sentora/hostdata/' . $username;
+        $userDir = '/var/bulwark/hostdata/' . $username;
         if (!is_dir($userDir)) {
             self::$err_msg = 'No se encontró tu directorio de alojamiento.';
             return false;
@@ -377,7 +377,7 @@ class module_controller extends ctrl_module
 
     private static function userQuarantineDir(string $username): string
     {
-        return '/var/sentora/hostdata/' . $username . '/' . self::QUARANTINE_SUBDIR;
+        return '/var/bulwark/hostdata/' . $username . '/' . self::QUARANTINE_SUBDIR;
     }
 
     private static function listQuarantineFiles(string $qDir): array
@@ -422,7 +422,7 @@ class module_controller extends ctrl_module
             if (!@$r->connect(self::REDIS_HOST, self::REDIS_PORT, 2)) {
                 $r = null;
             } else {
-                $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+                $rp = @file_get_contents('/usr/local/bulwark/cnf/redis.pass');
                 if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
             }
         }

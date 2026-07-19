@@ -5,7 +5,7 @@
  */
 
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 hosting_users_delete_for_removed_accounts();
@@ -34,7 +34,7 @@ function hosting_users_delete_for_removed_accounts(): void
 
 function hosting_users_run_del(string $username): void
 {
-    $req = '/var/sentora/run/hosting_userdel_req';
+    $req = '/var/bulwark/run/hosting_userdel_req';
     if (file_put_contents($req, $username) === false) {
         error_log("hosting_users: no se pudo escribir en $req");
         return;

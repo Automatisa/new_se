@@ -22,7 +22,7 @@
 
 # for LEscript you can use any logger according to Psr\Log\LoggerInterface
     if (!class_exists('privilege')) {
-        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
     }
 // Guard: este hook ahora corre en el ciclo HORARIO (junto a otros OnDaemonHour); evitar redeclarar.
 if (!class_exists('Logger')) {
@@ -74,7 +74,7 @@ echo "END Sencrypt Manager SSL Renewal Hook." . fs_filehandler::NewLine();
 # los CERTIFICADOS siguen siendo por dominio (certlocation), solo se comparte la cuenta.
 function sencrypt_shared_account_dir($staging = false) {
     # Cuenta separada para STAGING: es otra CA con otra cuenta; no debe mezclarse con producción.
-    return $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+    return $staging ? '/var/bulwark/ssl/sencrypt/letsencrypt-staging/' : '/var/bulwark/ssl/sencrypt/letsencrypt/';
 }
 
 # CA ACME de STAGING (pruebas). Producción es el valor por defecto de Lescript ($ca).

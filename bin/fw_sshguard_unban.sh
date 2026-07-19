@@ -1,5 +1,5 @@
 #!/bin/sh
-# fw_sshguard_unban.sh — Desbanea la IP escrita en /var/sentora/run/fw_unban_request.
+# fw_sshguard_unban.sh — Desbanea la IP escrita en /var/bulwark/run/fw_unban_request.
 # Invocado ÚNICAMENTE por privilege::run('fw_sshguard_unban'). Sin argumentos.
 #
 # Protocolo seguro de paso de argumento dinámico (IP):
@@ -8,7 +8,7 @@
 #   3. Valida el contenido con regex estricta antes de pasarlo a pfctl
 #   4. pfctl elimina la IP de la tabla sshguard (y de sentora_blocked si aplica)
 
-REQUEST="/var/sentora/run/fw_unban_request"
+REQUEST="/var/bulwark/run/fw_unban_request"
 
 # Regex de validación: IPv4 (con CIDR opcional) o IPv6 (con CIDR opcional)
 VALID_IPV4='^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[02]))?$'

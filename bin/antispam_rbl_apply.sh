@@ -5,7 +5,7 @@ REDIS=/usr/local/bin/redis-cli
 RBL_CONF="/usr/local/etc/rspamd/local.d/rbl.conf"
 
 # Auth ACL de Redis (usuario 'panel'). Corre como root, lee la clave de cnf/ (640 root:zpanel).
-RPASS=$(head -1 /usr/local/sentora/cnf/redis.pass 2>/dev/null)
+RPASS=$(head -1 /usr/local/bulwark/cnf/redis.pass 2>/dev/null)
 if [ -n "$RPASS" ]; then
     RAUTH="--user panel -a $RPASS --no-auth-warning"
 else

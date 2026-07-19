@@ -32,7 +32,7 @@
  * - removed daemon task that is handled by independant crontab /etc/cron.d/zdaemon (linux)
  */
     if (!class_exists('privilege')) {
-        require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+        require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
     }
 class module_controller extends ctrl_module
 {

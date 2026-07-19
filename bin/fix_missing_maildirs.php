@@ -3,13 +3,13 @@
  * fix_missing_maildirs.php
  * Crea la estructura Maildir++ en disco para cualquier buzón activo en sentora_postfix
  * que no tenga directorio. Útil tras migraciones o cuando el panel falla al crear dirs.
- * Uso: php /usr/local/sentora/bin/fix_missing_maildirs.php
+ * Uso: php /usr/local/bulwark/bin/fix_missing_maildirs.php
  */
 $cnf = __DIR__ . '/../cnf/db.php';
 if (!file_exists($cnf)) { die("No se encuentra cnf/db.php\n"); }
 include $cnf;
 
-$core = new PDO("mysql:host=$host;dbname=sentora_core", $user, $pass);
+$core = new PDO("mysql:host=$host;dbname=bulwark_core", $user, $pass);
 $core->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $mailserver_db = $core->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc='mailserver_db'")->fetchColumn();
@@ -17,7 +17,7 @@ $mailserver_db = $core->query("SELECT so_value_tx FROM x_settings WHERE so_name_
 $db = new PDO("mysql:host=$host;dbname=$mailserver_db", $user, $pass);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$VMAIL_BASE = '/var/sentora/vmail';
+$VMAIL_BASE = '/var/bulwark/vmail';
 
 $stmt = $db->query('SELECT username, maildir FROM mailbox WHERE active = 1');
 $fixed = 0; $ok = 0; $errors = [];

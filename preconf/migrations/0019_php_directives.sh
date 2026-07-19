@@ -3,7 +3,7 @@
 # date.timezone, max_input_vars y opcache.enable. Se aplican como php_admin_value en el pool FPM
 # de la versión elegida por el dominio. Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

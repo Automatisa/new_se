@@ -5,7 +5,7 @@
 # El panel enruta el pool del dominio al directorio de pools de esa versión; el socket NO cambia,
 # así Apache no se toca. Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

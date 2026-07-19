@@ -27,13 +27,13 @@ TRUNCATE `zpanel_core`.`x_settings`;
 
 INSERT  INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
 (6,'dbversion','Sentora version','1.0.3',NULL,'Database Version','Sentora Config','false'),
-(7,'sentora_root','Sentora root path','/etc/sentora/panel/',NULL,'Sentora Web Root','Sentora Config','true'),
+(7,'sentora_root','Sentora root path','/etc/bulwark/panel/',NULL,'Sentora Web Root','Sentora Config','true'),
 (8,'module_icons_pr','Icons per Row','10',NULL,'Set the number of icons to display before beginning a new line.','Sentora Config','false'),
 (10,'Sentora_df','Date Format','H:i jS M Y T',NULL,'Set the date format used by modules.','Sentora Config','true'),
 (13,'servicechk_to','Service Check Timeout','10',NULL,'Service Check Timeout','Sentora Config','true'),
 (14,'root_drive','Root Drive','/',NULL,'The root drive where Sentora is installed.','Sentora Config','true'),
 (16,'php_exer','PHP executable','php',NULL,'PHP Executable','Sentora Config','false'),
-(17,'temp_dir','Temp Directory','/var/sentora/temp/',NULL,'Global temp directory.','Sentora Config','true'),
+(17,'temp_dir','Temp Directory','/var/bulwark/temp/',NULL,'Global temp directory.','Sentora Config','true'),
 (18,'news_url','Sentora News API URL','http://api.sentora.org/latestnews.json',NULL,'Sentora News URL','Sentora Config','false'),
 (19,'update_url','Sentora Update API URL','http://api.sentora.org/latestversion.json',NULL,'Sentora Update URL','Sentora Config','false'),
 (21,'server_ip','Server IP Address','',NULL,'If set this will use this manually entered server IP address which is the prefered method for use behind a firewall.','Sentora Config','true'),
@@ -41,7 +41,7 @@ INSERT  INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,
 (24,'disable_hostsen','Disable auto HOSTS file entry','false','true|false','Disable Host Entries','Sentora Config','false'),
 (25,'latestzpversion','Cached version of latest sentora version','1.0.0',NULL,'This is used for caching the latest version of Sentora.','Sentora Config','false'),
 (26,'logmode','Debug logging mode','db','db|file|email','The default mode to log all errors in.','Sentora Config','true'),
-(27,'logfile','Sentora Log file','/var/sentora/logs/sentora.log',NULL,'If logging is set to "file" mode this is the path to the log file that is to be used by Sentora.','Sentora Config','true'),
+(27,'logfile','Sentora Log file','/var/bulwark/logs/sentora.log',NULL,'If logging is set to "file" mode this is the path to the log file that is to be used by Sentora.','Sentora Config','true'),
 (28,'apikey','XMWS API Key','ee8795c8c53bfdb3b2cc595186b68912',NULL,'The secret API key for the server.','Sentora Config','false');
 
 INSERT  INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
@@ -76,9 +76,9 @@ INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`
 (53,'max_mail_size','Max Mailbox Size','200',NULL,'Maximum size in megabytes allowed for mailboxes. Default = 200','Mail Config','true'),
 (54,'mailserver_php','Mailserver PHP','postfix.php',NULL,'Name of PHP to include when adding mailbox data.','Mail Config','true'),
 (55,'remove_orphan','Remove Orphans','true','true|false','When domains are deleted, also delete all mailboxes for that domain when the daemon runs. (true/false)','Mail Config','true'),
-(56,'named_dir','Named Directory','/etc/sentora/configs/bind/etc/',NULL,'Path to the directory where named.conf is stored','DNS Config','true'),
+(56,'named_dir','Named Directory','/etc/bulwark/configs/bind/etc/',NULL,'Path to the directory where named.conf is stored','DNS Config','true'),
 (57,'named_conf','Named Config','named.conf',NULL,'Named configuration file','DNS Config','true'),
-(58,'zone_dir','Zone Directory','/etc/sentora/configs/bind/zones/',NULL,'Path to where DNS zone files are stored','DNS Config','true'),
+(58,'zone_dir','Zone Directory','/etc/bulwark/configs/bind/zones/',NULL,'Path to where DNS zone files are stored','DNS Config','true'),
 (59,'refresh_ttl','SOA Refesh TTL','21600',NULL,'Global refresh TTL.  Default = 21600 (6 hours)','DNS Config','true'),
 (60,'retry_ttl','SOA Retry TTL','3600',NULL,'Global retry TTL. Default = 3600 (1 hour)','DNS Config','true'),
 (61,'expire_ttl','SOA Expire TTL','86400',NULL,'Global expire TTL. Default = 86400 (1 day)','DNS Config','true'),
@@ -88,44 +88,44 @@ INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`
 (65,'bind_service','BIND Service Name','',NULL,'Name of the BIND service','DNS Config','true'),
 (66,'allow_xfer','Allow Zone Transfers','trusted-servers',NULL,'Setting to restrict zone transfers in setting: allow-transfer {}; Default = all','DNS Config','true'),
 (67,'allowed_types','Allowed Record Types','A AAAA CNAME MX TXT SRV SPF NS',NULL,'Types of records allowed seperated by a space. Default = A AAAA CNAME MX TXT SRV SPF NS','DNS Config','true'),
-(68,'bind_log','Bind Log','/var/sentora/logs/bind/bind.log',NULL,'Path and name of the Bind Log','DNS Config','true'),
-(69,'hosted_dir','Vhosts Directory','/var/sentora/hostdata/',NULL,'Virtual host directory','Apache Config','true');
+(68,'bind_log','Bind Log','/var/bulwark/logs/bind/bind.log',NULL,'Path and name of the Bind Log','DNS Config','true'),
+(69,'hosted_dir','Vhosts Directory','/var/bulwark/hostdata/',NULL,'Virtual host directory','Apache Config','true');
 
 INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
 (70,'disable_hostsen','Disable HOSTS file entries','false','true|false','Disable host entries','Apache Config','true'),
-(71,'apache_vhost','Apache VHOST Conf','/etc/sentora/configs/apache/httpd-vhosts.conf',NULL,'The full system path and filename of the Apache VHOST configuration name.','Apache Config','true'),
+(71,'apache_vhost','Apache VHOST Conf','/etc/bulwark/configs/apache/httpd-vhosts.conf',NULL,'The full system path and filename of the Apache VHOST configuration name.','Apache Config','true'),
 (72,'php_handler','PHP Handler','AddType application/x-httpd-php .php3 .php',NULL,'The PHP Handler.','Apache Config','false'),
 (73,'cgi_handler','CGI Handler','ScriptAlias /cgi-bin/ "/_cgi-bin/"\r\n<location /cgi-bin>\r\nAddHandler cgi-script .cgi .pl\r\nOptions +ExecCGI -Indexes\r\n</location>',NULL,'The CGI Handler.','Apache Config','false'),
 (74,'global_vhcustom','Global VHost Entry',NULL,NULL,'Extra directives for all apache vhosts.','Apache Config','true'),
-(75,'static_dir','Static Pages Directory','/etc/sentora/panel/etc/static/',NULL,'The Sentora static directory, used for storing welcome pages etc. etc.','Apache Config','true'),
-(76,'parking_path','Vhost Parking Path','/etc/sentora/panel/etc/static/parking/',NULL,'The path to the parking website, this will be used by all clients.','Apache Config','true'),
+(75,'static_dir','Static Pages Directory','/etc/bulwark/panel/etc/static/',NULL,'The Sentora static directory, used for storing welcome pages etc. etc.','Apache Config','true'),
+(76,'parking_path','Vhost Parking Path','/etc/bulwark/panel/etc/static/parking/',NULL,'The path to the parking website, this will be used by all clients.','Apache Config','true'),
 (78,'shared_domains','Shared Domains','no-ip,dyndns,autono,zphub',NULL,'Domains entered here can be shared across multiple accounts. Seperate domains with , example: no-ip,dyndns','Apache Config','true'),
-(79,'upload_temp_dir','Upload Temp Directory','/var/sentora/temp/',NULL,'The path to the Apache Upload directory (with trailing slash)','Apache Config','true'),
+(79,'upload_temp_dir','Upload Temp Directory','/var/bulwark/temp/',NULL,'The path to the Apache Upload directory (with trailing slash)','Apache Config','true'),
 (80,'apache_port','Apache Port','80',NULL,'Apache service port','Apache Config','true'),
 (81,'dir_index','Directory Indexes','DirectoryIndex index.html index.htm index.php index.asp index.aspx index.jsp index.jspa index.shtml index.shtm',NULL,'Directory Index','Apache Config','true');
 
 INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
 (83,'openbase_seperator','Open Base Seperator',':',NULL,'Seperator flag used in open_base_directory setting','Apache Config','false'),
-(84,'openbase_temp','Open Base Temp Directory','/var/sentora/temp/',NULL,'Temp directory used in open_base_directory setting','Apache Config','true'),
+(84,'openbase_temp','Open Base Temp Directory','/var/bulwark/temp/',NULL,'Temp directory used in open_base_directory setting','Apache Config','true'),
 (85,'access_log_format','Access Log Format','combined','combined|common','Log format for the Apache access log','Apache Config','true'),
 (86,'bandwidth_log_format','Bandwidth Log Format','common','combined|common','Log format for the Apache bandwidth log','Apache Config','true'),
 (87,'global_zpcustom','Global Sentora Entry',NULL,NULL,'Extra directives for Sentora default vhost.','Apache Config','true'),
 (88,'use_openbase','Use Open Base Dir','true','true|false','Enable openbase directory for all vhosts','Apache Config','true'),
 (90,'sentora_domain','Sentora Domain','sentora.ztest.com',NULL,'Domain that the control panel is installed under.','Sentora Config','false'),
-(91,'log_dir','Log Directory','/var/sentora/logs/',NULL,'Root path to directory log folders','Sentora Config','true'),
+(91,'log_dir','Log Directory','/var/bulwark/logs/',NULL,'Root path to directory log folders','Sentora Config','true'),
 (92,'apache_changed','Apache Changed','true','true|false','If set, Apache Config daemon hook will write the vhost config file changes.','Apache Config','false'),
 (94,'apache_allow_disabled','Allow Disabled','true','true|false','Allow webhosts to remain active even if a user has been disabled.','Apache Config','true'),
-(95,'apache_budir','VHost Backup Dir','/var/sentora/backups/',NULL,'Directory that vhost.conf backups are stored.','Apache Config','true'),
+(95,'apache_budir','VHost Backup Dir','/var/bulwark/backups/',NULL,'Directory that vhost.conf backups are stored.','Apache Config','true'),
 (96,'apache_purgebu','Purge Backups','true','true|false','Old backups are deleted after the date set in Puge Date','Apache Config','true'),
 (97,'apache_purge_date','Purge Date','7',NULL,'Time in days that vhost backups are safe from deletion','Apache Config','true'),
 (98,'apache_backup','VHost Backup','true','true|false','Backup vhost file before a new one is written','Apache Config','true'),
-(99,'zsudo','zsudo path','/etc/sentora/panel/bin/zsudo',NULL,'Path to the zsudo binary used by Apache to run system commands.','Sentora Config','true');
+(99,'zsudo','zsudo path','/etc/bulwark/panel/bin/zsudo',NULL,'Path to the zsudo binary used by Apache to run system commands.','Sentora Config','true');
 
 INSERT INTO zpanel_core.`x_settings`(`so_id_pk`,`so_name_vc`,`so_cleanname_vc`,`so_value_tx`,`so_defvalues_tx`,`so_desc_tx`,`so_module_vc`,`so_usereditable_en`) VALUES 
 (100,'apache_restart','Apache Restart Cmd','reload',NULL,'Command line arguments used after the restart service request when reloading Apache.','Apache Config','true'),
 (101,'httpd_exe','Apache Binary','',NULL,'Path to the Apache binary','Apache Config','true'),
 (102,'apache_sn','Apache Service Name','',NULL,'Service name used to handle Apache service control','Apache Config','true'),
-(103,'daemon_exer',NULL,'/etc/sentora/panel/bin/daemon.php',NULL,'Path to the Sentora daemon','Sentora Config','false'),
+(103,'daemon_exer',NULL,'/etc/bulwark/panel/bin/daemon.php',NULL,'Path to the Sentora daemon','Sentora Config','false'),
 (104,'daemon_timing',NULL,'0 * * * *',NULL,'Cron time for when to run the Sentora daemon','Sentora Config','false'),
 (105,'cron_file','Cron File','',NULL,'Path to the user cron file','Cron Config','true'),
 (107,'mysqldump_exe','MySQL Dump','mysqldump',NULL,'Path to MySQL dump','Sentora Config','false'),

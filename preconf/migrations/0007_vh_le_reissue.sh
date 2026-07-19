@@ -4,7 +4,7 @@
 # hook OnDaemonDay de sencrypt la honra (fuerza emisión saltándose la ventana de 30 días) y la
 # limpia. Idempotente.
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

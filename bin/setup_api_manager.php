@@ -4,7 +4,7 @@
  * Registra el módulo api_manager en la base de datos del panel.
  *
  * Ejecutar UNA SOLA VEZ como root desde el directorio raíz del panel:
- *   php /usr/local/sentora/bin/setup_api_manager.php
+ *   php /usr/local/bulwark/bin/setup_api_manager.php
  */
 
 if (php_sapi_name() !== 'cli') {

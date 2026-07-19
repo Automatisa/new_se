@@ -2,7 +2,7 @@
 # Install logrotate from ports (sysutils/logrotate) or adapt to newsyslog.conf.d/
 
 # Sentora Panel logs
-/var/sentora/logs/sentora*.log /var/sentora/logs/daemon*.log {
+/var/bulwark/logs/sentora*.log /var/bulwark/logs/daemon*.log {
        su root wheel
        weekly
        missingok
@@ -17,7 +17,7 @@
 }
 
 # Sentora User Domain logs
-/var/sentora/logs/domains/*/*access.log /var/sentora/logs/domains/*/*bandwidth.log /var/sentora/logs/domains/*/*error.log {
+/var/bulwark/logs/domains/*/*access.log /var/bulwark/logs/domains/*/*bandwidth.log /var/bulwark/logs/domains/*/*error.log {
        su root wheel
        weekly
        missingok

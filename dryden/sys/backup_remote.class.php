@@ -13,7 +13,7 @@
  */
 class sys_backup_remote
 {
-    const KEYFILE = '/usr/local/sentora/cnf/backup.key';
+    const KEYFILE = '/usr/local/bulwark/cnf/backup.key';
 
     /** Devuelve la clave maestra binaria (32 bytes), creándola si no existe. */
     private static function masterKey()

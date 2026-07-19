@@ -2,13 +2,13 @@
 # hosting_perms_repair.sh — Reaplica el aislamiento entre inquilinos a las cuentas de
 # hosting EXISTENTES. Idempotente. Ejecutar como root.
 #
-# Para cada cuenta /var/sentora/hostdata/<user>:
+# Para cada cuenta /var/bulwark/hostdata/<user>:
 #   1) saca h_<user> del grupo www (para que no comparta grupo con los demás clientes);
 #   2) directorio raíz del usuario -> 2770 h_<user>:www (www crea los dominios ahí);
 #   3) subárbol web/ -> h_<user>:www, dirs 2750 (setgid), ficheros 0640 (aislado);
 #   No toca mail/ (vmail) ni ssl/backups (ownership propio de servicios).
 
-HOSTED_DIR="/var/sentora/hostdata"
+HOSTED_DIR="/var/bulwark/hostdata"
 
 for HOSTDIR in "$HOSTED_DIR"/*; do
     [ -d "$HOSTDIR" ] || continue

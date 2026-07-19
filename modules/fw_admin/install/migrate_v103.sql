@@ -1,6 +1,6 @@
 -- fw_admin v103 — Protección brute force del panel web
 -- Ejecutar como root de MariaDB:
---   mysql -u root -pFCzOZMkpm2ZHu2US -h 127.0.0.1 sentora_core < migrate_v103.sql
+--   mysql -u root -pFCzOZMkpm2ZHu2US -h 127.0.0.1 bulwark_core < migrate_v103.sql
 
 -- Tabla de intentos de login fallidos (auto-bloqueada por PHP en init.inc.php)
 CREATE TABLE IF NOT EXISTS x_fw_login_attempts (

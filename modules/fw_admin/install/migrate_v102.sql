@@ -1,6 +1,6 @@
 -- fw_admin v102 — Migración: rango de puertos + reglas por defecto + política default-deny
 -- Ejecutar como root de MariaDB:
---   mysql -u root -pFCzOZMkpm2ZHu2US -h 127.0.0.1 sentora_core < migrate_v102.sql
+--   mysql -u root -pFCzOZMkpm2ZHu2US -h 127.0.0.1 bulwark_core < migrate_v102.sql
 
 -- Añadir columna para puerto máximo de rango (0 = puerto único)
 ALTER TABLE x_fw_rules

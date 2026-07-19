@@ -1498,7 +1498,7 @@ if ($resource === 'system') {
 
     if ($method === 'GET' && $res_id === 'info' && !$sub) {
         $load        = sys_getloadavg();
-        $hosted_dir  = ctrl_options::GetSystemOption('hosted_dir') ?: '/var/sentora/hostdata/';
+        $hosted_dir  = ctrl_options::GetSystemOption('hosted_dir') ?: '/var/bulwark/hostdata/';
         $disk_total  = (int)disk_total_space($hosted_dir);
         $disk_free   = (int)disk_free_space($hosted_dir);
         $disk_used   = $disk_total - $disk_free;

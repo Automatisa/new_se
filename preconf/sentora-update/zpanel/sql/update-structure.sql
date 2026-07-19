@@ -103,7 +103,7 @@ CREATE TABLE `zpanel_core`.`x_htpasswd_user` (
 
 
 
-CREATE DATABASE sentora_core;
+CREATE DATABASE bulwark_core;
 CREATE DATABASE sentora_postfix;
 CREATE DATABASE sentora_proftpd;
 CREATE DATABASE sentora_roundcube;

@@ -1,12 +1,12 @@
 #!/bin/sh
 # Escanea el directorio hostdata de un usuario concreto.
 # Ejecutado como root vía doas desde el módulo clamav_user.
-# El username se lee de /var/sentora/run/scan_requests/{username}.req.
+# El username se lee de /var/bulwark/run/scan_requests/{username}.req.
 
-SCAN_REQUESTS=/var/sentora/run/scan_requests
-HOSTDATA=/var/sentora/hostdata
-POST_SCAN=/usr/local/sentora/bin/clamav_post_scan.php
-LOG=/var/sentora/clamav/scan_results.log
+SCAN_REQUESTS=/var/bulwark/run/scan_requests
+HOSTDATA=/var/bulwark/hostdata
+POST_SCAN=/usr/local/bulwark/bin/clamav_post_scan.php
+LOG=/var/bulwark/clamav/scan_results.log
 
 # Buscar el fichero de solicitud más reciente
 REQ_FILE=$(ls -t "$SCAN_REQUESTS"/*.req 2>/dev/null | head -1)

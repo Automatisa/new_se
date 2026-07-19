@@ -7,7 +7,7 @@
 # que el panel vea "en curso" nada más volver de la acción (evita la carrera del autorrefresco).
 # Lo ejecuta: el daemon diario (root) y el botón "Comprobar ahora" del panel (www vía doas). Sin args.
 
-OUT_DIR="/var/sentora/updates"
+OUT_DIR="/var/bulwark/updates"
 OUT="$OUT_DIR/status.json"
 RUN="$OUT_DIR/running"
 mkdir -p "$OUT_DIR"; chown root:www "$OUT_DIR" 2>/dev/null || true; chmod 755 "$OUT_DIR"
@@ -29,11 +29,11 @@ printf 'check' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
 
     # --- Panel (fork git): commits pendientes respecto al remoto + changelog ---
     PANEL_BEHIND=0; PANEL_LOCAL=""; PANEL_LOG=""
-    if [ -d /usr/local/sentora/.git ]; then
-        git -C /usr/local/sentora fetch --quiet 2>/dev/null
-        PANEL_LOCAL=$(git -C /usr/local/sentora rev-parse --short HEAD 2>/dev/null)
-        PANEL_BEHIND=$(git -C /usr/local/sentora rev-list --count HEAD..@{u} 2>/dev/null)
-        PANEL_LOG=$(git -C /usr/local/sentora log --oneline --no-decorate HEAD..@{u} 2>/dev/null | head -25)
+    if [ -d /usr/local/bulwark/.git ]; then
+        git -C /usr/local/bulwark fetch --quiet 2>/dev/null
+        PANEL_LOCAL=$(git -C /usr/local/bulwark rev-parse --short HEAD 2>/dev/null)
+        PANEL_BEHIND=$(git -C /usr/local/bulwark rev-list --count HEAD..@{u} 2>/dev/null)
+        PANEL_LOG=$(git -C /usr/local/bulwark log --oneline --no-decorate HEAD..@{u} 2>/dev/null | head -25)
     fi
 
     json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN{ORS="\\n"}{print}'; }
@@ -54,7 +54,7 @@ printf 'check' > "$RUN"; chown root:www "$RUN" 2>/dev/null || true; chmod 644 "$
     mv "$TMP" "$OUT"; chown root:www "$OUT" 2>/dev/null || true; chmod 644 "$OUT"
 
     # Clasificación de paquetes gestionados (pinning): refresca pkgpins.json en el mismo chequeo.
-    [ -x /usr/local/sentora/bin/pkg_pin.sh ] && /usr/local/sentora/bin/pkg_pin.sh check >/dev/null 2>&1
+    [ -x /usr/local/bulwark/bin/pkg_pin.sh ] && /usr/local/bulwark/bin/pkg_pin.sh check >/dev/null 2>&1
 
     rm -f "$RUN"
 } >/dev/null 2>&1 &

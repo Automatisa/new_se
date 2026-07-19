@@ -1,5 +1,5 @@
 <?php
-// TG - require() in /etc/sentora/panel/dryden/ui/tpl/notice.class.php
+// TG - require() in /etc/bulwark/panel/dryden/ui/tpl/notice.class.php
 // Used to convert BBcode to HTML for display in the Client Notice manager
 //======================== START OF FUNCTION ==========================//
 // FUNCTION: bbcode_to_html                                            //

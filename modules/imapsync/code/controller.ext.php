@@ -10,7 +10,7 @@
 class module_controller extends ctrl_module
 {
     private static $flash = null;
-    const RUNDIR = '/var/sentora/run/imapsync/';
+    const RUNDIR = '/var/bulwark/run/imapsync/';
 
     // El MÓDULO es de usuario (cada uno migra su propio correo). Solo los AJUSTES son de admin.
     private static function isAdmin(): bool

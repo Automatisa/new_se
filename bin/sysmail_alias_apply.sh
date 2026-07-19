@@ -13,7 +13,7 @@ ALIASES=/etc/mail/aliases
 # Leer el destino de la BD (creds en cnf/db.php, solo root). Se elimina TODO espacio/salto de
 # línea para que un valor no pueda inyectar líneas extra en el fichero de alias.
 DEST=$(php -r '
-    include "/usr/local/sentora/cnf/db.php";
+    include "/usr/local/bulwark/cnf/db.php";
     try {
         $d = new PDO("mysql:host=".$host.";dbname=".$dbname, $user, $pass);
         $s = $d->query("SELECT so_value_tx FROM x_settings WHERE so_name_vc=\"system_mail_to\" LIMIT 1");

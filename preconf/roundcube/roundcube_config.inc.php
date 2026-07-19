@@ -190,7 +190,7 @@ $config['skin_logo'] = null;
 
 // use this folder to store log files (must be writeable for apache user)
 // This is used by the 'file' log driver.
-$config['log_dir'] = '/var/sentora/logs/roundcube/'; //Default was RCUBE_INSTALL_PATH . 'logs/'
+$config['log_dir'] = '/var/bulwark/logs/roundcube/'; //Default was RCUBE_INSTALL_PATH . 'logs/'
 
 // use this folder to store temp files (must be writeable for apache user)
-$config['temp_dir'] = '/var/sentora/temp'; //Default was RCUBE_INSTALL_PATH . 'temp/'
+$config['temp_dir'] = '/var/bulwark/temp'; //Default was RCUBE_INSTALL_PATH . 'temp/'

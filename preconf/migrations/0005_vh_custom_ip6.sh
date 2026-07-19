@@ -2,7 +2,7 @@
 # 0005_vh_custom_ip6.sh — Añade x_vhosts.vh_custom_ip6_vc (IPv6 dedicada del dominio, doble pila).
 # Idempotente (SHOW COLUMNS; su MySQL no soporta ADD COLUMN IF NOT EXISTS).
 
-DBPHP=/usr/local/sentora/cnf/db.php
+DBPHP=/usr/local/bulwark/cnf/db.php
 U=$(php -r "include \"$DBPHP\"; echo \$user;")
 P=$(php -r "include \"$DBPHP\"; echo \$pass;")
 H=$(php -r "include \"$DBPHP\"; echo \$host;")

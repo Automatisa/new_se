@@ -64,7 +64,7 @@ class module_controller extends ctrl_module
             'ftp_config_file'  => function($v) {
                 $real = realpath($v);
                 return $real !== false
-                    && strpos($real . '/', '/usr/local/etc/sentora/') === 0;
+                    && strpos($real . '/', '/usr/local/etc/bulwark/') === 0;
             },
         );
 
@@ -276,12 +276,12 @@ class module_controller extends ctrl_module
             die();
         }
 
-        // Escribir en /var/sentora/run (no /tmp, world-writable) con 0600: el material de
+        // Escribir en /var/bulwark/run (no /tmp, world-writable) con 0600: el material de
         // clave privada no debe quedar legible por otros ni expuesto a symlink/TOCTOU en /tmp.
-        file_put_contents('/var/sentora/run/sentora_ftp_cert_upload', $certContent);
-        @chmod('/var/sentora/run/sentora_ftp_cert_upload', 0600);
-        file_put_contents('/var/sentora/run/sentora_ftp_key_upload',  $keyContent);
-        @chmod('/var/sentora/run/sentora_ftp_key_upload', 0600);
+        file_put_contents('/var/bulwark/run/sentora_ftp_cert_upload', $certContent);
+        @chmod('/var/bulwark/run/sentora_ftp_cert_upload', 0600);
+        file_put_contents('/var/bulwark/run/sentora_ftp_key_upload',  $keyContent);
+        @chmod('/var/bulwark/run/sentora_ftp_key_upload', 0600);
 
         self::runAndRedirect('proftpd_cert_upload', 'upload_ok', 'upload_err');
     }

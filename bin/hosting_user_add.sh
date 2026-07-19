@@ -1,13 +1,13 @@
 #!/bin/sh
 # hosting_user_add.sh — Crea usuario de sistema h_USERNAME para una cuenta de hosting.
 #
-# Lee el nombre de cuenta desde /var/sentora/run/hosting_useradd_req (root:zpanel 660).
+# Lee el nombre de cuenta desde /var/bulwark/run/hosting_useradd_req (root:zpanel 660).
 # Validación estricta: solo letras minúsculas, dígitos y guión bajo, 1-32 caracteres.
 # Es idempotente: si el usuario ya existe solo corrige la propiedad del directorio.
 # Llamado via privilege::run('hosting_user_add') desde contexto www (doas).
 
-REQ_FILE="/var/sentora/run/hosting_useradd_req"
-HOSTED_DIR="/var/sentora/hostdata"
+REQ_FILE="/var/bulwark/run/hosting_useradd_req"
+HOSTED_DIR="/var/bulwark/hostdata"
 
 [ -f "$REQ_FILE" ] || exit 1
 

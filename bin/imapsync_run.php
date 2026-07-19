@@ -12,7 +12,7 @@
 $jid = (int)($argv[1] ?? 0);
 if ($jid <= 0) { exit(1); }
 
-require '/usr/local/sentora/cnf/db.php'; // $user,$pass,$host,$dbname
+require '/usr/local/bulwark/cnf/db.php'; // $user,$pass,$host,$dbname
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT));
 } catch (Exception $e) { exit(1); }
@@ -31,7 +31,7 @@ $nice    = min(19, max(0, (int)opt($pdo, 'imapsync_nice', 19)));
 $bps     = (int)opt($pdo, 'imapsync_max_bytes_sec', 0);
 $mps     = (int)opt($pdo, 'imapsync_max_msgs_sec', 0);
 
-$rundir = '/var/sentora/run/imapsync/';
+$rundir = '/var/bulwark/run/imapsync/';
 @mkdir($rundir, 0770, true);
 $log = $j['ij_log_vc'] ?: ($rundir . $jid . '.log');
 $pidf = $rundir . $jid . '.pid';

@@ -19,7 +19,7 @@ PHP_INI="${PREFIX}/etc/php.ini"
 PIDFILE="/var/run/php${V}-fpm.pid"
 RC="/usr/local/etc/rc.d/php${V}_fpm"
 SOCKDIR="/var/run/php-fpm"
-WRAPPER="/usr/local/sentora/bin/sentora_mail_limit.sh -t -i"
+WRAPPER="/usr/local/bulwark/bin/sentora_mail_limit.sh -t -i"
 TIMEZONE="$(cat /var/db/zoneinfo 2>/dev/null || echo UTC)"
 
 info() { printf '\033[36m[php%s]\033[0m %s\n' "$V" "$*"; }

@@ -180,7 +180,7 @@ class module_controller extends ctrl_module {
 	// Callback de provisión para Lescript::signDomains(dns-01). Crea/actualiza el TXT y espera propagación.
 	static function Dns01Provision($recordName, $value) {
 		global $zdbh;
-		if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+		if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
 		$recordName = strtolower(rtrim($recordName, '.'));
 		if (strpos($recordName, '_acme-challenge.') !== 0) return false;
 		$base = substr($recordName, strlen('_acme-challenge.'));
@@ -206,7 +206,7 @@ class module_controller extends ctrl_module {
 	// Callback de limpieza para Lescript::signDomains(dns-01). Borra el TXT y reconstruye la zona.
 	static function Dns01Cleanup($recordName, $value) {
 		global $zdbh;
-		if (!class_exists('privilege')) { require_once '/usr/local/sentora/dryden/sys/privilege.class.php'; }
+		if (!class_exists('privilege')) { require_once '/usr/local/bulwark/dryden/sys/privilege.class.php'; }
 		$recordName = strtolower(rtrim($recordName, '.'));
 		if (strpos($recordName, '_acme-challenge.') !== 0) return false;
 		$base = substr($recordName, strlen('_acme-challenge.'));
@@ -1994,7 +1994,7 @@ class module_controller extends ctrl_module {
 		// Cuenta ACME COMPARTIDA (igual que la emisión, FIX-212); el cert del panel sigue en su home.
 		$staging      = ctrl_options::GetSystemOption('le_staging') === 'true';
 		$leSub        = $staging ? 'letsencrypt-staging' : 'letsencrypt';
-		$accountDir   = $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+		$accountDir   = $staging ? '/var/bulwark/ssl/sencrypt/letsencrypt-staging/' : '/var/bulwark/ssl/sencrypt/letsencrypt/';
 		$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . $leSub . "/" . $panelDomain; // dir con cert.pem del panel
 		$certFile     = $certlocation . "/cert.pem";
 
@@ -2051,7 +2051,7 @@ class module_controller extends ctrl_module {
 		// porque más abajo se le añade "$domain/..." (antes se duplicaba el dominio en la ruta).
 		$staging      = ctrl_options::GetSystemOption('le_staging') === 'true';
 		$leSub        = $staging ? 'letsencrypt-staging' : 'letsencrypt';
-		$accountDir   = $staging ? '/var/sentora/ssl/sencrypt/letsencrypt-staging/' : '/var/sentora/ssl/sencrypt/letsencrypt/';
+		$accountDir   = $staging ? '/var/bulwark/ssl/sencrypt/letsencrypt-staging/' : '/var/bulwark/ssl/sencrypt/letsencrypt/';
 		$certlocation = ctrl_options::GetSystemOption('hosted_dir') . $username . "/ssl/sencrypt/" . $leSub . "/";
 		$_vhp2 = ctrl_options::GetVhostPaths($username, str_replace('.', '_', $domain));
 		$domainRoot = $_vhp2['public_html'];

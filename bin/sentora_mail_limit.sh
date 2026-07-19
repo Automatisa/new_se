@@ -11,17 +11,17 @@
 # (dominios de alto volumen legítimo, p.ej. una tienda PrestaShop).
 #
 # Config (la gestiona el panel, www-writable):
-#   /var/sentora/mail_limits/limit      -> nº máximo de correos por cuenta y hora (0 = ilimitado)
-#   /var/sentora/mail_limits/whitelist  -> cuentas exentas (una por línea, sin el prefijo h_)
+#   /var/bulwark/mail_limits/limit      -> nº máximo de correos por cuenta y hora (0 = ilimitado)
+#   /var/bulwark/mail_limits/whitelist  -> cuentas exentas (una por línea, sin el prefijo h_)
 
 REAL="/usr/local/sbin/sendmail"
-CONF_DIR="/var/sentora/mail_limits"
+CONF_DIR="/var/bulwark/mail_limits"
 LIMIT_FILE="$CONF_DIR/limit"
 WL_FILE="$CONF_DIR/whitelist"
 # El conteo lo hace un ayudante setgid (grupo maillimit). La cuenta de hosting NO tiene la
 # credencial de Redis: no puede resetear su contador ni tocar el de otra cuenta (griefing).
 # El ayudante deduce la cuenta del uid real, hace INCR+EXPIRE e imprime el contador.
-HELPER="/usr/local/sentora/bin/sentora_maillimit_helper"
+HELPER="/usr/local/bulwark/bin/sentora_maillimit_helper"
 
 U=$(id -un 2>/dev/null)
 ACCT=${U#h_}

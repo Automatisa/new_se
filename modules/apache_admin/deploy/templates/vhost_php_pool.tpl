@@ -25,7 +25,7 @@ pm.max_requests = 500
 
 chdir = /
 
-php_admin_value[error_log] = /var/sentora/logs/php-fpm/fpm-php.log
+php_admin_value[error_log] = /var/bulwark/logs/php-fpm/fpm-php.log
 php_admin_flag[log_errors] = on
 php_admin_value[memory_limit] = 256M
 php_admin_value[post_max_size] = 32M

@@ -1,10 +1,10 @@
 #!/bin/sh
 # Restaura un archivo de cuarentena a /var/mail/.
-# El nombre del archivo a restaurar se lee de /var/sentora/run/clamav_restore_request
+# El nombre del archivo a restaurar se lee de /var/bulwark/run/clamav_restore_request
 # (escrito por PHP www) — nunca como argumento directo para evitar inyección de rutas.
-QUARANTINE=/var/sentora/clamav/quarantine
+QUARANTINE=/var/bulwark/clamav/quarantine
 MAILDIR=/var/mail
-REQUEST=/var/sentora/run/clamav_restore_request
+REQUEST=/var/bulwark/run/clamav_restore_request
 
 if [ ! -f "$REQUEST" ]; then
     echo "Error: no existe el archivo de solicitud $REQUEST" >&2

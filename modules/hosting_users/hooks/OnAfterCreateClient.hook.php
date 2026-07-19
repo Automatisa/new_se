@@ -5,7 +5,7 @@
  */
 
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 hosting_users_create_for_new_accounts();
@@ -37,7 +37,7 @@ function hosting_users_create_for_new_accounts(): void
 
 function hosting_users_run_add(string $username): void
 {
-    $req = '/var/sentora/run/hosting_useradd_req';
+    $req = '/var/bulwark/run/hosting_useradd_req';
     if (file_put_contents($req, $username) === false) {
         error_log("hosting_users: no se pudo escribir en $req");
         return;

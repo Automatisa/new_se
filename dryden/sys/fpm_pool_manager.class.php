@@ -204,7 +204,7 @@ class fpm_pool_manager
         //     afecta a los dominios de esa versión).
         if ($changedDirs) {
             if (!class_exists('privilege')) {
-                require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+                require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
             }
             $dirToVer = array_flip($installed);
             $actOn = function ($dir) use ($dirToVer) {

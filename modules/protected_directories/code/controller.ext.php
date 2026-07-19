@@ -117,7 +117,7 @@ class module_controller extends ctrl_module
     static function fetchUserList()
     {
         global $zdbh;
-        $sqlString = "SELECT * FROM sentora_core.x_htpasswd_file 
+        $sqlString = "SELECT * FROM bulwark_core.x_htpasswd_file 
                      LEFT OUTER JOIN x_htpasswd_mapper
                      ON x_htpasswd_file.x_htpasswd_file_id = x_htpasswd_mapper.x_htpasswd_file_id
                      LEFT OUTER JOIN x_htpasswd_user

@@ -160,7 +160,7 @@ class module_controller extends ctrl_module
         }
 
         if (!class_exists('privilege')) {
-            require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+            require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         }
         try {
             privilege::run('sysmail_alias_apply', array(), true);

@@ -4,15 +4,15 @@
  * El chequeo pesado lo hace el daemon diario / un script en 2º plano y se cachea en status.json;
  * la página solo LEE esa caché (carga instantánea). Acciones (aplicar) solo admin, vía doas.
  */
-require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 
 class module_controller extends ctrl_module
 {
-    const STATUS_FILE = '/var/sentora/updates/status.json';
-    const PINS_FILE   = '/var/sentora/updates/pkgpins.json';
-    const RUN_FILE    = '/var/sentora/updates/running';
-    const RESULT_FILE = '/var/sentora/updates/last_result';
-    const LOG_FILE    = '/var/sentora/updates/last_action.log';
+    const STATUS_FILE = '/var/bulwark/updates/status.json';
+    const PINS_FILE   = '/var/bulwark/updates/pkgpins.json';
+    const RUN_FILE    = '/var/bulwark/updates/running';
+    const RESULT_FILE = '/var/bulwark/updates/last_result';
+    const LOG_FILE    = '/var/bulwark/updates/last_action.log';
 
     // Paquetes gestionados con pin de mayor (espejo de la whitelist de pkg_pin.sh, para validar
     // la acción de verificación). La fuente única real es MANAGED en pkg_pin.sh.
@@ -50,7 +50,7 @@ class module_controller extends ctrl_module
 
     private static function runPriv($cmd, array $args = array())
     {
-        if (!class_exists('privilege')) require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+        if (!class_exists('privilege')) require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
         privilege::run($cmd, $args, true);
     }
 

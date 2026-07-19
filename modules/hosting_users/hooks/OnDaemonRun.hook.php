@@ -10,7 +10,7 @@
  */
 
 if (!class_exists('privilege')) {
-    require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/privilege.class.php';
 }
 
 hosting_users_daemon_sync();
@@ -30,7 +30,7 @@ function hosting_users_daemon_sync(): void
         if (!preg_match('/^[a-z][a-z0-9_]{0,31}$/', $username)) continue;
         if (hosting_users_sysuser_exists('h_' . $username)) continue;
 
-        $req = '/var/sentora/run/hosting_useradd_req';
+        $req = '/var/bulwark/run/hosting_useradd_req';
         file_put_contents($req, $username);
         @chmod($req, 0660);
         try {
@@ -51,7 +51,7 @@ function hosting_users_daemon_sync(): void
         if (!preg_match('/^[a-z][a-z0-9_]{0,31}$/', $username)) continue;
         if (!hosting_users_sysuser_exists('h_' . $username)) continue;
 
-        $req = '/var/sentora/run/hosting_userdel_req';
+        $req = '/var/bulwark/run/hosting_userdel_req';
         file_put_contents($req, $username);
         @chmod($req, 0660);
         try {

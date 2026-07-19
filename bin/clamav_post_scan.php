@@ -9,11 +9,11 @@
  * Uso: php clamav_post_scan.php <infected_list_file>
  */
 
-define('SENTORA_ROOT',      '/usr/local/sentora');
-define('HOSTDATA_ROOT',     '/var/sentora/hostdata');
-define('ADMIN_QUARANTINE',  '/var/sentora/clamav/quarantine');
-define('SCAN_LOG',          '/var/sentora/clamav/scan_results.log');
-define('RESTORE_REQUESTS',  '/var/sentora/run/restore_requests');
+define('SENTORA_ROOT',      '/usr/local/bulwark');
+define('HOSTDATA_ROOT',     '/var/bulwark/hostdata');
+define('ADMIN_QUARANTINE',  '/var/bulwark/clamav/quarantine');
+define('SCAN_LOG',          '/var/bulwark/clamav/scan_results.log');
+define('RESTORE_REQUESTS',  '/var/bulwark/run/restore_requests');
 define('REDIS_HOST',        '127.0.0.1');
 define('REDIS_PORT',        6379);
 
@@ -38,7 +38,7 @@ function redisClient(): ?Redis {
         if (!@$r->connect(REDIS_HOST, REDIS_PORT, 2)) {
             $r = null;
         } else {
-            $rp = @file_get_contents('/usr/local/sentora/cnf/redis.pass');
+            $rp = @file_get_contents('/usr/local/bulwark/cnf/redis.pass');
             if ($rp !== false && trim($rp) !== '') { try { $r->auth(['panel', trim($rp)]); } catch (Exception $e) {} }
         }
     }

@@ -39,9 +39,9 @@ function UpgradeModule($newversion, $module){
 	$stmt->execute();
 		
 	// Copy needed templates and smarty template engine to sentora control panel
-	shell_exec ("cp -r /etc/sentora/panel/modules/apache_admin/deploy/templates /etc/sentora/configs/apache/");
-	shell_exec ("cp -r /etc/sentora/panel/modules/apache_admin/deploy/httpd.conf /etc/sentora/configs/apache/");
-	shell_exec ("cp -r /etc/sentora/panel/modules/apache_admin/deploy/smarty /etc/sentora/panel/etc/lib/");
+	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/templates /etc/bulwark/configs/apache/");
+	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/httpd.conf /etc/bulwark/configs/apache/");
+	shell_exec ("cp -r /etc/bulwark/panel/modules/apache_admin/deploy/smarty /etc/bulwark/panel/etc/lib/");
 	*/
 	
 		// Reset Apache settings to reflect that config file has been written, until the next change.
@@ -57,7 +57,7 @@ function UpgradeModule($newversion, $module){
 
 	
 	// Restart after everything is done
-	shell_exec ("sudo /usr/bin/php -q /etc/sentora/panel/bin/daemon.php");
+	shell_exec ("sudo /usr/bin/php -q /etc/bulwark/panel/bin/daemon.php");
 	
 }
 

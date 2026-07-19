@@ -5,7 +5,7 @@ AddCurrentDatabaseSize();
 // Tope de tamaño de BD por cuenta: sobre cuota => escritura revocada (solo lectura), la web
 // sigue leyendo. Bajo cuota => grants restaurados. Estado en x_mysql_quota_state.
 if (!class_exists('mysql_quota_manager')) {
-    require_once '/usr/local/sentora/dryden/sys/mysql_quota_manager.class.php';
+    require_once '/usr/local/bulwark/dryden/sys/mysql_quota_manager.class.php';
 }
 $mqCount = mysql_quota_manager::ApplyAll();
 echo "mysql-quota: evaluadas " . $mqCount . " cuentas." . fs_filehandler::NewLine();

@@ -2,7 +2,7 @@
 # fw_service_toggle.sh — Activa/desactiva pf o SSHGuard desde el panel (fw_admin).
 #
 # Invocado ÚNICAMENTE por privilege::run('fw_service_toggle'). Sin argumentos: lee la orden
-# de /var/sentora/run/fw_service_toggle_req (una línea "SERVICE ACTION"):
+# de /var/bulwark/run/fw_service_toggle_req (una línea "SERVICE ACTION"):
 #     SERVICE = pf | sshguard      ACTION = on | off | restart
 # Validación estricta (solo esos valores). on/off aplican service onestart/onestop + sysrc
 # para que el estado persista tras un reinicio. restart reinicia el servicio SIN tocar el
@@ -11,7 +11,7 @@
 # NOTA: desactivar pf deja el servidor SIN cortafuegos (todo el tráfico pasa) — es lo que el
 # admin pide con "PF Enabled: No". No bloquea SSH: pf desactivado = todo permitido.
 
-REQ=/var/sentora/run/fw_service_toggle_req
+REQ=/var/bulwark/run/fw_service_toggle_req
 [ -f "$REQ" ] || exit 1
 
 LINE=$(head -1 "$REQ" 2>/dev/null | tr -d '\r\n')
