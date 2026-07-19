@@ -212,8 +212,9 @@ mount | grep -q ' /var/tmp .*noexec' || mount -t nullfs -o noexec,nosuid,nodev /
 # home de hosting). Requiere reiniciar para que quotacheck las inicialice al arrancar.
 ROOT_DEV=$(mount -p | awk '$2=="/" && $3=="ufs" {print $1}')
 if [ -n "$ROOT_DEV" ]; then
-    grep -Eq "^${ROOT_DEV//\//\\/}[[:space:]]+/[[:space:]]+ufs[[:space:]].*userquota" /etc/fstab || \
-        sed -i '' -E "/^${ROOT_DEV//\//\\/}[[:space:]]+\/[[:space:]]+ufs[[:space:]]/ s/[[:space:]]rw([[:space:],])/	rw,userquota\1/" /etc/fstab
+    ROOT_DEV_ESC=$(printf '%s' "$ROOT_DEV" | sed 's#/#\\/#g')
+    grep -Eq "^${ROOT_DEV_ESC}[[:space:]]+/[[:space:]]+ufs[[:space:]].*userquota" /etc/fstab || \
+        sed -i '' -E "/^${ROOT_DEV_ESC}[[:space:]]+\/[[:space:]]+ufs[[:space:]]/ s/[[:space:]]rw([[:space:],])/	rw,userquota\1/" /etc/fstab
     sysrc quota_enable="YES" >/dev/null 2>&1
     warn "Cuotas de disco UFS configuradas en fstab: se activan tras el primer REINICIO."
 fi
