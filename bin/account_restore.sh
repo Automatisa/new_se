@@ -2,7 +2,7 @@
 # account_restore.sh — Restaura los FICHEROS del home de una cuenta desde un backup .zip.
 #
 # Invocado ÚNICAMENTE por privilege::run('account_restore'). Sin argumentos: lee la orden de
-# /var/sentora/run/account_restore_req (root:www 660), una sola línea:
+# /var/sentora/run/account_restore_req (root:zpanel 660), una sola línea:
 #     USERNAME|/ruta/al/backup.zip
 #
 # Hace, como root:

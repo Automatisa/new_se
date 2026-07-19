@@ -460,7 +460,7 @@ class module_controller extends ctrl_module
         global $zdbh, $controller;
 
         // Forzar sincronización ahora: malla de nodos + lista de zonas de los peers.
-        // (Corre como www: solo curl + BD; named.conf se regenera en el próximo ciclo del
+        // (Corre como zpanel: solo curl + BD; named.conf se regenera en el próximo ciclo del
         //  daemon, que corre como root y recarga BIND.)
         if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inSyncCluster'))) {
             if (!class_exists('dns_cluster')) {

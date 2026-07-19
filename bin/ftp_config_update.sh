@@ -1,7 +1,7 @@
 #!/bin/sh
 # Valida y aplica el nuevo config de ProFTPD.
 # Llamado por privilege::run('proftpd_config_update') como root via doas.
-# El usuario www escribe el contenido nuevo en TMPFILE antes de llamar a este script.
+# El panel (zpanel) escribe el contenido nuevo en TMPFILE antes de llamar a este script.
 
 TMPFILE="/tmp/sentora_proftpd_new.conf"
 REAL_CONFIG="/usr/local/etc/sentora/proftpd/proftpd-mysql.conf"
