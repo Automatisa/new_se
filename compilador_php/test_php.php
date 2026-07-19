@@ -23,9 +23,10 @@ echo "ini: date.timezone=" . (ini_get('date.timezone') ?: '(unset)')
    . " max_input_vars=" . ini_get('max_input_vars')
    . " opcache.enable=" . ini_get('opcache.enable') . "\n";
 echo "-- extensiones cargadas --\n";
-foreach (['curl','gd','mysqli','pdo_mysql','mbstring','json','openssl','zip','opcache',
+foreach (['curl','gd','mysqli','pdo_mysql','mbstring','json','openssl','zip','Zend OPcache',
           'xml','simplexml','dom','bcmath','sockets','soap','exif','fileinfo','ctype',
           'iconv','phar','posix','session','sqlite3','tokenizer','xmlreader','xmlwriter'] as $e) {
+    // opcache se registra como "Zend OPcache" (no "opcache"); en 8.5 va en el core.
     chk("ext:$e", extension_loaded($e));
 }
 echo "-- pruebas funcionales --\n";

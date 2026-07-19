@@ -222,6 +222,16 @@ class privilege
             'doas_rule' => '',
         ),
 
+        // Restart de UN master PHP-FPM concreto. Necesario para los FPM POR VERSIÓN (phpNN_fpm): a
+        // diferencia del php_fpm del sistema, un reload (USR2) NO les crea el socket de un pool NUEVO;
+        // solo el restart lo hace. Afecta únicamente a los dominios de esa versión. root_only.
+        'phpfpm_restart_svc' => array(
+            'argv_template' => array('/usr/sbin/service', '__PHPFPM_SVC__', 'restart'),
+            'root_only' => true,
+            'sudo_rule' => '',
+            'doas_rule' => '',
+        ),
+
         // Regenera todos los pools FPM desde x_domain_php y recarga FPM.
         // Usado al guardar config PHP de un dominio — aplica cambios sin esperar al daemon.
         // El script necesita root para escribir en /usr/local/etc/php-fpm.d/.

@@ -89,7 +89,9 @@ class fpm_pool_manager
         // master FPM). El socket es el MISMO sea cual sea la versión, así Apache no se toca nunca.
         $installed   = self::InstalledVersions();
         $activeByDir = array();                 // dir => [ 'name.conf', ... ]
-        $changedDirs = array();                 // dir => true
+        $changedDirs = array();                 // dir => true (union de ganados+perdidos)
+        $gainedDirs  = array();                 // dir => true: se (re)escribió un pool aquí
+        $lostDirs    = array();                 // dir => true: se eliminó un pool aquí
         foreach ($installed as $dir) { $activeByDir[$dir] = array(); }
 
         foreach ($vhosts as $vh) {
@@ -164,11 +166,12 @@ class fpm_pool_manager
                 file_put_contents($file, $conf);
                 chmod($file, 0644);
                 $changedDirs[$poolDir] = true;
+                $gainedDirs[$poolDir]  = true;   // este master GANA/actualiza un pool -> actúa al FINAL
             }
             $activeByDir[$poolDir][] = $name . '.conf';
 
             // Asegurar que el directorio del dominio pertenece al sysuser correcto.
-            // El panel crea los directorios como www:www (corre como www); el daemon
+            // El panel crea los directorios como zpanel:www (el panel corre como zpanel); el daemon
             // corre como root y puede corregirlo para que h_USERNAME sea el dueño.
             if ($fpm_user !== 'www' && is_dir($base)) {
                 self::chownDomainDir($base, $fpm_user);
@@ -187,24 +190,31 @@ class fpm_pool_manager
                     @unlink($f);
                     @unlink(self::SOCKET_DIR . basename($f, '.conf') . '.sock');
                     $changedDirs[$dir] = true;
+                    $lostDirs[$dir]    = true;   // este master PIERDE un pool -> actúa PRIMERO
                 }
             }
         }
 
-        // Recargar SOLO los masters FPM cuyos pools cambiaron (por versión).
+        // Recargar los masters FPM cuyos pools cambiaron, EN DOS RONDAS. La ruta del socket es
+        // COMPARTIDA entre versiones (sentora_<dir>.sock), así que al mover un dominio de master hay
+        // que ordenar: primero el master que PIERDE el pool (libera/cierra el socket compartido) y
+        // AL FINAL el que lo GANA (crea el socket) -> sin carrera y sin doble restart.
+        //   - php_fpm del SISTEMA: reload graceful (USR2) añade pools sin cortar los ya servidos.
+        //   - phpNN_fpm por versión: un reload NO crea el socket del pool nuevo -> restart (solo
+        //     afecta a los dominios de esa versión).
         if ($changedDirs) {
             if (!class_exists('privilege')) {
                 require_once '/usr/local/sentora/dryden/sys/privilege.class.php';
             }
-            // dir de pool -> versión (para saber qué servicio recargar)
             $dirToVer = array_flip($installed);
-            foreach (array_keys($changedDirs) as $dir) {
-                $svc = self::serviceForVersion($dirToVer[$dir] ?? '');
+            $actOn = function ($dir) use ($dirToVer) {
+                $ver = $dirToVer[$dir] ?? '';
+                $svc = self::serviceForVersion($ver);
+                $action = ($ver === '') ? 'phpfpm_reload_svc' : 'phpfpm_restart_svc';
                 try {
-                    privilege::run('phpfpm_reload_svc', array($svc));
+                    privilege::run($action, array($svc));
                 } catch (Exception $e) {
-                    // fallback (solo para el master del sistema): SIGUSR2 directo si posix disponible
-                    if ($svc === 'php_fpm') {
+                    if ($svc === 'php_fpm') { // fallback: SIGUSR2 directo al master del sistema
                         $pidFile = '/var/run/php-fpm.pid';
                         if (file_exists($pidFile) && function_exists('posix_kill')) {
                             $pid = (int)trim(file_get_contents($pidFile));
@@ -212,7 +222,10 @@ class fpm_pool_manager
                         }
                     }
                 }
-            }
+            };
+            // Ronda 1: PERDEDORES (liberan el socket compartido). Ronda 2: GANADORES (lo crean al final).
+            foreach (array_keys($lostDirs)   as $dir) { $actOn($dir); }
+            foreach (array_keys($gainedDirs) as $dir) { $actOn($dir); }
         }
 
         return $totalActive;
