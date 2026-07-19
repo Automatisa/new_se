@@ -12,9 +12,10 @@
 # Idempotente. Ejecutar como root en el servidor. Rollback al final del fichero.
 set -eu
 
-# --- Nombre del usuario del panel. PENDIENTE: renombrar por el definitivo (cambia solo esta línea
-#     y vuelve a ejecutar). Puede fijarse también por entorno: PANEL_USER=otro sh migrate_panel_user.sh
-PANEL_USER="${PANEL_USER:-zpanel}"
+# --- Nombre del usuario del sistema con el que corre el panel. Es el nombre del fork: 'bulwark'.
+#     Puede fijarse por entorno: PANEL_USER=otro sh migrate_panel_user.sh (para renombrar, re-ejecutar
+#     con el nuevo nombre y luego 'pw userdel' el anterior).
+PANEL_USER="${PANEL_USER:-bulwark}"
 
 PANEL_PATH="${PANEL_PATH:-/usr/local/sentora}"
 PANEL_DATA="${PANEL_DATA:-/var/sentora}"

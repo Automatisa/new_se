@@ -3,10 +3,11 @@
 # Editar aquí y luego ejecutar 00_bootstrap.sh -> 01_build.sh -> 02_publish.sh -> 03_deploy.sh.
 # Pensado para la build box 192.168.1.110 (FreeBSD 15, 1 GB RAM, 1 CPU, UFS, pkg quarterly).
 
-# Versiones de PHP a compilar (SIN punto): 81 = PHP 8.1, 83 = PHP 8.3, ...
+# Versiones de PHP a compilar (SIN punto): 82 = PHP 8.2, 85 = PHP 8.5, ...
 # NOTA: 8.4 ya es la versión del sistema (pkg oficial) en los servidores; NO hace falta compilarla.
-# En 1 CPU/1 GB cada versión tarda HORAS: empieza por una y añade más editando esta lista.
-VERSIONS="83"
+# En 1 CPU/1 GB cada versión tarda HORAS: se pueden encadenar varias. Sobreescribible por entorno:
+#   VERSIONS="82 85" sh 00_bootstrap.sh && VERSIONS="82 85" sh 01_build.sh ...
+VERSIONS="${VERSIONS:-83}"
 
 # Rama del árbol de ports. 'auto' = trimestre actual (p.ej. 2026Q3), para casar con pkg quarterly.
 BRANCH="auto"

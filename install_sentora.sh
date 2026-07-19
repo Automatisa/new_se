@@ -1738,7 +1738,7 @@ ok "doas configurado"
 # PENDIENTE: renombrar PANEL_USER 'zpanel' por el nombre definitivo (ver el propio script).
 info "Aislando el panel en su propio usuario del sistema..."
 if [ -x "$PANEL_PATH/bin/migrate_panel_user.sh" ]; then
-    PANEL_USER=zpanel PANEL_PATH="$PANEL_PATH" PANEL_DATA="$PANEL_DATA" \
+    PANEL_USER=bulwark PANEL_PATH="$PANEL_PATH" PANEL_DATA="$PANEL_DATA" \
         sh "$PANEL_PATH/bin/migrate_panel_user.sh" && ok "Panel aislado en usuario propio" \
         || echo "AVISO: no se pudo aislar el panel; sigue corriendo como www"
 fi
