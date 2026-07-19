@@ -57,6 +57,21 @@
                     <td><input type="checkbox" name="inDisplayErrors" value="1" {! PhpDisplayErrorsChecked !}></td>
                     <td><small>Solo activar en desarrollo</small></td>
                 </tr>
+                <tr>
+                    <th>date.timezone</th>
+                    <td><input type="text" name="inTimezone" value="<@ PhpTimezone @>" size="24" maxlength="64"></td>
+                    <td><small>Ej: Europe/Madrid (vacío = por defecto de la versión)</small></td>
+                </tr>
+                <tr>
+                    <th>max_input_vars</th>
+                    <td><input type="number" name="inMaxInputVars" value="<@ PhpMaxInputVars @>" min="1" max="100000" size="8"></td>
+                    <td><small>Nº máx. de variables de entrada (formularios grandes)</small></td>
+                </tr>
+                <tr>
+                    <th>opcache.enable</th>
+                    <td><input type="checkbox" name="inOpcache" value="1" {! PhpOpcacheChecked !}></td>
+                    <td><small>Caché de opcode (recomendado activado)</small></td>
+                </tr>
             </table>
             <div style="text-align:right;margin-top:8px">
                 <button class="button-loader btn btn-primary" type="submit"><i class="bi bi-floppy me-1"></i>Guardar</button>

@@ -577,6 +577,9 @@ class module_controller extends ctrl_module
             'max_input'      => $s['dp_max_input_in']     ?? 60,
             'display_errors' => $s['dp_display_errors_in'] ?? 0,
             'php_version'    => $s['dp_php_version_vc']   ?? '',
+            'timezone'       => $s['dp_timezone_vc']      ?? '',
+            'max_input_vars' => $s['dp_max_input_vars_in'] ?? 1000,
+            'opcache'        => $s['dp_opcache_in']       ?? 1,
         ];
         return self::$phpSettingsCache;
     }
@@ -682,6 +685,24 @@ class module_controller extends ctrl_module
         return ($s && $s['display_errors']) ? 'checked' : '';
     }
 
+    static function getPhpTimezone()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? htmlspecialchars((string)$s['timezone'], ENT_QUOTES) : '';
+    }
+
+    static function getPhpMaxInputVars()
+    {
+        $s = self::loadPhpSettings();
+        return $s ? (int)$s['max_input_vars'] : 1000;
+    }
+
+    static function getPhpOpcacheChecked()
+    {
+        $s = self::loadPhpSettings();
+        return ($s && $s['opcache']) ? 'checked' : '';
+    }
+
     /** <option> del selector de versión de PHP: solo versiones INSTALADAS (autodetectadas). */
     static function getPhpVersionOptions()
     {
@@ -782,14 +803,24 @@ class module_controller extends ctrl_module
             $php_version = '';
         }
 
+        // Directivas fijas adicionales: timezone válida (o ''), max_input_vars acotado, opcache bool.
+        $timezone = (string)($formvars['inTimezone'] ?? '');
+        if ($timezone !== '' && !in_array($timezone, timezone_identifiers_list(), true)) {
+            $timezone = '';
+        }
+        $max_input_vars = min(100000, max(1, (int)($formvars['inMaxInputVars'] ?? 1000)));
+        $opcache = isset($formvars['inOpcache']) ? 1 : 0;
+
         $upd = $zdbh->prepare("INSERT INTO x_domain_php
                 (dp_vhost_fk, dp_upload_max_vc, dp_post_max_vc, dp_memory_limit_vc,
-                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in, dp_php_version_vc)
-            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err, :ver)
+                 dp_max_exec_in, dp_max_input_in, dp_display_errors_in, dp_php_version_vc,
+                 dp_timezone_vc, dp_max_input_vars_in, dp_opcache_in)
+            VALUES (:vid, :umax, :pmax, :mem, :exec, :input, :err, :ver, :tz, :miv, :opc)
             ON DUPLICATE KEY UPDATE
                 dp_upload_max_vc=:umax, dp_post_max_vc=:pmax, dp_memory_limit_vc=:mem,
                 dp_max_exec_in=:exec, dp_max_input_in=:input, dp_display_errors_in=:err,
-                dp_php_version_vc=:ver");
+                dp_php_version_vc=:ver, dp_timezone_vc=:tz, dp_max_input_vars_in=:miv,
+                dp_opcache_in=:opc");
         $upd->execute([
             ':vid'   => $vhostid,
             ':umax'  => $upload_max,
@@ -799,6 +830,9 @@ class module_controller extends ctrl_module
             ':input' => $max_input,
             ':err'   => $display_err,
             ':ver'   => $php_version,
+            ':tz'    => $timezone,
+            ':miv'   => $max_input_vars,
+            ':opc'   => $opcache,
         ]);
         return true;
     }

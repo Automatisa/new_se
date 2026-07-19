@@ -270,6 +270,9 @@ CREATE TABLE `x_domain_php` (
   `dp_max_input_in` int(11) NOT NULL DEFAULT 60,
   `dp_display_errors_in` tinyint(4) NOT NULL DEFAULT 0,
   `dp_php_version_vc` varchar(4) NOT NULL DEFAULT '',
+  `dp_timezone_vc` varchar(64) NOT NULL DEFAULT '',
+  `dp_max_input_vars_in` int(11) NOT NULL DEFAULT 1000,
+  `dp_opcache_in` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`dp_id_pk`),
   UNIQUE KEY `uq_dp_vhost` (`dp_vhost_fk`)
 ) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;

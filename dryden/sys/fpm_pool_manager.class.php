@@ -69,6 +69,9 @@ class fpm_pool_manager
                        COALESCE(p.dp_max_exec_in,      q.qt_php_exec_in,    30)     AS max_exec_raw,
                        COALESCE(p.dp_max_input_in,     q.qt_php_maxinput_in,60)     AS max_input_raw,
                        COALESCE(p.dp_display_errors_in, 0)                          AS display_errors,
+                       COALESCE(p.dp_timezone_vc, '')                               AS timezone,
+                       COALESCE(p.dp_max_input_vars_in, 1000)                        AS max_input_vars,
+                       COALESCE(p.dp_opcache_in, 1)                                  AS opcache,
                        COALESCE(q.qt_php_memory_vc,  '128M') AS pkg_memory,
                        COALESCE(q.qt_php_upload_vc,  '50M')  AS pkg_upload,
                        COALESCE(q.qt_php_post_vc,    '50M')  AS pkg_post,
@@ -142,6 +145,19 @@ class fpm_pool_manager
             $conf .= "php_admin_value[max_execution_time] = {$max_exec}\n";
             $conf .= "php_admin_value[max_input_time] = {$max_input}\n";
             $conf .= "php_admin_flag[display_errors] = {$errors}\n";
+            // Directivas fijas adicionales (por dominio, aplicadas a la versión elegida):
+            //  - date.timezone: solo si es una zona horaria VÁLIDA de PHP (si no, se omite y usa la
+            //    del php.ini de la versión). Evita inyección: se compara contra la lista canónica.
+            $tz = (string)$vh['timezone'];
+            if ($tz !== '' && in_array($tz, timezone_identifiers_list(), true)) {
+                $conf .= "php_admin_value[date.timezone] = {$tz}\n";
+            }
+            //  - max_input_vars: entero acotado a un rango sano.
+            $miv = min(100000, max(1, (int)$vh['max_input_vars']));
+            $conf .= "php_admin_value[max_input_vars] = {$miv}\n";
+            //  - opcache.enable: on/off (inofensivo si la extensión no está cargada).
+            $opc = ((int)$vh['opcache'] === 1) ? '1' : '0';
+            $conf .= "php_admin_value[opcache.enable] = {$opc}\n";
             $conf .= "php_admin_value[session.save_path] = {$tmp}/\n";
             $conf .= "php_admin_value[upload_tmp_dir] = {$tmp}/\n";
             // open_basedir SIN el /tmp compartido: cada dominio usa su propio tmp/ (aislado);
