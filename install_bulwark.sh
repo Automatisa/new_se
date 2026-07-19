@@ -100,15 +100,15 @@ fi
 
 echo ""
 info "Contraseña del administrador del panel (zadmin)"
-printf "Contraseña zadmin: "; stty -echo; read -r ZADMIN_PASSWORD; stty echo; echo
-printf "Confirmar:         "; stty -echo; read -r ZADMIN_PASSWORD2; stty echo; echo
+printf "Contraseña zadmin: "; stty -echo 2>/dev/null || true; read -r ZADMIN_PASSWORD; stty echo 2>/dev/null || true; echo
+printf "Confirmar:         "; stty -echo 2>/dev/null || true; read -r ZADMIN_PASSWORD2; stty echo 2>/dev/null || true; echo
 [ "$ZADMIN_PASSWORD" = "$ZADMIN_PASSWORD2" ] || die "Las contraseñas no coinciden."
 
 echo ""
 info "Configuración de MySQL"
 printf "¿Tiene MySQL ya instalado y en ejecución? (s/N): "; read -r HAS_MYSQL
 if echo "$HAS_MYSQL" | grep -qi "^s"; then
-    printf "Contraseña root MySQL actual (vacía si ninguna): "; stty -echo; read -r MYSQL_ROOT_PASS_EXISTING; stty echo; echo
+    printf "Contraseña root MySQL actual (vacía si ninguna): "; stty -echo 2>/dev/null || true; read -r MYSQL_ROOT_PASS_EXISTING; stty echo 2>/dev/null || true; echo
     MYSQL_EXISTING=true
 else
     MYSQL_EXISTING=false
