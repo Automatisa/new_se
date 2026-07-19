@@ -3,7 +3,7 @@
 # Invocado ÚNICAMENTE por privilege::run('fw_sshguard_unban'). Sin argumentos.
 #
 # Protocolo seguro de paso de argumento dinámico (IP):
-#   1. El panel (zpanel) escribe la IP en REQUEST (root:zpanel 660 — solo el panel puede escribir)
+#   1. El panel (zpanel) escribe la IP en REQUEST (root:bulwark 660 — solo el panel puede escribir)
 #   2. Este script (ejecutado como root) lee y borra el archivo
 #   3. Valida el contenido con regex estricta antes de pasarlo a pfctl
 #   4. pfctl elimina la IP de la tabla sshguard (y de bulwark_blocked si aplica)

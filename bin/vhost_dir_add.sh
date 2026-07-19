@@ -3,10 +3,10 @@
 # y permisos correctos de aislamiento (h_USERNAME:www, dirs setgid 2750), como ROOT.
 #
 # Motivo: el subárbol web/ del cliente es 2750 (no escribible por el grupo www), así que el panel
-# (que corre como zpanel, en grupo www) NO puede crear ahí los directorios del dominio -> los dominios quedaban sin
+# (que corre como bulwark, en grupo www) NO puede crear ahí los directorios del dominio -> los dominios quedaban sin
 # public_html y Apache devolvía 403. Este helper lo hace por doas como root con ownership correcto.
 #
-# Lee la orden "USERNAME|VH_DIRECTORY" desde /var/bulwark/run/vhost_diradd_req (root:zpanel 660).
+# Lee la orden "USERNAME|VH_DIRECTORY" desde /var/bulwark/run/vhost_diradd_req (root:bulwark 660).
 # VH_DIRECTORY es el nombre de carpeta ya saneado por el panel (dominio con '.' -> '_').
 # Idempotente: crea sólo lo que falte y reajusta ownership/permisos. Llamado via
 # privilege::run('vhost_dir_add') desde contexto www.

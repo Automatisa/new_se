@@ -5,7 +5,7 @@
  * Pestañas: Estado | IPs bloqueadas | Lista blanca | SSHGuard | Configuración
  *
  * Todas las operaciones privilegiadas van por privilege::run() (sin exec()).
- * Los argumentos dinámicos (IPs) se pasan via archivo temporal root:zpanel 660.
+ * Los argumentos dinámicos (IPs) se pasan via archivo temporal root:bulwark 660.
  */
 class module_controller extends ctrl_module
 {
@@ -369,7 +369,7 @@ class module_controller extends ctrl_module
             return;
         }
 
-        // Escribir IP en archivo de solicitud (root:zpanel 660)
+        // Escribir IP en archivo de solicitud (root:bulwark 660)
         // El script wrapper lee y borra este archivo, valida formato y llama a pfctl
         $reqFile = '/var/bulwark/run/fw_unban_request';
 

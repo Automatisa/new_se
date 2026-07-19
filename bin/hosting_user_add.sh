@@ -1,7 +1,7 @@
 #!/bin/sh
 # hosting_user_add.sh — Crea usuario de sistema h_USERNAME para una cuenta de hosting.
 #
-# Lee el nombre de cuenta desde /var/bulwark/run/hosting_useradd_req (root:zpanel 660).
+# Lee el nombre de cuenta desde /var/bulwark/run/hosting_useradd_req (root:bulwark 660).
 # Validación estricta: solo letras minúsculas, dígitos y guión bajo, 1-32 caracteres.
 # Es idempotente: si el usuario ya existe solo corrige la propiedad del directorio.
 # Llamado via privilege::run('hosting_user_add') desde contexto www (doas).

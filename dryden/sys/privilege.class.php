@@ -246,7 +246,7 @@ class privilege
         // ---- fw_admin: cortafuegos pf + SSHGuard --------------------------------
         //
         // Argumentos dinámicos (IPs) se pasan a través de archivos temporales con
-        // permisos root:zpanel 660, nunca directamente como argv. Los scripts wrapper
+        // permisos root:bulwark 660, nunca directamente como argv. Los scripts wrapper
         // en /usr/local/bulwark/bin/ validan el contenido con regex antes de usarlo.
 
         // Reconstruye tabla pf 'bulwark_blocked' desde x_fw_blocked de la BD.
@@ -263,7 +263,7 @@ class privilege
             'doas_rule' => 'cmd /usr/local/bulwark/bin/fw_whitelist_apply.sh',
         ),
 
-        // Desbanea la IP escrita en /var/bulwark/run/fw_unban_request (root:zpanel 660).
+        // Desbanea la IP escrita en /var/bulwark/run/fw_unban_request (root:bulwark 660).
         // El script valida el contenido con regex antes de llamar a pfctl.
         'fw_sshguard_unban' => array(
             'argv'      => array('/usr/local/bulwark/bin/fw_sshguard_unban.sh'),
@@ -310,7 +310,7 @@ class privilege
         // ---- hosting_users: usuarios de sistema por cuenta de hosting ----------
         //
         // El nombre de usuario a procesar se pasa mediante un fichero de petición
-        // en /var/bulwark/run/ (root:zpanel 660), nunca como argumento directo.
+        // en /var/bulwark/run/ (root:bulwark 660), nunca como argumento directo.
         // El script valida el contenido con regex antes de actuar.
 
         // Crea el usuario de sistema h_USERNAME y corrige la propiedad de hostdata.

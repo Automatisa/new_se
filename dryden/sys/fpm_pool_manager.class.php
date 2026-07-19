@@ -171,7 +171,7 @@ class fpm_pool_manager
             $activeByDir[$poolDir][] = $name . '.conf';
 
             // Asegurar que el directorio del dominio pertenece al sysuser correcto.
-            // El panel crea los directorios como zpanel:www (el panel corre como zpanel); el daemon
+            // El panel crea los directorios como bulwark:www (el panel corre como bulwark); el daemon
             // corre como root y puede corregirlo para que h_USERNAME sea el dueño.
             if ($fpm_user !== 'www' && is_dir($base)) {
                 self::chownDomainDir($base, $fpm_user);

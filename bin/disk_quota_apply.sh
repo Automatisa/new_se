@@ -2,7 +2,7 @@
 # disk_quota_apply.sh — Aplica cuotas de disco UFS por cuenta (uid h_USERNAME).
 #
 # Invocado ÚNICAMENTE por privilege::run('disk_quota_apply'). Sin argumentos: lee
-# /var/bulwark/run/disk_quota_req (root:zpanel 660), una línea por cuenta:
+# /var/bulwark/run/disk_quota_req (root:bulwark 660), una línea por cuenta:
 #     USERNAME|HARD_KB
 # donde HARD_KB es el límite duro en bloques de 1 KB (0 = sin límite). El límite blando se
 # fija igual al duro (enforcement estricto). El uid afectado es h_USERNAME.
