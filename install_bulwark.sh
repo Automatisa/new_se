@@ -416,7 +416,8 @@ info "Configurando MariaDB..."
 
 if [ "$MYSQL_EXISTING" != "true" ]; then
     sysrc mysql_enable="YES"
-    service mysql-server start
+    # Idempotente: si ya está corriendo, 'start' devuelve 1 en FreeBSD y abortaría bajo set -e.
+    service mysql-server start || service mysql-server status >/dev/null 2>&1
     echo "Esperando que MariaDB inicie..."
     sleep 5
 
@@ -1737,12 +1738,10 @@ ok "doas configurado"
 # www para leer lo compartido), SECRETOS a root:PANEL_USER 640 (www ya no los lee) y doas SOLO para
 # PANEL_USER. El daemon sigue como root. Fuente única: bin/migrate_panel_user.sh (idempotente).
 # PENDIENTE: renombrar PANEL_USER 'zpanel' por el nombre definitivo (ver el propio script).
-info "Aislando el panel en su propio usuario del sistema..."
-if [ -x "$PANEL_PATH/bin/migrate_panel_user.sh" ]; then
-    PANEL_USER=bulwark PANEL_PATH="$PANEL_PATH" PANEL_DATA="$PANEL_DATA" \
-        sh "$PANEL_PATH/bin/migrate_panel_user.sh" && ok "Panel aislado en usuario propio" \
-        || echo "AVISO: no se pudo aislar el panel; sigue corriendo como www"
-fi
+# NOTA: la migración al usuario propio se ejecuta al FINAL, dentro de "18. PERMISOS FINALES"
+# (justo antes de iniciar servicios). Si se hiciera aquí, el bloque de permisos finales
+# (chown -R root:www "$PANEL_PATH" y etc/tmp -> www:www) la revertiría: los secretos volverían
+# a ser legibles por 'www' y etc/tmp dejaría de ser escribible por el panel (dashboard en blanco).
 
 # Pinning de paquetes críticos: bloquea (pkg lock) los paquetes de nombre SIN versión que pueden
 # saltar de MAYOR con un 'pkg upgrade' (dovecot-mysql, redis...) y rompernos el servicio. Las
@@ -1876,6 +1875,19 @@ chmod 640 "$PANEL_CONF/postfix/mysql-"*.cf
 chown root:postfix "$PANEL_CONF/postfix/mysql-"*.cf
 
 ok "Permisos ajustados"
+
+# AISLAR EL PANEL EN SU PROPIO USUARIO (separado del genérico 'www'). DEBE ir DESPUÉS de los
+# permisos finales de arriba: migrate reasigna SECRETOS a root:PANEL_USER 640 (www ya no los lee),
+# etc/tmp a PANEL_USER (para que el panel escriba la caché de plantillas), el pool PHP-FPM a
+# PANEL_USER y doas SOLO a PANEL_USER. Si corriera antes, el 'chown -R root:www' de esta sección lo
+# revertiría (www volvería a leer db.php y el dashboard saldría en blanco). Fuente única e
+# idempotente: bin/migrate_panel_user.sh. El daemon sigue como root.
+info "Aislando el panel en su propio usuario del sistema..."
+if [ -x "$PANEL_PATH/bin/migrate_panel_user.sh" ]; then
+    PANEL_USER=bulwark PANEL_PATH="$PANEL_PATH" PANEL_DATA="$PANEL_DATA" \
+        sh "$PANEL_PATH/bin/migrate_panel_user.sh" && ok "Panel aislado en usuario propio" \
+        || echo "AVISO: no se pudo aislar el panel; sigue corriendo como www"
+fi
 
 ###############################################################################
 # 19. INICIAR SERVICIOS
