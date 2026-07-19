@@ -1,10 +1,11 @@
 <?php
 
 /**
- * Módulo admin: migración de correo IMAP con imapsync. SIEMPRE externo -> panel (import); el panel
- * nunca es origen (sin exfiltración). Solo grupo admin (x_permissions + requireAdmin). El worker
- * (hook del daemon) procesa la cola respetando los límites configurables. Las contraseñas NO se
- * guardan en la BD: van a un passfile protegido por trabajo, borrado al terminar.
+ * Módulo de USUARIO: migración de correo IMAP con imapsync. SIEMPRE externo -> panel (import); el
+ * panel nunca es origen (sin exfiltración). Cada usuario migra su propio correo (scope por cuenta);
+ * los AJUSTES (límites) son de admin y viven en moduleadmin. El worker (hook del daemon) procesa la
+ * cola respetando los límites. Las contraseñas NO se guardan en la BD: van a un passfile por trabajo,
+ * borrado al terminar.
  */
 class module_controller extends ctrl_module
 {

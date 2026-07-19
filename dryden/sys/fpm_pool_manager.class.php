@@ -34,13 +34,6 @@ class fpm_pool_manager
         return $out;
     }
 
-    /** Directorio de pools de una versión ('' = sistema). Cadena vacía si la versión no existe. */
-    static function poolDirForVersion($v)
-    {
-        $vers = self::InstalledVersions();
-        return $vers[$v] ?? '';
-    }
-
     /** Nombre del servicio rc.d de FPM para una versión ('' = php_fpm del sistema). */
     static function serviceForVersion($v)
     {
