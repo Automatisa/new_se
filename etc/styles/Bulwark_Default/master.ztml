@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <title>Sentora &gt; <# ui_tpl_username #> - <# ui_tpl_domainname #></title>
+        <title>Bulwark &gt; <# ui_tpl_username #> - <# ui_tpl_domainname #></title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <!-- Stylesheets -->
@@ -16,7 +16,7 @@
         <script src="<# ui_tpl_assetfolderpath #>js/jquery.cookie.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/jquery.sortable-custom.js"></script>
         <script src="<# ui_tpl_assetfolderpath #>js/spin.min.js"></script>
-        <script src="<# ui_tpl_assetfolderpath #>js/sentora.js"></script>
+        <script src="<# ui_tpl_assetfolderpath #>js/bulwark.js"></script>
 
         <!-- Favicons -->
         <link rel="apple-touch-icon-precomposed" sizes="57x57"   href="<# ui_tpl_assetfolderpath #>img/ico/apple-touch-icon-57-precomposed.png">
@@ -47,7 +47,7 @@
         <!-- BEGIN NAVBAR -->
         <nav class="navbar navbar-dark bg-dark navbar-expand-lg fixed-top">
             <div class="container-fluid px-3">
-                <a class="navbar-brand" href="."><img src="<# ui_tpl_assetfolderpath #>img/logos/sentora_logo_header.png" width="96" height="36" alt="Home"></a>
+                <a class="navbar-brand" href="."><img src="<# ui_tpl_assetfolderpath #>img/logos/bulwark_logo_header.png" width="96" height="36" alt="Home"></a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -219,8 +219,8 @@
                                     </div>
 
                                     <div class="stats-row">
-                                        <div class="stats-column"><strong><: Sentora Version :>:</strong></div>
-                                        <div class="stats-column"><# ui_tpl_sentoraversion #></div>
+                                        <div class="stats-column"><strong><: Bulwark Version :>:</strong></div>
+                                        <div class="stats-column"><# ui_tpl_bulwarkversion #></div>
                                     </div>
 
                                     <div class="stats-row">

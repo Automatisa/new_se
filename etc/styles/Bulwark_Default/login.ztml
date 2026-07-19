@@ -6,10 +6,10 @@
         <title>Control Panel - Login</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="robots" content="noindex, nofollow">
-        <link href="/etc/styles/Sentora_Default/global-css/bootstrap.min.css" rel="stylesheet">
-        <link href="/etc/styles/Sentora_Default/global-css/bootstrap-icons.min.css" rel="stylesheet">
-        <link href="/etc/styles/Sentora_Default/global-css/login.css" rel="stylesheet">
-        <link rel="icon" href="/etc/styles/Sentora_Default/img/ico/fav32.png" type="image/png">
+        <link href="/etc/styles/Bulwark_Default/global-css/bootstrap.min.css" rel="stylesheet">
+        <link href="/etc/styles/Bulwark_Default/global-css/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="/etc/styles/Bulwark_Default/global-css/login.css" rel="stylesheet">
+        <link rel="icon" href="/etc/styles/Bulwark_Default/img/ico/fav32.png" type="image/png">
         <!-- Anti-ClickJacking -->
         <style id="antiClickjack">body{display:none !important;}</style>
         <script>
@@ -24,7 +24,7 @@
 
             <!-- Logo -->
             <div class="text-center mb-4">
-                <img src="/etc/styles/Sentora_Default/img/logos/sentora_logo.png" alt="Sentora" class="login-logo">
+                <img src="/etc/styles/Bulwark_Default/img/logos/bulwark_logo.png" alt="Bulwark" class="login-logo">
             </div>
 
             <!-- Card -->
@@ -132,12 +132,12 @@
             </div><!-- /card -->
 
             <p class="text-center text-muted small mt-3">
-                Powered by <a href="http://www.sentora.org/" target="_blank">Sentora</a>
+                Powered by Bulwark
             </p>
         </div><!-- /login-wrapper -->
 
-        <script src="/etc/styles/Sentora_Default/js/jquery.js"></script>
-        <script src="/etc/styles/Sentora_Default/js/bootstrap.bundle.min.js"></script>
+        <script src="/etc/styles/Bulwark_Default/js/jquery.js"></script>
+        <script src="/etc/styles/Bulwark_Default/js/bootstrap.bundle.min.js"></script>
         <script>
             $('#forgotpw').on('click', function() {
                 $('#frmZLogin').slideUp('fast', function() { $('#frmZForgot').slideDown('fast'); });
