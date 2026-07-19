@@ -1,0 +1,47 @@
+Bulwark
+Copyright (C) 2024-present Automatisa
+
+This product is a security-hardened web hosting control panel for FreeBSD,
+licensed under the GNU General Public License version 3 (GPLv3). See the file
+LICENSE (and LICENSE.md) for the full license text.
+
+Bulwark is a derivative work. As required by the GPL, the copyright and license
+notices of the prior works are preserved below. The Bulwark copyright is ADDED
+to — not a replacement of — these notices.
+
+------------------------------------------------------------------------------
+Authorship chain
+------------------------------------------------------------------------------
+
+1. ZPanelCP
+   Copyright (C) 2005-2014 ZPanelCP Team
+   http://www.zpanelcp.com/
+   Licensed under the GNU General Public License (GPL v2, later v3).
+
+2. Sentora
+   Copyright (C) 2014-present Sentora Project
+   (original ZPanel team members: TGates, Me.B, Jettawan)
+   https://sentora.org/
+   A GPLv3 fork of ZPanelCP.
+
+3. Bulwark
+   Copyright (C) 2024-present Automatisa
+   A GPLv3 fork of Sentora 2.0.2, focused on FreeBSD and hardened security.
+
+------------------------------------------------------------------------------
+Trademarks
+------------------------------------------------------------------------------
+
+"Bulwark" is the name/brand of this project (Automatisa).
+"Sentora" and "ZPanel"/"ZPanelCP" are trademarks of their respective owners.
+Bulwark is not affiliated with, endorsed by, or sponsored by the Sentora Project
+or the ZPanelCP team. Those names are used solely to identify the project's
+lineage and to comply with the GPL's attribution requirements.
+
+------------------------------------------------------------------------------
+Bundled third-party components
+------------------------------------------------------------------------------
+
+This distribution bundles third-party libraries (e.g. jQuery, Bootstrap,
+Chart.js, SCEditor, PHPMailer) under their own respective licenses. Those
+licenses and copyright notices are retained within their source files.
