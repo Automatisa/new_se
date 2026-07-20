@@ -347,9 +347,14 @@ function WriteDNSNamedHook()
         $tsigName   = $parts[0];
         $tsigSecret = isset($parts[1]) ? $parts[1] : '';
     }
+    // IP de SINCRONIZACIÓN de cada peer (nd_sync_ip_vc = túnel WireGuard si lo hay; si no, la
+    // pública). El AXFR/NOTIFY entre nodos va por ahí; los registros A del DNS usan la pública.
     $peers = [];
-    if ($pst = $zdbh->query("SELECT nd_ip_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")) {
-        while ($p = $pst->fetch()) { if (!empty($p['nd_ip_vc'])) { $peers[] = $p['nd_ip_vc']; } }
+    if ($pst = $zdbh->query("SELECT nd_ip_vc, nd_sync_ip_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")) {
+        while ($p = $pst->fetch()) {
+            $sip = !empty($p['nd_sync_ip_vc']) ? $p['nd_sync_ip_vc'] : $p['nd_ip_vc'];
+            if (!empty($sip)) { $peers[] = $sip; }
+        }
     }
     $keyClause = ($tsigName !== '') ? ' key "' . $tsigName . '"' : '';
 
@@ -440,13 +445,14 @@ function WriteDNSNamedHook()
         @mkdir($slaveDir, 0770, true);
         @chown($slaveDir, 'bind'); @chgrp($slaveDir, 'bind');
     }
-    if ($rz = $zdbh->query("SELECT n.nd_ip_vc, z.rz_domain_vc
+    if ($rz = $zdbh->query("SELECT n.nd_ip_vc, n.nd_sync_ip_vc, z.rz_domain_vc
                             FROM x_dns_remote_zones z
                             JOIN x_dns_nodes n ON n.nd_id_pk = z.rz_node_fk
                             WHERE n.nd_enabled_in = 1 AND n.nd_is_self_in = 0")) {
         while ($row = $rz->fetch()) {
             $rdom = $row['rz_domain_vc'];
-            $mip  = $row['nd_ip_vc'];
+            // master por la IP de SINCRONIZACIÓN (túnel si lo hay); AXFR va por ahí.
+            $mip  = !empty($row['nd_sync_ip_vc']) ? $row['nd_sync_ip_vc'] : $row['nd_ip_vc'];
             // No declarar como secondary una zona que ya servimos como primary (local)
             if (in_array($rdom, $localNames, true)) { continue; }
             $blk  = "zone \"$rdom\" IN {" . fs_filehandler::NewLine();

@@ -57,9 +57,11 @@ function cluster_auth(bool $requirePeerIp = true): void
         api_respond(401, ['error' => 'Unauthorized', 'message' => 'Token de cluster ausente o inválido.', 'code' => 401]);
     }
     if ($requirePeerIp) {
+        // El peer puede contactar por su IP pública o por la de SINCRONIZACIÓN (túnel WireGuard):
+        // ambas cuentan como origen legítimo del cluster.
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $st = $zdbh->prepare("SELECT COUNT(*) FROM x_dns_nodes WHERE nd_ip_vc=:ip AND nd_is_self_in=0 AND nd_enabled_in=1");
-        $st->execute([':ip' => $ip]);
+        $st = $zdbh->prepare("SELECT COUNT(*) FROM x_dns_nodes WHERE (nd_ip_vc=:ip OR nd_sync_ip_vc=:ip2) AND nd_is_self_in=0 AND nd_enabled_in=1");
+        $st->execute([':ip' => $ip, ':ip2' => $ip]);
         if ((int)$st->fetchColumn() === 0) {
             api_respond(403, ['error' => 'Forbidden', 'message' => 'La IP de origen no es un nodo del cluster.', 'code' => 403]);
         }
@@ -346,13 +348,16 @@ if ($resource === 'cluster') {
         // Devuelve TODOS los nodos (incl. deshabilitados) con su estado 'enabled', para que
         // el pruning (tombstone) se propague por la malla. api_url SIEMPRE por IP: el cluster
         // no debe depender de su propio DNS (TLS entre nodos con VERIFYPEER=false).
-        $rows = $zdbh->query("SELECT nd_name_vc, nd_ip_vc, nd_enabled_in FROM x_dns_nodes ORDER BY nd_name_vc")
+        $rows = $zdbh->query("SELECT nd_name_vc, nd_ip_vc, nd_sync_ip_vc, nd_enabled_in FROM x_dns_nodes ORDER BY nd_name_vc")
                      ->fetchAll(PDO::FETCH_ASSOC);
         $nodes = [];
         foreach ($rows as $r) {
             $nodes[] = [
                 'name'    => strtolower($r['nd_name_vc']),
                 'ip'      => $r['nd_ip_vc'],
+                // IP de sincronización (túnel WireGuard si lo hay) para que la malla la propague; el
+                // transporte entre nodos la usa y los registros A del DNS siguen con la pública.
+                'sync_ip' => (!empty($r['nd_sync_ip_vc']) ? $r['nd_sync_ip_vc'] : ''),
                 'api_url' => 'https://' . $r['nd_ip_vc'] . '/bin/api.php',
                 'enabled' => ((int)$r['nd_enabled_in'] === 1),
             ];
@@ -364,17 +369,20 @@ if ($resource === 'cluster') {
         $body      = json_decode(file_get_contents('php://input'), true) ?? [];
         $name      = strtolower(trim($body['name'] ?? ''));
         $ip        = trim($body['ip'] ?? '');
+        $syncIp    = trim($body['sync_ip'] ?? '');
         $apiu      = trim($body['api_url'] ?? '');
         $panelHost = strtolower(trim($body['panel_host'] ?? ''));
         $nsHost    = strtolower(trim($body['ns_host'] ?? ''));
         if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
             api_respond(422, ['error' => 'Unprocessable Entity', 'message' => 'name e ip válidos son obligatorios.', 'code' => 422]);
         }
+        if ($syncIp !== '' && !filter_var($syncIp, FILTER_VALIDATE_IP)) { $syncIp = ''; }
+        $syncVal = ($syncIp !== '' ? $syncIp : null);   // IP de sync (túnel); NULL = usar la pública
         $zdbh->prepare(
-            "INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
-             VALUES (:n, :i, :u, 0, 1, :ts)
-             ON DUPLICATE KEY UPDATE nd_ip_vc=:i2, nd_api_url_vc=:u2, nd_enabled_in=1"
-        )->execute([':n' => $name, ':i' => $ip, ':u' => ($apiu ?: null), ':ts' => time(), ':i2' => $ip, ':u2' => ($apiu ?: null)]);
+            "INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_sync_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
+             VALUES (:n, :i, :s, :u, 0, 1, :ts)
+             ON DUPLICATE KEY UPDATE nd_ip_vc=:i2, nd_sync_ip_vc=:s2, nd_api_url_vc=:u2, nd_enabled_in=1"
+        )->execute([':n' => $name, ':i' => $ip, ':s' => $syncVal, ':u' => ($apiu ?: null), ':ts' => time(), ':i2' => $ip, ':s2' => $syncVal, ':u2' => ($apiu ?: null)]);
 
         // Añadir a la zona del proveedor los A del nuevo nodo (ns y panel), si procede
         $provider = strtolower((string)ctrl_options::GetSystemOption('dns_provider_domain'));

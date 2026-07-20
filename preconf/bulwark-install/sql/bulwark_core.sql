@@ -220,7 +220,8 @@ DROP TABLE IF EXISTS `x_dns_nodes`;
 CREATE TABLE `x_dns_nodes` (
   `nd_id_pk` int(11) NOT NULL AUTO_INCREMENT,
   `nd_name_vc` varchar(255) NOT NULL COMMENT 'hostname del nodo, p.ej. panel2.dominio.com',
-  `nd_ip_vc` varchar(45) NOT NULL COMMENT 'IP del nodo (para AXFR/notify)',
+  `nd_ip_vc` varchar(45) NOT NULL COMMENT 'IP PUBLICA del nodo (la que va en los registros A del DNS: ns/panel)',
+  `nd_sync_ip_vc` varchar(45) DEFAULT NULL COMMENT 'IP de SINCRONIZACION (tunel WireGuard) para API+AXFR entre nodos; NULL = usar la publica',
   `nd_api_url_vc` varchar(255) DEFAULT NULL COMMENT 'base URL de su API, p.ej. https://panel2.dominio.com/bin/api.php',
   `nd_api_token_vc` varchar(128) DEFAULT NULL COMMENT 'token Bearer para llamar a su API (scope read)',
   `nd_is_self_in` tinyint(1) NOT NULL DEFAULT 0,

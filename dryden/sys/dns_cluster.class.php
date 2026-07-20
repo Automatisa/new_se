@@ -37,14 +37,16 @@ class dns_cluster
         $selfName = $self ? strtolower($self['nd_name_vc']) : '';
         $selfIp   = $self ? (string)$self['nd_ip_vc'] : '';
 
-        $peers   = $zdbh->query("SELECT nd_id_pk, nd_name_vc, nd_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")->fetchAll();
+        $peers   = $zdbh->query("SELECT nd_id_pk, nd_name_vc, nd_ip_vc, nd_sync_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")->fetchAll();
         $changed = false;
 
         foreach ($peers as $peer) {
-            // URL SIEMPRE por IP: el cluster no puede depender de su propio DNS para
-            // sincronizarse (auto-reparable si un api_url guardado quedó inalcanzable).
-            $url = 'https://' . $peer['nd_ip_vc'] . '/bin/api.php';
-            $pin = self::ensurePeerPin($peer['nd_id_pk'], $peer['nd_ip_vc']);
+            // El TRANSPORTE usa la IP de SINCRONIZACIÓN (nd_sync_ip_vc: la del túnel WireGuard si lo
+            // hay) con fallback a la pública. La IP pública (nd_ip_vc) es la que va en los registros
+            // A del DNS. URL SIEMPRE por IP: el cluster no puede depender de su propio DNS.
+            $sip = self::syncIp($peer);
+            $url = 'https://' . $sip . '/bin/api.php';
+            $pin = self::ensurePeerPin($peer['nd_id_pk'], $sip);
             $nodes = self::fetchPeerNodes($url, $token, $pin);
             if ($nodes === null) {
                 continue;
@@ -52,20 +54,22 @@ class dns_cluster
             foreach ($nodes as $n) {
                 $name    = strtolower(trim($n['name'] ?? ''));
                 $ip      = trim($n['ip'] ?? '');
+                $syncip  = trim($n['sync_ip'] ?? '');
                 $enabled = array_key_exists('enabled', $n) ? (bool)$n['enabled'] : true;
                 if ($name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) { continue; }
+                if ($syncip !== '' && !filter_var($syncip, FILTER_VALIDATE_IP)) { $syncip = ''; }
                 if ($name === $selfName || $ip === $selfIp) { continue; }  // nunca tocar el propio nodo
 
-                $st = $zdbh->prepare("SELECT nd_id_pk, nd_ip_vc, nd_enabled_in FROM x_dns_nodes WHERE nd_name_vc=:n");
+                $st = $zdbh->prepare("SELECT nd_id_pk, nd_ip_vc, nd_sync_ip_vc, nd_enabled_in FROM x_dns_nodes WHERE nd_name_vc=:n");
                 $st->execute([':n' => $name]);
                 $existing = $st->fetch();
 
                 if (!$existing) {
                     // Alta con el estado reportado: si el peer lo da como tombstone, se crea
                     // deshabilitado (no resucita un nodo ya retirado).
-                    $zdbh->prepare("INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
-                                    VALUES (:n, :i, :u, 0, :e, :t)")
-                         ->execute([':n' => $name, ':i' => $ip, ':u' => 'https://' . $ip . '/bin/api.php', ':e' => ($enabled ? 1 : 0), ':t' => time()]);
+                    $zdbh->prepare("INSERT INTO x_dns_nodes (nd_name_vc, nd_ip_vc, nd_sync_ip_vc, nd_api_url_vc, nd_is_self_in, nd_enabled_in, nd_created_ts)
+                                    VALUES (:n, :i, :s, :u, 0, :e, :t)")
+                         ->execute([':n' => $name, ':i' => $ip, ':s' => ($syncip !== '' ? $syncip : null), ':u' => 'https://' . $ip . '/bin/api.php', ':e' => ($enabled ? 1 : 0), ':t' => time()]);
                     $changed = true;
                     if ($enabled) {
                         echo "dns_cluster: nuevo nodo en la malla -> " . $name . " (" . $ip . ")\n";
@@ -79,9 +83,11 @@ class dns_cluster
                     $changed = true;
                     echo "dns_cluster: nodo dado de baja en la malla -> " . $name . "\n";
                     self::logEvent("Nodo dado de baja (propagado en la malla): " . $name);
-                } elseif ($enabled && (int)$existing['nd_enabled_in'] === 1 && (string)$existing['nd_ip_vc'] !== $ip) {
-                    // Nodo activo con IP cambiada: actualizar (NO reactiva tombstones).
-                    $zdbh->prepare("UPDATE x_dns_nodes SET nd_ip_vc=:i WHERE nd_id_pk=:id")->execute([':i' => $ip, ':id' => $existing['nd_id_pk']]);
+                } elseif ($enabled && (int)$existing['nd_enabled_in'] === 1
+                          && ((string)$existing['nd_ip_vc'] !== $ip || (string)$existing['nd_sync_ip_vc'] !== $syncip)) {
+                    // Nodo activo con IP pública o de sync cambiada: actualizar (NO reactiva tombstones).
+                    $zdbh->prepare("UPDATE x_dns_nodes SET nd_ip_vc=:i, nd_sync_ip_vc=:s WHERE nd_id_pk=:id")
+                         ->execute([':i' => $ip, ':s' => ($syncip !== '' ? $syncip : null), ':id' => $existing['nd_id_pk']]);
                     $changed = true;
                 }
                 // 'enabled' reportado sobre un tombstone local -> NO reactivar (sticky): solo
@@ -121,8 +127,9 @@ class dns_cluster
             }
             // URL por IP (DNS-independiente): el cluster es el propio DNS, no puede depender
             // de resolver el hostname del peer para sincronizar la lista de zonas.
-            $apiUrl  = 'https://' . $peer['nd_ip_vc'] . '/bin/api.php';
-            $pin     = self::ensurePeerPin($peer['nd_id_pk'], $peer['nd_ip_vc']);
+            $sip     = self::syncIp($peer);
+            $apiUrl  = 'https://' . $sip . '/bin/api.php';
+            $pin     = self::ensurePeerPin($peer['nd_id_pk'], $sip);
             $domains = self::fetchPeerZones($apiUrl, $token, $pin);
             if ($domains === null) {
                 error_log('dns_cluster: sin respuesta del peer ' . $peer['nd_name_vc']);
@@ -160,6 +167,16 @@ class dns_cluster
             }
         }
         return $changed;
+    }
+
+    /**
+     * IP por la que se ALCANZA a un peer para la sync (API) y el AXFR: la de sincronización
+     * (nd_sync_ip_vc, p.ej. la del túnel WireGuard) si está definida; si no, la pública (nd_ip_vc).
+     * La pública se sigue usando para los registros A del DNS (ns/panel), que ve el mundo.
+     */
+    static function syncIp($peer)
+    {
+        return (!empty($peer['nd_sync_ip_vc'])) ? (string)$peer['nd_sync_ip_vc'] : (string)$peer['nd_ip_vc'];
     }
 
     /**
