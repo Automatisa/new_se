@@ -389,14 +389,15 @@ if ($resource === 'cluster') {
                     return (strlen($fqdn) > strlen($suffix) && substr($fqdn, -strlen($suffix)) === $suffix)
                         ? substr($fqdn, 0, -strlen($suffix)) : '';
                 };
-                foreach ([[$strip($nsHost), 172800], [$strip($panelHost), 3600]] as $rec) {
-                    $host = $rec[0]; $ttl = $rec[1];
+                // Cada entrada: [host-relativo, ttl, fqdn-del-NS-o-vacío]. El 3er campo marca la
+                // entrada del NAMESERVER del nodo (para además darla de alta en el RRset NS).
+                foreach ([[$strip($nsHost), 172800, $nsHost], [$strip($panelHost), 3600, '']] as $rec) {
+                    $host = $rec[0]; $ttl = $rec[1]; $nsFqdn = $rec[2];
                     if ($host === '') { continue; }
-                    // El nodo RECLAMA su propio registro ns/panel: debe apuntar a SU IP. Si ya existe
-                    // (p.ej. la zona base del primario pre-creó ns2 -> IP-del-primario como fallback de
-                    // un solo nodo), se REAPUNTA a la IP del nodo que se une; si no, se inserta. Antes
-                    // se omitía (continue) si existía -> ns2 se quedaba en el primario y se perdía la
-                    // redundancia real de NS (ns1 y ns2 caían juntos si el primario caía).
+                    // (1) Registro A: el nodo RECLAMA su propio ns/panel -> debe apuntar a SU IP. Si ya
+                    // existe (p.ej. la zona base del primario pre-creó ns2 -> IP-del-primario como
+                    // fallback de un solo nodo), se REAPUNTA; si no, se inserta. Antes se omitía si
+                    // existía -> ns2 se quedaba en el primario y no había redundancia real de NS.
                     $ex = $zdbh->prepare("SELECT dn_id_pk, dn_target_vc FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='A' AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
                     $ex->execute([':v' => $vid, ':h' => $host]);
                     if ($erow = $ex->fetch()) {
@@ -405,12 +406,26 @@ if ($resource === 'cluster') {
                                  ->execute([':ip' => $ip, ':id' => (int)$erow['dn_id_pk']]);
                             $added[] = $host;
                         }
-                        continue;
+                    } else {
+                        $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts)
+                                        VALUES (:u,:name,:v,'A',:h,:ttl,:ip,:ts)")
+                             ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':h' => $host, ':ttl' => $ttl, ':ip' => $ip, ':ts' => time()]);
+                        $added[] = $host;
                     }
-                    $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts)
-                                    VALUES (:u,:name,:v,'A',:h,:ttl,:ip,:ts)")
-                         ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':h' => $host, ':ttl' => $ttl, ':ip' => $ip, ':ts' => time()]);
-                    $added[] = $host;
+                    // (2) Registro NS de DELEGACIÓN: si esta entrada es el nameserver del nodo, que esté
+                    // en el RRset NS de la zona (@ NS <fqdn>). Así ns3/ns4… son nameservers autoritativos
+                    // de primera clase (no solo un A), y N nameservers públicos funcionan de verdad.
+                    // Idempotente: solo inserta si no existe ya ese target.
+                    if ($nsFqdn !== '') {
+                        $exns = $zdbh->prepare("SELECT COUNT(*) FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='NS' AND dn_host_vc='@' AND dn_target_vc=:t AND dn_deleted_ts IS NULL");
+                        $exns->execute([':v' => $vid, ':t' => $nsFqdn]);
+                        if ((int)$exns->fetchColumn() === 0) {
+                            $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts)
+                                            VALUES (:u,:name,:v,'NS','@',172800,:t,:ts)")
+                                 ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':t' => $nsFqdn, ':ts' => time()]);
+                            $added[] = 'NS:' . $nsFqdn;
+                        }
+                    }
                 }
                 if ($added) {
                     // dns_hasupdates es una LISTA de IDs de vhost separada por comas (no un
