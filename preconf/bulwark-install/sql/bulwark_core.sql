@@ -225,6 +225,7 @@ CREATE TABLE `x_dns_nodes` (
   `nd_api_token_vc` varchar(128) DEFAULT NULL COMMENT 'token Bearer para llamar a su API (scope read)',
   `nd_is_self_in` tinyint(1) NOT NULL DEFAULT 0,
   `nd_enabled_in` tinyint(1) NOT NULL DEFAULT 1,
+  `nd_cert_pin_vc` varchar(120) DEFAULT NULL COMMENT 'Pin TLS del peer (sha256//BASE64 de su SPKI) para dns_cluster_tls_verify=pin; capturado TOFU',
   `nd_last_sync_ts` int(11) DEFAULT NULL,
   `nd_created_ts` int(11) DEFAULT NULL,
   PRIMARY KEY (`nd_id_pk`),
@@ -976,6 +977,8 @@ INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value
 -- usuarios) y token compartido de los nodos. Desactivar la API de usuarios NO afecta a esto.
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('146', 'dns_cluster_enabled', 'Cluster DNS activado', 'false', 'true|false', 'Activa la API dedicada del cluster DNS (sync de zonas entre nodos). Independiente de la API de usuarios.', 'Bulwark Config', 'true');
 INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('147', 'dns_cluster_token', 'Token del cluster DNS', '', NULL, 'Secreto compartido que autentica las llamadas entre nodos del cluster. No compartir fuera del cluster.', 'Bulwark Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('177', 'dns_cluster_tls_verify', 'Verificacion TLS entre nodos', 'off', 'off|pin|ca', 'Como valida el canal de control (API) del cluster el certificado del peer: off=sin verificar (dev/LAN); pin=fija la clave publica del peer (autofirmado, corta MITM continuo); ca=verificacion completa contra la CA propia (dns_cluster_ca_file).', 'Bulwark Config', 'true');
+INSERT INTO `x_settings` (`so_id_pk`, `so_name_vc`, `so_cleanname_vc`, `so_value_tx`, `so_defvalues_tx`, `so_desc_tx`, `so_module_vc`, `so_usereditable_en`) VALUES ('178', 'dns_cluster_ca_file', 'CA propia del cluster (fichero)', '', NULL, 'Ruta al bundle PEM de la CA propia que firma los certs de los nodos (para dns_cluster_tls_verify=ca). Vacio = usar el almacen de CAs del sistema.', 'Bulwark Config', 'true');
 
 TRUNCATE TABLE `x_groups`;
 INSERT INTO `x_groups` (`ug_id_pk`, `ug_name_vc`, `ug_notes_tx`, `ug_reseller_fk`) VALUES ('1', 'Administrators', 'The main administration group, this group allows access to all areas of Bulwark.', '1');

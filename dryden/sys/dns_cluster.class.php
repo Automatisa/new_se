@@ -37,14 +37,15 @@ class dns_cluster
         $selfName = $self ? strtolower($self['nd_name_vc']) : '';
         $selfIp   = $self ? (string)$self['nd_ip_vc'] : '';
 
-        $peers   = $zdbh->query("SELECT nd_name_vc, nd_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")->fetchAll();
+        $peers   = $zdbh->query("SELECT nd_id_pk, nd_name_vc, nd_ip_vc, nd_api_url_vc FROM x_dns_nodes WHERE nd_enabled_in=1 AND nd_is_self_in=0")->fetchAll();
         $changed = false;
 
         foreach ($peers as $peer) {
             // URL SIEMPRE por IP: el cluster no puede depender de su propio DNS para
             // sincronizarse (auto-reparable si un api_url guardado quedó inalcanzable).
             $url = 'https://' . $peer['nd_ip_vc'] . '/bin/api.php';
-            $nodes = self::fetchPeerNodes($url, $token);
+            $pin = self::ensurePeerPin($peer['nd_id_pk'], $peer['nd_ip_vc']);
+            $nodes = self::fetchPeerNodes($url, $token, $pin);
             if ($nodes === null) {
                 continue;
             }
@@ -121,7 +122,8 @@ class dns_cluster
             // URL por IP (DNS-independiente): el cluster es el propio DNS, no puede depender
             // de resolver el hostname del peer para sincronizar la lista de zonas.
             $apiUrl  = 'https://' . $peer['nd_ip_vc'] . '/bin/api.php';
-            $domains = self::fetchPeerZones($apiUrl, $token);
+            $pin     = self::ensurePeerPin($peer['nd_id_pk'], $peer['nd_ip_vc']);
+            $domains = self::fetchPeerZones($apiUrl, $token, $pin);
             if ($domains === null) {
                 error_log('dns_cluster: sin respuesta del peer ' . $peer['nd_name_vc']);
                 continue;
@@ -161,10 +163,96 @@ class dns_cluster
     }
 
     /**
+     * Política TLS del canal de control del cluster, según el ajuste dns_cluster_tls_verify:
+     *   off  -> sin verificar (dev / LAN de confianza). Comportamiento histórico.
+     *   pin  -> SOLO acepta el cert cuya CLAVE PÚBLICA casa con $pin (CURLOPT_PINNEDPUBLICKEY);
+     *           sirve para autofirmados pero fija UN cert concreto -> corta el MITM continuo.
+     *           Sin pin todavía (TOFU pendiente) cae a 'off' en esta llamada; el capturador lo fija.
+     *   ca   -> verificación completa (VERIFYPEER) contra la CA propia (dns_cluster_ca_file);
+     *           por IP (SAN). Es la vía de producción sin depender del DNS del propio cluster.
+     */
+    static function applyTlsPolicy($ch, $pin = '')
+    {
+        $mode = strtolower((string)ctrl_options::GetSystemOption('dns_cluster_tls_verify'));
+        if ($mode === 'ca') {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            $ca = (string)ctrl_options::GetSystemOption('dns_cluster_ca_file');
+            if ($ca !== '' && is_readable($ca)) {
+                curl_setopt($ch, CURLOPT_CAINFO, $ca);
+            }
+            return;
+        }
+        // 'off' y 'pin': el transporte no valida cadena de CA (autofirmado); en 'pin' manda la huella.
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        if ($mode === 'pin' && $pin !== '' && defined('CURLOPT_PINNEDPUBLICKEY')) {
+            curl_setopt($ch, CURLOPT_PINNEDPUBLICKEY, $pin);
+        }
+    }
+
+    /**
+     * Huella "sha256//BASE64" de la clave pública (SPKI) del cert que sirve un peer en IP:puerto.
+     * Formato idéntico al que espera CURLOPT_PINNEDPUBLICKEY. '' si no se pudo obtener.
+     */
+    static function fetchCertPin($ip, $port = 443)
+    {
+        $ctx = stream_context_create(array('ssl' => array(
+            'capture_peer_cert' => true, 'verify_peer' => false, 'verify_peer_name' => false,
+        )));
+        $cli = @stream_socket_client("ssl://$ip:$port", $errno, $errstr, 8, STREAM_CLIENT_CONNECT, $ctx);
+        if (!$cli) {
+            return '';
+        }
+        $params = stream_context_get_params($cli);
+        fclose($cli);
+        $cert = isset($params['options']['ssl']['peer_certificate']) ? $params['options']['ssl']['peer_certificate'] : null;
+        if (!$cert) {
+            return '';
+        }
+        $pub = openssl_pkey_get_public($cert);
+        if (!$pub) {
+            return '';
+        }
+        $d = openssl_pkey_get_details($pub);
+        if (empty($d['key'])) {
+            return '';
+        }
+        // PEM de la clave pública -> DER (SPKI) -> sha256 -> base64.
+        $der = base64_decode(preg_replace('/-----[^-]+-----|\s+/', '', $d['key']));
+        return 'sha256//' . base64_encode(hash('sha256', $der, true));
+    }
+
+    /**
+     * Devuelve el pin del peer para el modo actual. En 'pin', si aún no hay huella guardada, la
+     * captura (TOFU: confianza en el primer contacto) y la persiste en x_dns_nodes. En otros modos '' .
+     */
+    static function ensurePeerPin($nodeId, $ip)
+    {
+        global $zdbh;
+        if (strtolower((string)ctrl_options::GetSystemOption('dns_cluster_tls_verify')) !== 'pin') {
+            return '';
+        }
+        $st = $zdbh->prepare("SELECT nd_cert_pin_vc FROM x_dns_nodes WHERE nd_id_pk=:id");
+        $st->execute(array(':id' => $nodeId));
+        $pin = (string)$st->fetchColumn();
+        if ($pin !== '') {
+            return $pin;
+        }
+        $pin = self::fetchCertPin($ip);
+        if ($pin !== '') {
+            $zdbh->prepare("UPDATE x_dns_nodes SET nd_cert_pin_vc=:p WHERE nd_id_pk=:id")
+                 ->execute(array(':p' => $pin, ':id' => (int)$nodeId));
+            self::logEvent("Pin TLS capturado (TOFU) para nodo id " . (int)$nodeId . ": " . substr($pin, 0, 20) . "…");
+        }
+        return $pin;
+    }
+
+    /**
      * Lista de zonas (primary) que sirve un peer vía la API dedicada del cluster
      * (GET /v1/cluster/zones, autenticada con el token compartido), o null si error.
      */
-    static function fetchPeerZones($apiUrl, $token)
+    static function fetchPeerZones($apiUrl, $token, $pin = '')
     {
         if (!function_exists('curl_init')) {
             return null;
@@ -176,10 +264,8 @@ class dns_cluster
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_HTTPHEADER     => array('Authorization: Bearer ' . $token, 'Accept: application/json'),
-            // Los nodos del cluster suelen usar cert autofirmado del panel entre sí.
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
         ));
+        self::applyTlsPolicy($ch, $pin);
         $body = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -204,7 +290,7 @@ class dns_cluster
      * Lista de nodos del cluster que conoce un peer (GET /v1/cluster/nodes), o null si error.
      * Cada elemento: array con 'name', 'ip', 'api_url'.
      */
-    static function fetchPeerNodes($apiUrl, $token)
+    static function fetchPeerNodes($apiUrl, $token, $pin = '')
     {
         if (!function_exists('curl_init')) {
             return null;
@@ -216,9 +302,8 @@ class dns_cluster
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_HTTPHEADER     => array('Authorization: Bearer ' . $token, 'Accept: application/json'),
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
         ));
+        self::applyTlsPolicy($ch, $pin);
         $body = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);

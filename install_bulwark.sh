@@ -107,6 +107,14 @@ DNS_FORWARDERS="$(printf '%s' "$_valid_fwd" | sed 's/^ *//')"
 # zona base; añade ns2/panel2 a la del primario y esclaviza sus zonas por AXFR).
 printf "¿Nodo DNS PRIMARIO o SECUNDARIO del cluster? [P/s]: "; read -r NODE_ROLE
 NODE_ROLE=$(printf '%s' "${NODE_ROLE:-P}" | tr '[:lower:]' '[:upper:]')
+
+# Seguridad del canal de control del cluster (API entre nodos). off=sin verificar (dev/LAN);
+# pin=fija la clave pública del peer (autofirmado, corta MITM continuo; recomendado en producción
+# sin certs válidos); ca=verificación completa contra una CA propia (requiere dns_cluster_ca_file).
+printf "Verificación TLS entre nodos del cluster (off/pin/ca) [off]: "; read -r DNS_CLUSTER_TLS
+DNS_CLUSTER_TLS=$(printf '%s' "${DNS_CLUSTER_TLS:-off}" | tr '[:upper:]' '[:lower:]')
+case "$DNS_CLUSTER_TLS" in pin|ca) : ;; *) DNS_CLUSTER_TLS="off" ;; esac
+
 if [ "$NODE_ROLE" = "S" ]; then
     printf "URL de la API del nodo primario (ej: https://panel1.%s/bin/api.php): " "$DNS_PROVIDER_DOMAIN"; read -r PRIMARY_API_URL
     printf "Token del CLUSTER del primario (ajuste dns_cluster_token del primario): "; read -r CLUSTER_TOKEN
@@ -1996,6 +2004,11 @@ else
     php "$PANEL_PATH/bin/create_base_zone.php" > "$PANEL_DATA/logs/base-zone-install.log" 2>&1 || true
     ok "Nodo primario: TSIG + token de cluster generados y zona base creada"
 fi
+
+# Política de verificación TLS del canal de control del cluster (off/pin/ca, elegida arriba). En
+# 'pin' cada nodo captura la huella de sus peers por TOFU en la primera sincronización.
+$MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='$DNS_CLUSTER_TLS' WHERE so_name_vc='dns_cluster_tls_verify';" 2>/dev/null
+[ "$DNS_CLUSTER_TLS" != "off" ] && ok "Verificación TLS del cluster: $DNS_CLUSTER_TLS"
 
 # Generar la config real de Apache y las zonas DNS ejecutando el daemon una vez: el
 # vhost del panel con SSL (Listen 443, fallback y :443) lo produce apache_admin, y las
