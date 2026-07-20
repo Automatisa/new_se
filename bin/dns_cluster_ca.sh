@@ -6,7 +6,11 @@
 # Uso (como root):
 #   dns_cluster_ca.sh init                Crea la CA del cluster (root key+cert, larga validez) si no existe.
 #   dns_cluster_ca.sh issue <ip> [fqdn]   Emite key+cert de un nodo firmados por la CA (IP[,FQDN] en el SAN).
+#   dns_cluster_ca.sh issue-all           Emite el cert de TODOS los nodos del cluster (los lee del panel).
 #   dns_cluster_ca.sh apply <ip>          Instala el cert del nodo <ip> en el Apache del panel y recarga.
+#   dns_cluster_ca.sh renew               Renueva el cert de ESTE nodo (misma CA) y lo aplica.
+#   dns_cluster_ca.sh renew-ca            Rota la CA (respalda la anterior); luego 'issue-all' + redistribuir.
+#   dns_cluster_ca.sh check [dias]        Aviso de caducidad (cron): 0=OK, 1=caduca pronto, 2=caducado.
 #   dns_cluster_ca.sh show                Muestra rutas, validez y SAN de la CA y los certs emitidos.
 #
 # Flujo tipico (la CA vive en UN nodo emisor; su clave NO sale de ahi):
@@ -23,6 +27,12 @@ PANEL_SSL_CRT="${PANEL_SSL_CRT:-/usr/local/etc/bulwark/panel/recovery/selfsigned
 PANEL_SSL_KEY="${PANEL_SSL_KEY:-/usr/local/etc/bulwark/panel/recovery/selfsigned.key}"
 CA_KEY="$CA_DIR/ca.key"
 CA_CRT="$CA_DIR/ca.crt"
+DBPHP="${DBPHP:-/usr/local/bulwark/cnf/db.php}"
+
+# --- Helpers de BD (leen los nodos del cluster desde el propio panel) -------------------------
+# Devuelve "ip fqdn" por línea de todos los nodos; db_self solo el nodo propio.
+db_nodes() { [ -f "$DBPHP" ] || return 1; php -r 'require $argv[1]; $p=new PDO("mysql:host=".$host.";dbname=".$dbname,$user,$pass); foreach($p->query("SELECT nd_ip_vc,nd_name_vc FROM x_dns_nodes ORDER BY nd_is_self_in DESC,nd_name_vc") as $r){echo $r["nd_ip_vc"]." ".$r["nd_name_vc"]."\n";}' "$DBPHP" 2>/dev/null; }
+db_self()  { [ -f "$DBPHP" ] || return 1; php -r 'require $argv[1]; $p=new PDO("mysql:host=".$host.";dbname=".$dbname,$user,$pass); $r=$p->query("SELECT nd_ip_vc,nd_name_vc FROM x_dns_nodes WHERE nd_is_self_in=1 LIMIT 1")->fetch(); if($r)echo $r["nd_ip_vc"]." ".$r["nd_name_vc"]."\n";' "$DBPHP" 2>/dev/null; }
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "ejecuta como root"
@@ -82,10 +92,69 @@ cmd_show() {
     done
 }
 
+# Emite el cert de TODOS los nodos del cluster (los lee del panel). La distribución de cada
+# <ip>.{key,crt} a su nodo + el ca.crt sigue siendo manual (scp): el emisor no tiene acceso al resto.
+cmd_issue_all() {
+    [ -f "$CA_KEY" ] || die "no hay CA; ejecuta 'init' primero"
+    n=0
+    db_nodes | while read -r ip fqdn; do
+        [ -n "$ip" ] || continue
+        cmd_issue "$ip" "$fqdn"; n=$((n+1))
+    done
+    echo "Emitidos los certs de los nodos del cluster. Distribuye a cada nodo su <ip>.{key,crt} + el ca.crt."
+}
+
+# Renueva el cert de ESTE nodo (misma CA -> NO hay que redistribuir ca.crt) y lo aplica a Apache.
+cmd_renew() {
+    self="$(db_self)"; ip="$(printf '%s' "$self" | awk '{print $1}')"; fqdn="$(printf '%s' "$self" | awk '{print $2}')"
+    [ -n "$ip" ] || die "no encuentro la IP propia (nd_is_self_in=1) en x_dns_nodes"
+    cmd_issue "$ip" "$fqdn"
+    cmd_apply "$ip"
+    echo "Cert de este nodo renovado y aplicado. La CA no cambia (no hace falta redistribuir ca.crt)."
+}
+
+# Regenera la CA (rota su clave). OJO: invalida TODOS los certs de nodo -> hay que re-emitir
+# (issue-all) y redistribuir ca.crt + los nuevos certs a todos los nodos. Guarda copia de la anterior.
+cmd_renew_ca() {
+    if [ -f "$CA_KEY" ]; then
+        ts=$(date +%Y%m%d%H%M%S); mkdir -p "$CA_DIR/old"
+        cp "$CA_KEY" "$CA_DIR/old/ca-$ts.key" 2>/dev/null; cp "$CA_CRT" "$CA_DIR/old/ca-$ts.crt" 2>/dev/null
+        rm -f "$CA_KEY" "$CA_CRT"
+        echo "CA anterior respaldada en $CA_DIR/old/ca-$ts.*"
+    fi
+    cmd_init
+    echo "AVISO: la CA nueva invalida los certs de nodo existentes. Ejecuta 'issue-all' y redistribuye"
+    echo "       el ca.crt nuevo + cada <ip>.{key,crt} a todos los nodos, y aplica 'apply' en cada uno."
+}
+
+# Chequeo de caducidad (para cron/monitor). Sale 0=OK, 1=alguno caduca pronto, 2=alguno caducado.
+cmd_check() {
+    warndays="${1:-30}"; sec=$((warndays*86400)); rc=0
+    _one() {
+        f="$1"; lbl="$2"; [ -f "$f" ] || { echo "  --    $lbl (no existe)"; return; }
+        end=$(openssl x509 -in "$f" -noout -enddate 2>/dev/null | sed 's/notAfter=//')
+        if ! openssl x509 -in "$f" -noout -checkend 0 >/dev/null 2>&1; then
+            echo "  CADUCADO $lbl ($end)"; [ $rc -lt 2 ] && rc=2
+        elif ! openssl x509 -in "$f" -noout -checkend "$sec" >/dev/null 2>&1; then
+            echo "  AVISO    $lbl caduca pronto ($end)"; [ $rc -lt 1 ] && rc=1
+        else
+            echo "  OK       $lbl (caduca $end)"
+        fi
+    }
+    echo "Caducidad de la CA y certificados en $CA_DIR (umbral aviso ${warndays}d):"
+    _one "$CA_CRT" "CA del cluster"
+    for c in "$CA_DIR"/*.crt; do [ "$c" = "$CA_CRT" ] || { [ -f "$c" ] && _one "$c" "$(basename "$c")"; }; done
+    return $rc
+}
+
 case "${1:-}" in
-    init)  cmd_init ;;
-    issue) shift; cmd_issue "$@" ;;
-    apply) shift; cmd_apply "$@" ;;
-    show)  cmd_show ;;
-    *) echo "uso: $0 {init|issue <ip> [fqdn]|apply <ip>|show}" >&2; exit 1 ;;
+    init)      cmd_init ;;
+    issue)     shift; cmd_issue "$@" ;;
+    issue-all) cmd_issue_all ;;
+    apply)     shift; cmd_apply "$@" ;;
+    renew)     cmd_renew ;;
+    renew-ca)  cmd_renew_ca ;;
+    check)     shift; cmd_check "$@" ;;
+    show)      cmd_show ;;
+    *) echo "uso: $0 {init|issue <ip> [fqdn]|issue-all|apply <ip>|renew|renew-ca|check [dias]|show}" >&2; exit 1 ;;
 esac
