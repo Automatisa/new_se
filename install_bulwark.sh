@@ -1822,6 +1822,20 @@ chmod 644 /etc/cron.d/bulwark-daemon
 chown root:wheel /etc/cron.d/bulwark-daemon
 ok "Cron daemon instalado"
 
+# Aviso de caducidad de la CA/certs del cluster DNS (modo ca). No-op si no hay CA (instalación sin
+# cluster o sin ca): el grep solo deja pasar líneas de AVISO/CADUCADO, así que cron solo envía correo
+# a root cuando algo caduca dentro de 30 días. La CA/certs se gestionan por CLI (dns_cluster_ca.sh).
+cat > /etc/cron.d/bulwark-cluster-ca <<CRONEOF
+SHELL=/bin/sh
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+MAILTO=root
+HOME=/
+0 6 1 * * root [ -f /usr/local/etc/bulwark/cluster-ca/ca.crt ] && $PANEL_PATH/bin/dns_cluster_ca.sh check 30 2>&1 | grep -E "AVISO|CADUCADO"
+CRONEOF
+chmod 644 /etc/cron.d/bulwark-cluster-ca
+chown root:wheel /etc/cron.d/bulwark-cluster-ca
+ok "Cron de caducidad de certs del cluster instalado"
+
 ###############################################################################
 # 17. NTP — SINCRONIZACIÓN HORARIA
 ###############################################################################
