@@ -1662,6 +1662,21 @@ chmod 775 "$PANEL_CONF/bind/zones" "$PANEL_CONF/bind/etc"
 chown -R bind:bind "$PANEL_DATA/named"
 chmod 755 "$PANEL_DATA/named" "$PANEL_DATA/named/data"
 
+# El panel corre un BIND AUTORITATIVO (recursion no) que DEBE poseer 127.0.0.1:53. FreeBSD puede
+# traer 'local_unbound' (resolver cache) activado ocupando ese puerto -> named no puede enlazar lo0
+# ("creating interface lo0 failed; interface ignored") y el servidor no resuelve sus propias zonas
+# por 127.0.0.1. Lo desactivamos para que named sea el dueño del loopback.
+if [ "$(sysrc -n local_unbound_enable 2>/dev/null)" = "YES" ] || service local_unbound status >/dev/null 2>&1; then
+    warn "local_unbound ocupa 127.0.0.1:53 — desactivándolo (el named del panel es autoritativo)"
+    service local_unbound stop >/dev/null 2>&1 || true
+    sysrc local_unbound_enable="NO" >/dev/null 2>&1 || true
+    # Si resolv.conf dependía SOLO de 127.0.0.1 (unbound), ahora ahí hay un named sin recursión ->
+    # el servidor no resolvería nombres EXTERNOS. Poner un resolver público de respaldo.
+    if ! grep -E '^[[:space:]]*nameserver' /etc/resolv.conf 2>/dev/null | grep -qvE '127\.0\.0\.1'; then
+        printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > /etc/resolv.conf
+    fi
+fi
+
 sysrc named_enable="YES"
 sysrc named_conf="$PANEL_CONF/bind/named.conf"
 # En producción lo normal es IP FIJA: entonces no hay carrera de arranque y esto NO se aplica.
