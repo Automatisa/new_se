@@ -450,6 +450,41 @@ if ($resource === 'cluster') {
         }
         api_respond(201, ['message' => 'Nodo registrado en el cluster.', 'node' => $name, 'records_added' => $added]);
     }
+    // Inscripción por CSR: un nodo que se une manda su CSR (público); este nodo (que tiene la CA)
+    // lo firma vía un wrapper root (la API-bulwark no puede leer la clave de la CA) y devuelve
+    // {cert, ca}. La clave PRIVADA del solicitante nunca viaja. Fallback: si no hay CA aquí -> 503.
+    if ($method === 'POST' && $res_id === 'sign-csr') {
+        cluster_auth(false);
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $csr  = (string)($body['csr'] ?? '');
+        $ip   = trim((string)($body['ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? '')));
+        if (strpos($csr, 'BEGIN CERTIFICATE REQUEST') === false || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            api_respond(422, ['error' => 'Unprocessable Entity', 'message' => 'csr (PEM) e ip válidos son obligatorios.', 'code' => 422]);
+        }
+        $st = $zdbh->prepare("SELECT COUNT(*) FROM x_dns_nodes WHERE nd_ip_vc=:ip AND nd_enabled_in=1");
+        $st->execute([':ip' => $ip]);
+        if (!(int)$st->fetchColumn()) {
+            api_respond(403, ['error' => 'Forbidden', 'message' => 'La IP no es un nodo registrado/habilitado del cluster.', 'code' => 403]);
+        }
+        $dir = '/var/bulwark/run/csr';
+        if (!is_dir($dir)) { @mkdir($dir, 0770, true); }
+        $csrFile = $dir . '/' . bin2hex(random_bytes(8)) . '.csr';
+        if (@file_put_contents($csrFile, $csr) === false) {
+            api_respond(500, ['error' => 'Internal Server Error', 'message' => 'No se pudo escribir el CSR en el spool.', 'code' => 500]);
+        }
+        $signed = false;
+        try { $signed = privilege::run('cluster_sign_csr', [$csrFile, $ip]); } catch (\Throwable $e) { $signed = false; }
+        $crtFile = $csrFile . '.crt';
+        $cert = (is_readable($crtFile)) ? (string)@file_get_contents($crtFile) : '';
+        $caPath = (string)ctrl_options::GetSystemOption('dns_cluster_ca_file');
+        if ($caPath === '' || !is_readable($caPath)) { $caPath = '/usr/local/etc/bulwark/cluster-ca/ca.crt'; }
+        $ca = is_readable($caPath) ? (string)@file_get_contents($caPath) : '';
+        @unlink($csrFile); @unlink($crtFile);
+        if (strpos($cert, 'BEGIN CERTIFICATE') === false) {
+            api_respond(503, ['error' => 'Service Unavailable', 'message' => 'La CA no está disponible en este nodo o la firma falló; usa el flujo manual (dns_cluster_ca.sh init/issue-all + scp).', 'code' => 503]);
+        }
+        api_respond(200, ['cert' => $cert, 'ca' => $ca]);
+    }
     api_respond(404, ['error' => 'Not Found', 'message' => 'Ruta de cluster no encontrada.', 'code' => 404]);
 }
 

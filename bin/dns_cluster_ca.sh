@@ -147,8 +147,31 @@ cmd_check() {
     return $rc
 }
 
+# Firma el CSR de un nodo que se une (inscripción por CSR). La clave PRIVADA del nodo NO viaja: solo
+# llega su CSR (público). Seguridad: la IP debe ser un nodo REGISTRADO+habilitado (x_dns_nodes) y el
+# SAN se IMPONE aquí (IP+FQDN de la BD), NO se toma del CSR -> nadie obtiene un cert de una IP ajena.
+# Escribe el cert firmado en <csr>.crt (640 root:bulwark, legible por la API). Uso: sign-csr <csr> <ip>
+cmd_sign_csr() {
+    csr="${1:-}"; ip="${2:-}"
+    [ -f "$csr" ] || die "CSR no encontrado: $csr"
+    [ -f "$CA_KEY" ] || die "no hay CA en este nodo (ejecuta 'init' en el nodo emisor)"
+    printf '%s' "$ip" | grep -qE '^[0-9A-Fa-f.:]+$' || die "ip inválida"
+    fqdn=$(php -r 'require $argv[1]; $p=new PDO("mysql:host=".$host.";dbname=".$dbname,$user,$pass); $s=$p->prepare("SELECT nd_name_vc FROM x_dns_nodes WHERE nd_ip_vc=? AND nd_enabled_in=1 LIMIT 1"); $s->execute([$argv[2]]); echo (string)$s->fetchColumn();' "$DBPHP" "$ip" 2>/dev/null)
+    [ -n "$fqdn" ] || die "la IP $ip no es un nodo registrado/habilitado en el cluster"
+    openssl req -in "$csr" -noout -verify >/dev/null 2>&1 || die "CSR inválido (firma no verifica)"
+    san="IP:$ip,DNS:$fqdn"
+    ext="$csr.ext"
+    printf 'subjectAltName=%s\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' "$san" > "$ext"
+    out="$csr.crt"
+    openssl x509 -req -in "$csr" -CA "$CA_CRT" -CAkey "$CA_KEY" -CAcreateserial -days "$NODE_DAYS" -sha256 -extfile "$ext" -out "$out" 2>/dev/null || { rm -f "$ext"; die "firma falló"; }
+    rm -f "$ext"
+    chmod 640 "$out"; chown root:bulwark "$out" 2>/dev/null || true
+    echo "firmado: $out (SAN: $san)"
+}
+
 case "${1:-}" in
     init)      cmd_init ;;
+    sign-csr)  shift; cmd_sign_csr "$@" ;;
     issue)     shift; cmd_issue "$@" ;;
     issue-all) cmd_issue_all ;;
     apply)     shift; cmd_apply "$@" ;;

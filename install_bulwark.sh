@@ -2024,6 +2024,53 @@ fi
 $MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='$DNS_CLUSTER_TLS' WHERE so_name_vc='dns_cluster_tls_verify';" 2>/dev/null
 [ "$DNS_CLUSTER_TLS" != "off" ] && ok "Verificación TLS del cluster: $DNS_CLUSTER_TLS"
 
+# --- Modo 'ca': aprovisionar el certificado de este nodo (verificación fuerte con CA propia) ---
+# Primario: crea la CA + su cert (será el emisor). Secundario: inscripción por CSR (su clave privada
+# NO sale del nodo; solo viaja el CSR público) pidiendo la firma al primario. Fallback -> 'off'.
+if [ "$DNS_CLUSTER_TLS" = "ca" ]; then
+    CADIR=/usr/local/etc/bulwark/cluster-ca
+    PANEL_CRT=/usr/local/etc/bulwark/panel/recovery/selfsigned.crt
+    PANEL_KEY=/usr/local/etc/bulwark/panel/recovery/selfsigned.key
+    if [ "$NODE_ROLE" = "S" ]; then
+        info "Modo ca: solicitando el certificado del nodo al primario (inscripción por CSR)..."
+        mkdir -p "$CADIR"; chmod 750 "$CADIR"
+        openssl ecparam -genkey -name prime256v1 -out "$CADIR/$SERVER_IP.key" 2>/dev/null
+        openssl req -new -key "$CADIR/$SERVER_IP.key" -out /tmp/node.csr -subj "/CN=$SERVER_IP" 2>/dev/null
+        BODY=$(php -r '$c=file_get_contents($argv[1]); echo json_encode(["csr"=>$c,"ip"=>$argv[2]]);' /tmp/node.csr "$SERVER_IP")
+        RESP=$(curl -sk -m20 -X POST -H "Authorization: Bearer $CLUSTER_TOKEN" -H "Content-Type: application/json" -d "$BODY" "$PRIMARY_API_URL/v1/cluster/sign-csr" 2>/dev/null)
+        CERT=$(printf '%s' "$RESP"  | php -r '$j=json_decode(stream_get_contents(STDIN),true); echo (is_array($j)&&isset($j["cert"]))?$j["cert"]:"";' 2>/dev/null)
+        CACRT=$(printf '%s' "$RESP" | php -r '$j=json_decode(stream_get_contents(STDIN),true); echo (is_array($j)&&isset($j["ca"]))?$j["ca"]:"";' 2>/dev/null)
+        if printf '%s' "$CERT" | grep -q "BEGIN CERTIFICATE"; then
+            printf '%s' "$CERT"  > "$CADIR/$SERVER_IP.crt"
+            printf '%s' "$CACRT" > "$CADIR/ca.crt"
+            cp "$CADIR/$SERVER_IP.crt" "$PANEL_CRT"; cp "$CADIR/$SERVER_IP.key" "$PANEL_KEY"
+            chmod 600 "$CADIR/$SERVER_IP.key" "$PANEL_KEY"; chmod 644 "$CADIR/$SERVER_IP.crt" "$CADIR/ca.crt" "$PANEL_CRT"
+            chown -R root:bulwark "$CADIR" 2>/dev/null || true
+            $MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='$CADIR/ca.crt' WHERE so_name_vc='dns_cluster_ca_file';" 2>/dev/null
+            rm -f /tmp/node.csr
+            ok "Certificado del nodo obtenido por CSR y aplicado (modo ca listo)"
+        else
+            rm -f /tmp/node.csr
+            warn "No se pudo obtener el cert por CSR (¿el primario tiene CA/modo ca?). Se deja el modo TLS en 'off'."
+            warn "Manual: en el emisor 'dns_cluster_ca.sh init && issue-all', copia ca.crt + ${SERVER_IP}.{crt,key} a ${CADIR} y pon el modo 'ca'."
+            $MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='off' WHERE so_name_vc='dns_cluster_tls_verify';" 2>/dev/null
+        fi
+    else
+        info "Modo ca: creando la CA del cluster y el certificado de este nodo (nodo emisor)..."
+        "$PANEL_PATH/bin/dns_cluster_ca.sh" init >/dev/null 2>&1
+        "$PANEL_PATH/bin/dns_cluster_ca.sh" issue "$SERVER_IP" "$PANEL_FQDN" >/dev/null 2>&1
+        if [ -f "$CADIR/$SERVER_IP.crt" ]; then
+            cp "$CADIR/$SERVER_IP.crt" "$PANEL_CRT"; cp "$CADIR/$SERVER_IP.key" "$PANEL_KEY"
+            chmod 644 "$PANEL_CRT"; chmod 600 "$PANEL_KEY"
+            $MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='$CADIR/ca.crt' WHERE so_name_vc='dns_cluster_ca_file';" 2>/dev/null
+            ok "CA creada y certificado del primario aplicado (este nodo emite los certs del cluster)"
+        else
+            warn "No se pudo crear la CA; se deja el modo TLS en 'off'."
+            $MYSQL bulwark_core -e "UPDATE x_settings SET so_value_tx='off' WHERE so_name_vc='dns_cluster_tls_verify';" 2>/dev/null
+        fi
+    fi
+fi
+
 # Generar la config real de Apache y las zonas DNS ejecutando el daemon una vez: el
 # vhost del panel con SSL (Listen 443, fallback y :443) lo produce apache_admin, y las
 # zonas de BIND las escribe dns_manager, pero solo cuando apache_changed/dns_hasupdates

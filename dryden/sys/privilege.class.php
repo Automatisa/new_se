@@ -111,6 +111,17 @@ class privilege
             'doas_rule' => 'cmd /usr/local/bin/php args -q /usr/local/bulwark/bin/dns_rebuild.php',
         ),
 
+        // Cluster DNS: firmar el CSR de un nodo que se une (inscripción por CSR). La API (usuario
+        // bulwark) NO puede leer la clave de la CA (600 root); delega la firma en este wrapper root.
+        // doas command-only: el firmador (dns_cluster_ca.sh sign-csr) re-valida el CSR, comprueba que
+        // la IP es un nodo REGISTRADO en x_dns_nodes e IMPONE el SAN=IP+FQDN (no confía en el del CSR),
+        // así que bulwark no puede obtener un cert para una IP ajena. __CSR_FILE__ acotado al spool.
+        'cluster_sign_csr' => array(
+            'argv_template' => array('/usr/local/bulwark/bin/dns_cluster_ca.sh', 'sign-csr', '__CSR_FILE__', '__IP_ADDR__'),
+            'sudo_rule' => '/usr/local/bulwark/bin/dns_cluster_ca.sh sign-csr',
+            'doas_rule' => 'cmd /usr/local/bulwark/bin/dns_cluster_ca.sh',
+        ),
+
         // Cron reload (used by cron module after writing the crontab).
         // Note: the legacy `zsudo` invocation took 4 args
         // (cron_reload_command, _flag, _user, _path). With sudo/doas, only
@@ -790,6 +801,20 @@ class privilege
                             throw new RuntimeException("privilege::run: invalid IP '$value'");
                         }
                         $out[] = $value;
+                        break;
+                    case '__CSR_FILE__':
+                        // Fichero CSR en el spool del cluster (/var/bulwark/run/csr/), basename seguro,
+                        // sin traversal. El firmador (dns_cluster_ca.sh sign-csr) re-valida el CSR y la
+                        // IP contra x_dns_nodes e IMPONE el SAN (no confía en el del CSR).
+                        $real = realpath($value);
+                        $base = ($real !== false) ? basename($real) : '';
+                        if ($real === false
+                            || strpos($real, '/var/bulwark/run/csr/') !== 0
+                            || !preg_match('/^[A-Za-z0-9._\-]+\.csr$/', $base)
+                        ) {
+                            throw new RuntimeException("privilege::run: invalid CSR path '$value'");
+                        }
+                        $out[] = $real;
                         break;
                     case '__PHPFPM_SVC__':
                         // Servicio rc.d de PHP-FPM: el del sistema (php_fpm) o el de una versión
