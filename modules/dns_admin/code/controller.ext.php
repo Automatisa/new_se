@@ -152,6 +152,124 @@ class module_controller extends ctrl_module
         return (int)floor($secs / 86400) . "d";
     }
 
+    static function getClusterTls()
+    {
+        return self::DisplayClusterTls();
+    }
+
+    // Lee un certificado PEM (si es legible por el panel) y devuelve datos resumidos, o null.
+    private static function certInfo($path)
+    {
+        if ($path === '' || !@is_readable($path)) return null;
+        $pem = @file_get_contents($path);
+        if ($pem === false || $pem === '') return null;
+        $x = @openssl_x509_parse($pem);
+        if (!is_array($x)) return null;
+        return [
+            'subject' => isset($x['subject']['CN']) ? (string)$x['subject']['CN'] : '',
+            'issuer'  => isset($x['issuer']['CN'])  ? (string)$x['issuer']['CN']  : '',
+            'to'      => isset($x['validTo_time_t']) ? date('Y-m-d', (int)$x['validTo_time_t']) : '',
+            'days'    => isset($x['validTo_time_t']) ? (int)floor(((int)$x['validTo_time_t'] - time()) / 86400) : null,
+            'san'     => isset($x['extensions']['subjectAltName']) ? (string)$x['extensions']['subjectAltName'] : '',
+            'fp'      => @openssl_x509_fingerprint($pem, 'sha256') ?: '',
+        ];
+    }
+
+    // Sección: seguridad del canal de control del cluster (TLS entre nodos) + gestión de la CA propia.
+    static function DisplayClusterTls()
+    {
+        global $zdbh;
+        if (!(int)$zdbh->query("SELECT COUNT(*) FROM x_dns_nodes")->fetchColumn()) {
+            return '';  // sin cluster configurado
+        }
+        $H = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+        $mode   = strtolower((string)ctrl_options::GetSystemOption('dns_cluster_tls_verify'));
+        if (!in_array($mode, ['off', 'pin', 'ca'], true)) $mode = 'off';
+        $caFile = (string)ctrl_options::GetSystemOption('dns_cluster_ca_file');
+
+        $line  = "<hr><h2>" . ui_language::translate("Cluster DNS — Seguridad del canal entre nodos (TLS)") . "</h2>";
+        $line .= "<p class=\"text-muted\">" . ui_language::translate("Cómo verifica este nodo el certificado de sus peers al sincronizar la API del cluster. El AXFR de zonas va aparte, firmado con TSIG.") . "</p>";
+
+        // --- Formulario: modo + fichero CA ---
+        $sel = function ($v, $cur) { return $v === $cur ? " selected" : ""; };
+        $line .= "<form action=\"./?module=dns_admin&action=ClusterTls\" method=\"post\">";
+        $line .= runtime_csfr::Token();
+        $line .= "<table class=\"table table-striped\">";
+        $line .= "<tr><th style=\"width:260px\">" . ui_language::translate("Verificación TLS") . "</th><td>";
+        $line .= "<select name=\"inTlsMode\" class=\"form-select\" style=\"max-width:320px\">";
+        $line .= "<option value=\"off\"" . $sel('off', $mode) . ">off — " . ui_language::translate("sin verificar (dev / LAN de confianza)") . "</option>";
+        $line .= "<option value=\"pin\"" . $sel('pin', $mode) . ">pin — " . ui_language::translate("fija la clave del peer (autofirmado, corta MITM)") . "</option>";
+        $line .= "<option value=\"ca\""  . $sel('ca',  $mode) . ">ca — "  . ui_language::translate("CA propia (verificación fuerte por IP)") . "</option>";
+        $line .= "</select></td><td>" . ui_language::translate("Producción sin certificados públicos: usa <b>ca</b> con la CA propia; <b>pin</b> es una alternativa ligera.") . "</td></tr>";
+        $line .= "<tr><th>" . ui_language::translate("Fichero CA (modo ca)") . "</th><td><input type=\"text\" name=\"inCaFile\" class=\"form-control\" style=\"max-width:520px\" value=\"" . $H($caFile) . "\" placeholder=\"/usr/local/etc/bulwark/cluster-ca/ca.crt\"></td><td>" . ui_language::translate("Ruta al bundle PEM de la CA del cluster (legible por el panel). Vacío = almacén del sistema.") . "</td></tr>";
+        $line .= "<tr><th></th><td colspan=\"2\"><button class=\"button-loader btn btn-primary\" type=\"submit\" name=\"inSaveClusterTls\" value=\"1\"><i class=\"bi bi-floppy me-1\"></i>" . ui_language::translate("Guardar") . "</button></td></tr>";
+        $line .= "</table></form>";
+
+        // --- Estado: CA + cert de este nodo ---
+        $ca = self::certInfo($caFile);
+        $panelCrt = (string)ctrl_options::GetSystemOption('panel_ssl_crt');
+        if ($panelCrt === '') $panelCrt = '/usr/local/etc/bulwark/panel/recovery/selfsigned.crt';
+        $node = self::certInfo($panelCrt);
+
+        $line .= "<table class=\"table\"><thead><tr><th style=\"width:200px\">" . ui_language::translate("Elemento") . "</th><th>" . ui_language::translate("Detalle") . "</th></tr></thead><tbody>";
+        // CA
+        if ($ca) {
+            $badge = ($ca['days'] !== null && $ca['days'] < 0)
+                ? "<span class=\"badge bg-danger\">" . ui_language::translate("CADUCADA") . "</span>"
+                : (($ca['days'] !== null && $ca['days'] < 30) ? "<span class=\"badge bg-warning text-dark\">" . ui_language::translate("caduca pronto") . "</span>" : "<span class=\"badge bg-success\">OK</span>");
+            $line .= "<tr><td><b>" . ui_language::translate("CA del cluster") . "</b></td><td>" . $badge
+                   . " " . $H($ca['subject']) . " — " . ui_language::translate("caduca") . " " . $H($ca['to'])
+                   . " (" . (int)$ca['days'] . "d)<br><small class=\"text-muted\">SHA-256: " . $H($ca['fp']) . "</small></td></tr>";
+        } else {
+            $line .= "<tr><td><b>" . ui_language::translate("CA del cluster") . "</b></td><td><span class=\"badge bg-secondary\">" . ui_language::translate("no disponible / no legible") . "</span> " . ui_language::translate("Créala por CLI (ver abajo) y pon su ruta arriba.") . "</td></tr>";
+        }
+        // Cert del nodo
+        if ($node) {
+            $sanNode = $node['san'] !== '' ? " — SAN: " . $H($node['san']) : "";
+            $badge = ($node['days'] !== null && $node['days'] < 0)
+                ? "<span class=\"badge bg-danger\">" . ui_language::translate("CADUCADO") . "</span>"
+                : (($node['days'] !== null && $node['days'] < 30) ? "<span class=\"badge bg-warning text-dark\">" . ui_language::translate("caduca pronto") . "</span>" : "<span class=\"badge bg-success\">OK</span>");
+            $line .= "<tr><td><b>" . ui_language::translate("Certificado de este nodo") . "</b></td><td>" . $badge
+                   . " " . ui_language::translate("emisor") . ": " . $H($node['issuer']) . " — " . ui_language::translate("caduca") . " " . $H($node['to']) . $sanNode . "</td></tr>";
+        } else {
+            $line .= "<tr><td><b>" . ui_language::translate("Certificado de este nodo") . "</b></td><td><span class=\"badge bg-secondary\">" . ui_language::translate("no legible por el panel") . "</span></td></tr>";
+        }
+        $line .= "</tbody></table>";
+
+        // --- Pins (modo pin) ---
+        if ($mode === 'pin') {
+            $peers = $zdbh->query("SELECT nd_id_pk, nd_name_vc, nd_cert_pin_vc FROM x_dns_nodes WHERE nd_is_self_in=0 ORDER BY nd_name_vc")->fetchAll(PDO::FETCH_ASSOC);
+            $line .= "<h3>" . ui_language::translate("Huellas fijadas (pin) de los peers") . "</h3>";
+            $line .= "<table class=\"table table-striped\"><thead><tr><th>" . ui_language::translate("Peer") . "</th><th>" . ui_language::translate("Huella (SHA-256 SPKI)") . "</th><th></th></tr></thead><tbody>";
+            foreach ($peers as $p) {
+                $pin = (string)$p['nd_cert_pin_vc'];
+                $shown = $pin !== '' ? $H(substr($pin, 0, 26)) . "…" : "<span class=\"text-muted\">" . ui_language::translate("(se captura en la próxima sync)") . "</span>";
+                $reset = "<form action=\"./?module=dns_admin&action=ClusterTls\" method=\"post\" style=\"margin:0\" onsubmit=\"return confirm('Reiniciar la huella de este peer? Se recapturará (TOFU) en la próxima sincronización.');\">" . runtime_csfr::Token()
+                       . "<input type=\"hidden\" name=\"inResetPin\" value=\"" . (int)$p['nd_id_pk'] . "\"><button class=\"btn btn-sm btn-outline-secondary\" type=\"submit\"><i class=\"bi bi-arrow-repeat\"></i> " . ui_language::translate("Reiniciar") . "</button></form>";
+                $line .= "<tr><td>" . $H($p['nd_name_vc']) . "</td><td><code>" . $shown . "</code></td><td>" . ($pin !== '' ? $reset : '') . "</td></tr>";
+            }
+            $line .= "</tbody></table>";
+        }
+
+        // --- Guía CLI para crear/renovar la CA (por seguridad NO se genera desde la web) ---
+        $self = $zdbh->query("SELECT nd_ip_vc, nd_name_vc FROM x_dns_nodes WHERE nd_is_self_in=1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $sip  = $self ? $H($self['nd_ip_vc']) : "&lt;ip&gt;";
+        $sfq  = $self ? $H($self['nd_name_vc']) : "&lt;fqdn&gt;";
+        $line .= "<div class=\"alert alert-info\"><b>" . ui_language::translate("Ciclo de vida de la CA (por CLI, como root)") . "</b><br>";
+        $line .= "<small>" . ui_language::translate("La clave privada de la CA NO se genera ni se guarda desde el panel (el usuario web no debe custodiarla). Se crea y renueva por CLI en el nodo emisor y su clave no sale de ahí.") . "</small>";
+        $line .= "<pre style=\"margin:8px 0 0 0\">"
+               . "# 1) Crear la CA (una vez, en el nodo emisor)\n"
+               . "/usr/local/bulwark/bin/dns_cluster_ca.sh init\n\n"
+               . "# 2) Emitir el cert de este nodo (IP en el SAN) y aplicarlo a Apache\n"
+               . "/usr/local/bulwark/bin/dns_cluster_ca.sh issue " . $sip . " " . $sfq . "\n"
+               . "/usr/local/bulwark/bin/dns_cluster_ca.sh apply " . $sip . "\n\n"
+               . "# 3) Copiar ca.crt a cada nodo y poner su ruta arriba; activar el modo 'ca'\n"
+               . "# Renovar: repetir 'issue'/'apply' cuando el cert (o la CA) esté por caducar."
+               . "</pre></div>";
+
+        return $line;
+    }
+
     static function DisplayDNSConfig()
     {
         global $zdbh;
@@ -498,6 +616,38 @@ class module_controller extends ctrl_module
                 $zdbh->prepare("UPDATE x_dns_nodes SET nd_enabled_in=1 WHERE nd_id_pk=:id AND nd_is_self_in=0")->execute([':id' => $id]);
                 self::markDnsClusterUpdate();
                 self::logCluster("Nodo reactivado desde el panel: " . $node['nd_name_vc']);
+            }
+        }
+    }
+
+    static function doClusterTls()
+    {
+        runtime_csfr::Protect();
+        global $zdbh, $controller;
+
+        // Guardar modo de verificación TLS + ruta del fichero CA.
+        if (!fs_director::CheckForEmptyValue($controller->GetControllerRequest('FORM', 'inSaveClusterTls'))) {
+            $mode = strtolower((string)$controller->GetControllerRequest('FORM', 'inTlsMode'));
+            if (!in_array($mode, ['off', 'pin', 'ca'], true)) $mode = 'off';
+            $caFile = trim((string)$controller->GetControllerRequest('FORM', 'inCaFile'));
+            // Sanear ruta: absoluta y con caracteres de ruta razonables; vacío permitido (almacén del sistema).
+            if ($caFile !== '' && !preg_match('#^/[A-Za-z0-9._/\-]+$#', $caFile)) {
+                $caFile = (string)ctrl_options::GetSystemOption('dns_cluster_ca_file');
+            }
+            $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_cluster_tls_verify'")->execute([':v' => $mode]);
+            $zdbh->prepare("UPDATE x_settings SET so_value_tx=:v WHERE so_name_vc='dns_cluster_ca_file'")->execute([':v' => $caFile]);
+            self::logCluster("TLS del cluster: modo=" . $mode . " ca_file=" . $caFile);
+        }
+
+        // Reiniciar la huella (pin) de un peer -> se recaptura por TOFU en la próxima sync.
+        $reset = $controller->GetControllerRequest('FORM', 'inResetPin');
+        if (!fs_director::CheckForEmptyValue($reset)) {
+            $id = (int)$reset;
+            $r  = $zdbh->prepare("SELECT nd_name_vc FROM x_dns_nodes WHERE nd_id_pk=:id AND nd_is_self_in=0");
+            $r->execute([':id' => $id]);
+            if ($row = $r->fetch()) {
+                $zdbh->prepare("UPDATE x_dns_nodes SET nd_cert_pin_vc=NULL WHERE nd_id_pk=:id")->execute([':id' => $id]);
+                self::logCluster("Pin TLS reiniciado (re-TOFU) para el peer: " . $row['nd_name_vc']);
             }
         }
     }

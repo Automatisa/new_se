@@ -17,6 +17,8 @@
 
     <@ ClusterNodes @>
 
+    <@ ClusterTls @>
+
 </div>
 
 <script type="text/javascript">
