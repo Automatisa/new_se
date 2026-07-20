@@ -86,6 +86,22 @@ DNS_NS1_IP="${DNS_NS1_IP:-$SERVER_IP}"
 printf "IP de ns2 [%s]: " "$SERVER_IP"; read -r DNS_NS2_IP
 DNS_NS2_IP="${DNS_NS2_IP:-$SERVER_IP}"
 
+# DNS de reenvío (forwarders): el BIND local recursa SOLO para el propio servidor (zonas locales
+# al instante + caché); lo EXTERNO se reenvía a estos resolvers. Editable — ejemplos: Google
+# "8.8.8.8 8.8.4.4", Cloudflare "1.1.1.1 1.0.0.1", Quad9 "9.9.9.9". Separar por espacios.
+printf "DNS de reenvío para recursión (ej: 8.8.8.8 1.1.1.1, Cloudflare 1.1.1.1) [8.8.8.8 1.1.1.1]: "; read -r DNS_FORWARDERS
+DNS_FORWARDERS="${DNS_FORWARDERS:-8.8.8.8 1.1.1.1}"
+# Sanear: solo IPv4/IPv6 válidas; si queda vacío, usar Google por defecto.
+_valid_fwd=""
+for _f in $DNS_FORWARDERS; do
+    case "$_f" in
+        *[!0-9.:a-fA-F]*) : ;;                       # descarta tokens con caracteres no-IP
+        *[0-9]*) _valid_fwd="$_valid_fwd $_f" ;;
+    esac
+done
+DNS_FORWARDERS="$(printf '%s' "$_valid_fwd" | sed 's/^ *//')"
+[ -n "$DNS_FORWARDERS" ] || DNS_FORWARDERS="8.8.8.8 1.1.1.1"
+
 # Cluster DNS (Fase 2): rol de este nodo. Primario = crea la zona base y genera la
 # clave TSIG del cluster. Secundario = se une a un cluster existente (no recrea la
 # zona base; añade ns2/panel2 a la del primario y esclaviza sus zonas por AXFR).
@@ -1591,6 +1607,11 @@ mkdir -p "$PANEL_CONF/bind/etc"
 mkdir -p "$PANEL_CONF/bind/zones"
 touch "$PANEL_CONF/bind/etc/named.conf"
 
+# Bloque de forwarders para named a partir de la lista elegida (espacios -> "ip; ip;").
+BIND_FWD=""
+for _f in $DNS_FORWARDERS; do BIND_FWD="$BIND_FWD $_f;"; done
+[ -n "$BIND_FWD" ] || BIND_FWD=" 8.8.8.8; 1.1.1.1;"
+
 cat > "$PANEL_CONF/bind/named.conf" <<NAMEDCF
 // Bulwark BIND 9 — FreeBSD
 // Zonas escritas por daemon en: $PANEL_CONF/bind/etc/named.conf
@@ -1612,7 +1633,15 @@ options {
     listen-on  port 53  { any; };
     listen-on-v6        { any; };
     allow-query         { any; };
-    recursion           no;
+    // Resolver recursivo SOLO para el propio servidor (localhost): el sistema usa
+    // 127.0.0.1 como DNS -> zonas locales al instante + caché; lo externo se reenvía a los DNS
+    // elegidos. NUNCA abrir allow-recursion a { any } (sería un resolver abierto -> amplificación
+    // DDoS). Los clientes EXTERNOS siguen recibiendo solo respuestas autoritativas.
+    recursion           yes;
+    allow-recursion     { 127.0.0.1; ::1; };
+    allow-query-cache   { 127.0.0.1; ::1; };
+    forwarders          {$BIND_FWD };
+    forward             first;
 
     dump-file              "$PANEL_DATA/named/data/cache_dump.db";
     statistics-file        "$PANEL_DATA/named/data/named_stats.txt";
@@ -1662,19 +1691,19 @@ chmod 775 "$PANEL_CONF/bind/zones" "$PANEL_CONF/bind/etc"
 chown -R bind:bind "$PANEL_DATA/named"
 chmod 755 "$PANEL_DATA/named" "$PANEL_DATA/named/data"
 
-# El panel corre un BIND AUTORITATIVO (recursion no) que DEBE poseer 127.0.0.1:53. FreeBSD puede
-# traer 'local_unbound' (resolver cache) activado ocupando ese puerto -> named no puede enlazar lo0
-# ("creating interface lo0 failed; interface ignored") y el servidor no resuelve sus propias zonas
-# por 127.0.0.1. Lo desactivamos para que named sea el dueño del loopback.
+# El panel corre un BIND que DEBE poseer 127.0.0.1:53. FreeBSD puede traer 'local_unbound'
+# (resolver cache) activado ocupando ese puerto -> named no puede enlazar lo0 ("creating interface
+# lo0 failed; interface ignored"). Lo desactivamos para que named sea el dueño del loopback.
 if [ "$(sysrc -n local_unbound_enable 2>/dev/null)" = "YES" ] || service local_unbound status >/dev/null 2>&1; then
-    warn "local_unbound ocupa 127.0.0.1:53 — desactivándolo (el named del panel es autoritativo)"
+    warn "local_unbound ocupa 127.0.0.1:53 — desactivándolo (el named del panel toma el loopback)"
     service local_unbound stop >/dev/null 2>&1 || true
     sysrc local_unbound_enable="NO" >/dev/null 2>&1 || true
-    # Si resolv.conf dependía SOLO de 127.0.0.1 (unbound), ahora ahí hay un named sin recursión ->
-    # el servidor no resolvería nombres EXTERNOS. Poner un resolver público de respaldo.
-    if ! grep -E '^[[:space:]]*nameserver' /etc/resolv.conf 2>/dev/null | grep -qvE '127\.0\.0\.1'; then
-        printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > /etc/resolv.conf
-    fi
+fi
+# DURANTE el resto de la instalación (ntpdate, etc.) hace falta un resolver externo que funcione:
+# si resolv.conf dependía SOLO de 127.0.0.1 (unbound, ya parado; named aún no arranca), apuntarlo
+# temporalmente a los forwarders elegidos. Al FINAL (sección 19) se pasa a 127.0.0.1 (BIND local).
+if ! grep -E '^[[:space:]]*nameserver' /etc/resolv.conf 2>/dev/null | grep -qvE '127\.0\.0\.1'; then
+    { for _f in $DNS_FORWARDERS; do printf 'nameserver %s\n' "$_f"; done; } > /etc/resolv.conf
 fi
 
 sysrc named_enable="YES"
@@ -1977,6 +2006,19 @@ mysql -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASS" bulwark_core \
 php "$PANEL_PATH/bin/daemon.php" > "$PANEL_DATA/logs/daemon-install.log" 2>&1 || true
 service apache24 reload 2>/dev/null || true
 service named reload 2>/dev/null || service named restart 2>/dev/null || true
+
+# Apuntar el resolver DEL SISTEMA al BIND local: zonas locales al instante + caché, y lo externo lo
+# reenvía a $DNS_FORWARDERS. Solo si el named local RESUELVE de verdad un nombre externo (recursión
+# + forwarders OK); si no, se deja resolv.conf en los forwarders para no dejar el servidor sin DNS.
+sleep 2
+if command -v dig >/dev/null 2>&1 && \
+   [ -n "$(dig @127.0.0.1 +short +time=3 +tries=1 freebsd.org A 2>/dev/null)" ]; then
+    printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf
+    ok "resolv.conf -> 127.0.0.1 (BIND local: zonas locales + recursión con forwarders $DNS_FORWARDERS)"
+else
+    { for _f in $DNS_FORWARDERS; do printf 'nameserver %s\n' "$_f"; done; } > /etc/resolv.conf
+    warn "El BIND local no resolvió externo; resolv.conf queda en los forwarders ($DNS_FORWARDERS)"
+fi
 
 ok "Servicios iniciados"
 
