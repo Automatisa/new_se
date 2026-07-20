@@ -303,6 +303,17 @@ function WriteVhostConfigFile() {
 			&& filter_var($srvIp6, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
 			$panelAddrs .= " [" . $srvIp6 . "]:" . $panelSslPort;
 		}
+		# Cluster DNS con túnel (WireGuard): si este nodo tiene IP de SINCRONIZACIÓN propia (la del
+		# túnel), el panel —y con él la API /bin/api.php del cluster— también escucha ahí, para que
+		# la sync entre nodos viaje por el túnel (si no, cae al _default_ y da 403). Sin túnel
+		# (nd_sync_ip_vc NULL) esto no añade nada y el binding es el de siempre.
+		$panelSyncIp = '';
+		if ($pss = $zdbh->query("SELECT nd_sync_ip_vc FROM x_dns_nodes WHERE nd_is_self_in=1 AND nd_sync_ip_vc IS NOT NULL AND nd_sync_ip_vc <> '' LIMIT 1")) {
+			$panelSyncIp = (string)$pss->fetchColumn();
+		}
+		if ($panelSyncIp !== '' && filter_var($panelSyncIp, FILTER_VALIDATE_IP) !== false && $panelSyncIp !== $panelIpBind) {
+			$panelAddrs .= " " . $panelSyncIp . ":" . $panelSslPort;
+		}
 		if ($panelCert && $panelKey) {
 			$line .= "# FALLBACK SSL (IP primaria): acceso por IP usa el cert del panel (aviso de navegador esperado)" . fs_filehandler::NewLine();
 			$line .= "<VirtualHost " . $panelAddrs . ">" . fs_filehandler::NewLine();
