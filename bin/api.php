@@ -392,9 +392,21 @@ if ($resource === 'cluster') {
                 foreach ([[$strip($nsHost), 172800], [$strip($panelHost), 3600]] as $rec) {
                     $host = $rec[0]; $ttl = $rec[1];
                     if ($host === '') { continue; }
-                    $ex = $zdbh->prepare("SELECT COUNT(*) FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='A' AND dn_host_vc=:h AND dn_deleted_ts IS NULL");
+                    // El nodo RECLAMA su propio registro ns/panel: debe apuntar a SU IP. Si ya existe
+                    // (p.ej. la zona base del primario pre-creó ns2 -> IP-del-primario como fallback de
+                    // un solo nodo), se REAPUNTA a la IP del nodo que se une; si no, se inserta. Antes
+                    // se omitía (continue) si existía -> ns2 se quedaba en el primario y se perdía la
+                    // redundancia real de NS (ns1 y ns2 caían juntos si el primario caía).
+                    $ex = $zdbh->prepare("SELECT dn_id_pk, dn_target_vc FROM x_dns WHERE dn_vhost_fk=:v AND dn_type_vc='A' AND dn_host_vc=:h AND dn_deleted_ts IS NULL LIMIT 1");
                     $ex->execute([':v' => $vid, ':h' => $host]);
-                    if ((int)$ex->fetchColumn() > 0) { continue; }
+                    if ($erow = $ex->fetch()) {
+                        if ((string)$erow['dn_target_vc'] !== $ip) {
+                            $zdbh->prepare("UPDATE x_dns SET dn_target_vc=:ip WHERE dn_id_pk=:id")
+                                 ->execute([':ip' => $ip, ':id' => (int)$erow['dn_id_pk']]);
+                            $added[] = $host;
+                        }
+                        continue;
+                    }
                     $zdbh->prepare("INSERT INTO x_dns (dn_acc_fk,dn_name_vc,dn_vhost_fk,dn_type_vc,dn_host_vc,dn_ttl_in,dn_target_vc,dn_created_ts)
                                     VALUES (:u,:name,:v,'A',:h,:ttl,:ip,:ts)")
                          ->execute([':u' => $uid, ':name' => $provider, ':v' => $vid, ':h' => $host, ':ttl' => $ttl, ':ip' => $ip, ':ts' => time()]);
